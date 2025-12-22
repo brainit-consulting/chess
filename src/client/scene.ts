@@ -1,14 +1,8 @@
 import * as THREE from 'three';
 import { CameraController } from './camera';
-import {
-  Color,
-  GameState,
-  Move,
-  PieceType,
-  Square,
-  getPieceSquares
-} from '../rules';
+import { GameState, Move, Square, getPieceSquares } from '../rules';
 import { SnapView } from '../types';
+import { createPieceObject } from './pieces';
 
 export type PickResult = {
   type: 'square' | 'piece';
@@ -41,7 +35,7 @@ export class SceneView {
   private piecesGroup = new THREE.Group();
   private markersGroup = new THREE.Group();
   private squareMeshes: THREE.Mesh[][] = [];
-  private pieceMeshes = new Map<number, THREE.Mesh>();
+  private pieceMeshes = new Map<number, THREE.Object3D>();
   private handlers: SceneHandlers;
   private pointerDown: { x: number; y: number; button: number } | null = null;
 
@@ -115,9 +109,11 @@ export class SceneView {
         this.pieceMeshes.delete(id);
       }
 
-      const mesh = this.pieceMeshes.get(id) || this.createPieceMesh(piece.type, piece.color, id);
-      mesh.position.copy(this.squareToWorld(square));
-      mesh.userData.square = square;
+      const object = this.pieceMeshes.get(id) || createPieceObject(piece.type, piece.color, id);
+      object.position.copy(this.squareToWorld(square));
+      this.setPieceSquare(object, square);
+      this.piecesGroup.add(object);
+      this.pieceMeshes.set(id, object);
       seen.add(id);
     }
 
@@ -257,41 +253,13 @@ export class SceneView {
     );
   }
 
-  private createPieceMesh(type: PieceType, color: Color, id: number): THREE.Mesh {
-    const material = new THREE.MeshStandardMaterial({
-      color: color === 'w' ? '#f3f0e7' : '#1b1b1d'
+  private setPieceSquare(object: THREE.Object3D, square: Square): void {
+    object.userData.square = square;
+    object.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        child.userData.square = square;
+      }
     });
-
-    let geometry: THREE.BufferGeometry;
-    if (type === 'pawn') {
-      geometry = new THREE.CylinderGeometry(0.25, 0.3, 0.6, 16);
-    } else if (type === 'rook') {
-      geometry = new THREE.BoxGeometry(0.55, 0.6, 0.55);
-    } else if (type === 'knight') {
-      geometry = new THREE.ConeGeometry(0.35, 0.8, 16);
-    } else if (type === 'bishop') {
-      geometry = new THREE.CylinderGeometry(0.22, 0.35, 0.9, 16);
-    } else if (type === 'queen') {
-      geometry = new THREE.CylinderGeometry(0.28, 0.38, 1.1, 18);
-    } else {
-      geometry = new THREE.CylinderGeometry(0.3, 0.4, 1.2, 18);
-    }
-
-    geometry.computeBoundingBox();
-    const box = geometry.boundingBox;
-    if (box) {
-      geometry.translate(0, -box.min.y, 0);
-    }
-
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.userData = {
-      pickType: 'piece',
-      pieceId: id,
-      type
-    };
-    this.piecesGroup.add(mesh);
-    this.pieceMeshes.set(id, mesh);
-    return mesh;
   }
 
   private createMarker(square: Square, isCapture: boolean): THREE.Mesh {
