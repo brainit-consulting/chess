@@ -11,6 +11,7 @@ import {
   getLegalMovesForSquare,
   sameSquare
 } from './rules';
+import { AiDifficulty, chooseMove } from './ai/ai';
 import { SceneView, PickResult } from './client/scene';
 import { GameUI } from './ui/ui';
 
@@ -22,6 +23,11 @@ export class GameController {
   private legalMoves: Move[] = [];
   private pendingPromotion: Move[] | null = null;
   private gameOver = false;
+  private aiEnabled = true;
+  private aiDifficulty: AiDifficulty = 'medium';
+  private aiSeed: number | undefined;
+  private aiTimeout: number | null = null;
+  private aiRequestId = 0;
 
   constructor(sceneRoot: HTMLElement, uiRoot: HTMLElement) {
     this.state = createInitialState();
@@ -32,7 +38,9 @@ export class GameController {
     this.ui = new GameUI(uiRoot, {
       onRestart: () => this.reset(),
       onSnap: (view) => this.scene.snapView(view),
-      onPromotionChoice: (type) => this.resolvePromotion(type)
+      onPromotionChoice: (type) => this.resolvePromotion(type),
+      onToggleAi: (enabled) => this.setAiEnabled(enabled),
+      onDifficultyChange: (difficulty) => this.setAiDifficulty(difficulty)
     });
 
     window.addEventListener('keydown', (event) => {
@@ -43,16 +51,21 @@ export class GameController {
   }
 
   start(): void {
-    void this.scene.ready().then(() => this.sync());
+    void this.scene.ready().then(() => {
+      this.sync();
+      this.maybeScheduleAiMove();
+    });
   }
 
   private reset(): void {
+    this.cancelAiMove();
     this.state = createInitialState();
     this.selected = null;
     this.legalMoves = [];
     this.pendingPromotion = null;
     this.gameOver = false;
     this.sync();
+    this.maybeScheduleAiMove();
   }
 
   private sync(): void {
@@ -78,6 +91,10 @@ export class GameController {
 
   private handlePick(pick: PickResult): void {
     if (this.gameOver || this.pendingPromotion) {
+      return;
+    }
+
+    if (this.aiEnabled && this.state.activeColor === 'b') {
       return;
     }
 
@@ -147,9 +164,70 @@ export class GameController {
   }
 
   private applyAndAdvance(move: Move): void {
+    this.cancelAiMove();
     applyMove(this.state, move);
     this.selected = null;
     this.legalMoves = [];
     this.sync();
+    this.maybeScheduleAiMove();
+  }
+
+  private maybeScheduleAiMove(): void {
+    if (!this.aiEnabled) {
+      return;
+    }
+    if (this.gameOver) {
+      return;
+    }
+    if (this.state.activeColor !== 'b') {
+      return;
+    }
+    this.scheduleAiMove();
+  }
+
+  private scheduleAiMove(): void {
+    this.cancelAiMove();
+    const requestId = this.aiRequestId;
+    const delayMs = 380;
+
+    this.aiTimeout = window.setTimeout(() => {
+      if (requestId !== this.aiRequestId) {
+        return;
+      }
+      if (!this.aiEnabled || this.gameOver || this.state.activeColor !== 'b') {
+        return;
+      }
+
+      const move = chooseMove(this.state, {
+        color: 'b',
+        difficulty: this.aiDifficulty,
+        seed: this.aiSeed
+      });
+
+      if (!move) {
+        this.sync();
+        return;
+      }
+
+      this.applyAndAdvance(move);
+    }, delayMs);
+  }
+
+  private cancelAiMove(): void {
+    this.aiRequestId += 1;
+    if (this.aiTimeout !== null) {
+      window.clearTimeout(this.aiTimeout);
+      this.aiTimeout = null;
+    }
+  }
+
+  private setAiEnabled(enabled: boolean): void {
+    this.aiEnabled = enabled;
+    this.cancelAiMove();
+    this.maybeScheduleAiMove();
+  }
+
+  private setAiDifficulty(difficulty: AiDifficulty): void {
+    this.aiDifficulty = difficulty;
   }
 }

@@ -1,3 +1,4 @@
+import type { AiDifficulty } from '../ai/ai';
 import { GameStatus, Color } from '../rules';
 import { SnapView } from '../types';
 import { PieceType } from '../rules';
@@ -6,6 +7,8 @@ type UIHandlers = {
   onRestart: () => void;
   onSnap: (view: SnapView) => void;
   onPromotionChoice: (type: PieceType) => void;
+  onToggleAi: (enabled: boolean) => void;
+  onDifficultyChange: (difficulty: AiDifficulty) => void;
 };
 
 export class GameUI {
@@ -13,6 +16,8 @@ export class GameUI {
   private statusEl: HTMLDivElement;
   private noticeEl: HTMLDivElement;
   private modal: HTMLDivElement;
+  private aiToggle: HTMLInputElement;
+  private difficultySelect: HTMLSelectElement;
   private handlers: UIHandlers;
 
   constructor(root: HTMLElement, handlers: UIHandlers) {
@@ -38,6 +43,38 @@ export class GameUI {
     this.noticeEl = document.createElement('div');
     this.noticeEl.className = 'notice';
 
+    const aiRow = document.createElement('div');
+    aiRow.className = 'control-row';
+
+    const aiLabel = document.createElement('label');
+    aiLabel.className = 'toggle';
+
+    this.aiToggle = document.createElement('input');
+    this.aiToggle.type = 'checkbox';
+    this.aiToggle.checked = true;
+    this.aiToggle.addEventListener('change', () => {
+      const enabled = this.aiToggle.checked;
+      this.difficultySelect.disabled = !enabled;
+      this.handlers.onToggleAi(enabled);
+    });
+
+    const aiText = document.createElement('span');
+    aiText.textContent = 'Play vs AI';
+    aiLabel.append(this.aiToggle, aiText);
+
+    this.difficultySelect = document.createElement('select');
+    this.difficultySelect.innerHTML = `
+      <option value="easy">Easy</option>
+      <option value="medium" selected>Medium</option>
+      <option value="hard">Hard</option>
+    `;
+    this.difficultySelect.disabled = !this.aiToggle.checked;
+    this.difficultySelect.addEventListener('change', () => {
+      this.handlers.onDifficultyChange(this.difficultySelect.value as AiDifficulty);
+    });
+
+    aiRow.append(aiLabel, this.difficultySelect);
+
     const buttonRow = document.createElement('div');
     buttonRow.className = 'button-row';
 
@@ -48,7 +85,7 @@ export class GameUI {
 
     buttonRow.append(whiteBtn, blackBtn, isoBtn, restartBtn);
 
-    panel.append(title, this.turnEl, this.statusEl, this.noticeEl, buttonRow);
+    panel.append(title, this.turnEl, this.statusEl, this.noticeEl, aiRow, buttonRow);
     hud.append(panel);
     root.append(hud);
 
