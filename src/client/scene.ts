@@ -41,6 +41,7 @@ export class SceneView {
   private modelsReady = false;
   private pendingState: GameState | null = null;
   private readyPromise: Promise<void>;
+  private checkHalo: THREE.Mesh | null = null;
 
   constructor(container: HTMLElement, handlers: SceneHandlers) {
     this.handlers = handlers;
@@ -166,6 +167,9 @@ export class SceneView {
 
     if (highlights.checkSquare) {
       this.tintSquare(highlights.checkSquare, '#8f2f2f');
+      this.updateCheckHalo(highlights.checkSquare);
+    } else {
+      this.clearCheckHalo();
     }
 
     for (const move of highlights.legalMoves) {
@@ -282,6 +286,50 @@ export class SceneView {
     );
   }
 
+  private updateCheckHalo(square: Square): void {
+    const target = this.findPieceAtSquare(square);
+    if (!target) {
+      this.clearCheckHalo();
+      return;
+    }
+
+    if (!this.checkHalo) {
+      const geometry = new THREE.TorusGeometry(0.38, 0.05, 12, 32);
+      const material = new THREE.MeshBasicMaterial({
+        color: '#e05a5a',
+        transparent: true,
+        opacity: 0.7
+      });
+      this.checkHalo = new THREE.Mesh(geometry, material);
+      this.checkHalo.rotation.x = Math.PI / 2;
+      this.markersGroup.add(this.checkHalo);
+    }
+
+    this.checkHalo.position.copy(target.object.position);
+    this.checkHalo.position.y += 0.75;
+  }
+
+  private clearCheckHalo(): void {
+    if (this.checkHalo) {
+      this.markersGroup.remove(this.checkHalo);
+      this.checkHalo.geometry.dispose();
+      (this.checkHalo.material as THREE.Material).dispose();
+      this.checkHalo = null;
+    }
+  }
+
+  private findPieceAtSquare(
+    square: Square
+  ): { id: number; object: THREE.Object3D } | null {
+    for (const [id, object] of this.pieceMeshes) {
+      const pieceSquare = object.userData.square as Square | undefined;
+      if (pieceSquare && pieceSquare.file === square.file && pieceSquare.rank === square.rank) {
+        return { id, object };
+      }
+    }
+    return null;
+  }
+
   private setPieceSquare(object: THREE.Object3D, square: Square): void {
     object.userData.square = square;
     object.traverse((child) => {
@@ -310,6 +358,13 @@ export class SceneView {
   private animate(): void {
     requestAnimationFrame(() => this.animate());
     this.cameraController.update();
+    if (this.checkHalo) {
+      const t = performance.now() * 0.004;
+      const pulse = 0.85 + Math.sin(t) * 0.15;
+      this.checkHalo.scale.set(pulse, pulse, pulse);
+      const material = this.checkHalo.material as THREE.MeshBasicMaterial;
+      material.opacity = 0.45 + Math.sin(t) * 0.15;
+    }
     this.renderer.render(this.scene, this.camera);
   }
 }
