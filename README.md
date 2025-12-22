@@ -15,6 +15,12 @@ npm run dev
 npm run test
 ```
 
+Single run (no watch):
+
+```bash
+npm run test:run
+```
+
 ## Controls
 
 - Left click: select piece / move
