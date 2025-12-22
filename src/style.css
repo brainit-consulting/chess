@@ -1,0 +1,153 @@
+:root {
+  --bg-top: #151821;
+  --bg-bottom: #0b0d12;
+  --panel: rgba(14, 17, 23, 0.78);
+  --panel-border: rgba(255, 255, 255, 0.08);
+  --text: #f4efe5;
+  --muted: #c6b9a2;
+  --accent: #e0c36d;
+  --danger: #e06d6d;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #app {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  background: radial-gradient(circle at top, var(--bg-top), var(--bg-bottom));
+  color: var(--text);
+  overflow: hidden;
+}
+
+#app {
+  position: relative;
+}
+
+#scene {
+  position: absolute;
+  inset: 0;
+}
+
+#hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.hud-stack {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  pointer-events: auto;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  padding: 12px 14px;
+  border-radius: 12px;
+  backdrop-filter: blur(6px);
+  min-width: 220px;
+}
+
+.panel h1 {
+  margin: 0 0 6px;
+  font-size: 16px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.status {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.turn {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.button-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+button {
+  border: 1px solid var(--panel-border);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  padding: 6px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+button:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+  transform: translateY(-1px);
+}
+
+button:active {
+  transform: translateY(0);
+}
+
+.modal {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(6, 8, 12, 0.7);
+  pointer-events: auto;
+}
+
+.modal.open {
+  display: flex;
+}
+
+.modal-card {
+  background: rgba(17, 20, 27, 0.95);
+  border: 1px solid var(--panel-border);
+  padding: 16px;
+  border-radius: 14px;
+  min-width: 280px;
+  text-align: center;
+}
+
+.modal-card h2 {
+  margin: 0 0 12px;
+  font-size: 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+}
+
+.modal-card .button-row {
+  justify-content: center;
+}
+
+.notice {
+  margin-top: 6px;
+  font-size: 13px;
+}
+
+.notice.check {
+  color: var(--accent);
+}
+
+.notice.danger {
+  color: var(--danger);
+}
