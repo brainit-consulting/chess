@@ -223,7 +223,10 @@ export class SceneView {
     const ambient = new THREE.AmbientLight('#ffffff', 0.6);
     const directional = new THREE.DirectionalLight('#ffffff', 0.7);
     directional.position.set(6, 8, 6);
-    this.scene.add(ambient, directional);
+    // Soft rim light to separate silhouettes without flattening form.
+    const rim = new THREE.DirectionalLight('#b7c7ff', 0.25);
+    rim.position.set(-6, 7, -5);
+    this.scene.add(ambient, directional, rim);
   }
 
   private buildBoard(): void {

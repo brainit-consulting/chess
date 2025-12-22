@@ -50,20 +50,28 @@ export function preloadSciFiModels(): Promise<void> {
     whiteTexture.colorSpace = THREE.SRGBColorSpace;
     blackTexture.colorSpace = THREE.SRGBColorSpace;
 
+    // Slight tints/emissive lift keep textures readable against the board.
     materials.set(
       'w',
       new THREE.MeshStandardMaterial({
         map: whiteTexture,
-        metalness: 0.25,
-        roughness: 0.55
+        color: '#e6e0d3',
+        emissive: '#1e232b',
+        emissiveIntensity: 0.18,
+        metalness: 0.22,
+        roughness: 0.48
       })
     );
+    // Dark gray (not pure black) preserves silhouette without crushing detail.
     materials.set(
       'b',
       new THREE.MeshStandardMaterial({
         map: blackTexture,
-        metalness: 0.35,
-        roughness: 0.6
+        color: '#2b2f3a',
+        emissive: '#0f131a',
+        emissiveIntensity: 0.25,
+        metalness: 0.28,
+        roughness: 0.58
       })
     );
 
