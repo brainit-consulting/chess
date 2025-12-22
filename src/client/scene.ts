@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { CameraController } from './camera';
 import { GameState, Move, Square, getPieceSquares } from '../rules';
 import { SnapView } from '../types';
-import { createPieceObject } from './pieces';
+import { createSciFiPieceInstance, preloadSciFiModels } from './models/scifiChessModels';
 
 export type PickResult = {
   type: 'square' | 'piece';
@@ -38,6 +38,9 @@ export class SceneView {
   private pieceMeshes = new Map<number, THREE.Object3D>();
   private handlers: SceneHandlers;
   private pointerDown: { x: number; y: number; button: number } | null = null;
+  private modelsReady = false;
+  private pendingState: GameState | null = null;
+  private readyPromise: Promise<void>;
 
   constructor(container: HTMLElement, handlers: SceneHandlers) {
     this.handlers = handlers;
@@ -61,6 +64,14 @@ export class SceneView {
 
     this.addLights();
     this.buildBoard();
+
+    this.readyPromise = preloadSciFiModels().then(() => {
+      this.modelsReady = true;
+      if (this.pendingState) {
+        this.applyState(this.pendingState);
+        this.pendingState = null;
+      }
+    });
 
     window.addEventListener('resize', () => this.handleResize(container));
     window.addEventListener('keydown', (event) => this.cameraController.handleKey(event.key));
@@ -94,6 +105,18 @@ export class SceneView {
   }
 
   setState(state: GameState): void {
+    if (!this.modelsReady) {
+      this.pendingState = state;
+      return;
+    }
+    this.applyState(state);
+  }
+
+  ready(): Promise<void> {
+    return this.readyPromise;
+  }
+
+  private applyState(state: GameState): void {
     const positions = getPieceSquares(state);
     const seen = new Set<number>();
 
@@ -109,11 +132,14 @@ export class SceneView {
         this.pieceMeshes.delete(id);
       }
 
-      const object = this.pieceMeshes.get(id) || createPieceObject(piece.type, piece.color, id);
+      let object = this.pieceMeshes.get(id);
+      if (!object) {
+        object = createSciFiPieceInstance(piece.type, piece.color, id);
+        this.piecesGroup.add(object);
+        this.pieceMeshes.set(id, object);
+      }
       object.position.copy(this.squareToWorld(square));
       this.setPieceSquare(object, square);
-      this.piecesGroup.add(object);
-      this.pieceMeshes.set(id, object);
       seen.add(id);
     }
 

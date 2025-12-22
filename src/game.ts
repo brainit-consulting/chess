@@ -43,7 +43,7 @@ export class GameController {
   }
 
   start(): void {
-    this.sync();
+    void this.scene.ready().then(() => this.sync());
   }
 
   private reset(): void {
