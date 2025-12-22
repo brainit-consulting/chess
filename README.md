@@ -4,6 +4,8 @@ Two-player 3D chess with standard rules, a rotatable board, and a pure rules eng
 
 Live demo: https://brainit-consulting.github.io/chess/
 
+GitHub Pages: Settings → Pages → Source: GitHub Actions
+
 ## Run
 
 ```bash
