@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d dist",
     "preview": "vite preview",
     "test": "vitest",
     "test:run": "vitest --run"
@@ -15,6 +17,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.12.7",
+    "gh-pages": "^6.3.0",
     "typescript": "^5.5.4",
     "vite": "^7.3.0",
     "vitest": "^4.0.16"

@@ -2,6 +2,8 @@
 
 Two-player 3D chess with standard rules, a rotatable board, and a pure rules engine.
 
+Live demo: https://brainit-consulting.github.io/chess/
+
 ## Run
 
 ```bash

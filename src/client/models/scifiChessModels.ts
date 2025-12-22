@@ -7,18 +7,20 @@ type ModelTemplate = {
   scale: number;
 };
 
+const BASE_URL = import.meta.env.BASE_URL;
+
 const MODEL_PATHS: Record<PieceType, string> = {
-  pawn: '/assets/chess/scifi/scifichess-pawn.obj',
-  rook: '/assets/chess/scifi/scifichess-rook.obj',
-  knight: '/assets/chess/scifi/scifichess-knight.obj',
-  bishop: '/assets/chess/scifi/scifichess-bishop.obj',
-  queen: '/assets/chess/scifi/scifichess-queen.obj',
-  king: '/assets/chess/scifi/scifichess-king.obj'
+  pawn: `${BASE_URL}assets/chess/scifi/scifichess-pawn.obj`,
+  rook: `${BASE_URL}assets/chess/scifi/scifichess-rook.obj`,
+  knight: `${BASE_URL}assets/chess/scifi/scifichess-knight.obj`,
+  bishop: `${BASE_URL}assets/chess/scifi/scifichess-bishop.obj`,
+  queen: `${BASE_URL}assets/chess/scifi/scifichess-queen.obj`,
+  king: `${BASE_URL}assets/chess/scifi/scifichess-king.obj`
 };
 
 const TEXTURE_PATHS: Record<Color, string> = {
-  w: '/assets/chess/scifi/white-chess-scifi.png',
-  b: '/assets/chess/scifi/black-chess-scifi.png'
+  w: `${BASE_URL}assets/chess/scifi/white-chess-scifi.png`,
+  b: `${BASE_URL}assets/chess/scifi/black-chess-scifi.png`
 };
 
 const TARGET_HEIGHTS: Record<PieceType, number> = {
