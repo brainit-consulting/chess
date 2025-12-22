@@ -30,9 +30,12 @@ npm run test:run
 - Q/E: rotate yaw
 - R/F: rotate pitch
 - Snap buttons: White / Black / Isometric views
+- Play vs AI toggle: enable Human (White) vs AI (Black)
+- Difficulty selector: Easy / Medium / Hard
 
 ## Structure
 
 - `src/rules`: pure chess rules engine (no rendering dependencies)
 - `src/client`: Three.js scene, camera, picking, highlights
 - `src/ui`: DOM overlay for status, buttons, promotion UI
+- `src/ai`: AI move selection (heuristics + minimax)
