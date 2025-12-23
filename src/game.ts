@@ -18,7 +18,7 @@ import { SceneView, PickResult } from './client/scene';
 import { GameUI, UiState } from './ui/ui';
 import { GameStats } from './gameStats';
 import { SoundManager } from './sound/soundManager';
-import { GameMode } from './types';
+import { GameMode, PieceSet } from './types';
 import { createGameSummary } from './gameSummary';
 
 type PlayerNames = {
@@ -36,6 +36,7 @@ type Preferences = {
   ai: AiSettings;
   mode: GameMode;
   aiDelayMs: number;
+  pieceSet: PieceSet;
 };
 
 const DEFAULT_NAMES: PlayerNames = { white: 'White', black: 'Black' };
@@ -45,7 +46,8 @@ const STORAGE_KEYS = {
   names: 'chess.playerNames',
   ai: 'chess.aiSettings',
   mode: 'chess.gameMode',
-  aiDelay: 'chess.aiDelayMs'
+  aiDelay: 'chess.aiDelayMs',
+  pieceSet: 'chess.pieceSet'
 };
 const AI_LABELS: Record<AiDifficulty, string> = {
   easy: 'Easy',
@@ -74,6 +76,7 @@ export class GameController {
   private aiVsAiRunning = false;
   private aiVsAiPaused = false;
   private baseNames: PlayerNames = { ...DEFAULT_NAMES };
+  private pieceSet: PieceSet = 'scifi';
 
   constructor(sceneRoot: HTMLElement, uiRoot: HTMLElement) {
     this.state = createInitialState();
@@ -82,12 +85,13 @@ export class GameController {
     this.aiDifficulty = preferences.ai.difficulty;
     this.aiDelayMs = preferences.aiDelayMs;
     this.baseNames = preferences.names;
+    this.pieceSet = preferences.pieceSet;
     const soundEnabled = SoundManager.loadEnabled();
     this.sound = new SoundManager(soundEnabled);
     this.scene = new SceneView(sceneRoot, {
       onPick: (pick) => this.handlePick(pick),
       onCancel: () => this.clearSelection()
-    });
+    }, this.pieceSet);
     this.ui = new GameUI(uiRoot, {
       onRestart: () => this.reset(),
       onSnap: (view) => this.scene.snapView(view),
@@ -99,13 +103,15 @@ export class GameController {
       onAiDelayChange: (delayMs) => this.setAiDelay(delayMs),
       onStartAiVsAi: () => this.startAiVsAi(),
       onToggleAiVsAiRunning: (running) => this.setAiVsAiRunning(running),
+      onPieceSetChange: (pieceSet) => this.setPieceSet(pieceSet),
       onUiStateChange: (state) => this.handleUiStateChange(state)
     }, {
       mode: this.mode,
       aiEnabled: this.mode !== 'hvh',
       aiDifficulty: this.aiDifficulty,
       aiDelayMs: this.aiDelayMs,
-      soundEnabled
+      soundEnabled,
+      pieceSet: this.pieceSet
     });
     this.stats = new GameStats();
     this.stats.reset(this.state);
@@ -368,6 +374,16 @@ export class GameController {
     this.persistPreferences();
   }
 
+  private setPieceSet(pieceSet: PieceSet): void {
+    if (this.pieceSet === pieceSet) {
+      return;
+    }
+    this.pieceSet = pieceSet;
+    this.persistPreferences();
+    this.ui.setPieceSet(pieceSet);
+    void this.scene.setPieceSet(pieceSet);
+  }
+
   private setSoundEnabled(enabled: boolean): void {
     this.sound.setEnabled(enabled);
   }
@@ -496,6 +512,7 @@ export class GameController {
     let ai: AiSettings = { enabled: true, difficulty: 'medium' };
     let mode: GameMode = ai.enabled ? 'hvai' : 'hvh';
     let aiDelayMs = DEFAULT_AI_DELAY_MS;
+    let pieceSet: PieceSet = 'scifi';
 
     if (storage) {
       const rawNames = storage.getItem(STORAGE_KEYS.names);
@@ -540,13 +557,19 @@ export class GameController {
         }
       }
 
+      const rawPieceSet = storage.getItem(STORAGE_KEYS.pieceSet);
+      if (rawPieceSet === 'scifi' || rawPieceSet === 'standard') {
+        pieceSet = rawPieceSet;
+      }
+
       storage.setItem(STORAGE_KEYS.names, JSON.stringify(names));
       storage.setItem(STORAGE_KEYS.ai, JSON.stringify(ai));
       storage.setItem(STORAGE_KEYS.mode, mode);
       storage.setItem(STORAGE_KEYS.aiDelay, aiDelayMs.toString());
+      storage.setItem(STORAGE_KEYS.pieceSet, pieceSet);
     }
 
-    return { names, ai, mode, aiDelayMs };
+    return { names, ai, mode, aiDelayMs, pieceSet };
   }
 
   private persistPreferences(): void {
@@ -562,6 +585,7 @@ export class GameController {
     );
     storage.setItem(STORAGE_KEYS.mode, this.mode);
     storage.setItem(STORAGE_KEYS.aiDelay, this.aiDelayMs.toString());
+    storage.setItem(STORAGE_KEYS.pieceSet, this.pieceSet);
   }
 
   private getStorage(): Storage | null {

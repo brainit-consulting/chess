@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { CameraController } from './camera';
-import { GameState, Move, Square, getPieceSquares } from '../rules';
-import { SnapView } from '../types';
+import { Color, GameState, Move, PieceType, Square, getPieceSquares } from '../rules';
+import { PieceSet, SnapView } from '../types';
 import { createSciFiPieceInstance, preloadSciFiModels } from './models/scifiChessModels';
+import { createStandardPieceInstance, preloadStandardModels } from './models/standardChessModels';
 
 export type PickResult = {
   type: 'square' | 'piece';
@@ -20,6 +21,22 @@ type HighlightState = {
 type SceneHandlers = {
   onPick: (pick: PickResult) => void;
   onCancel: () => void;
+};
+
+type PieceSetProvider = {
+  preload: () => Promise<void>;
+  createPieceInstance: (type: PieceType, color: Color, id: number) => THREE.Object3D;
+};
+
+const PIECE_SET_PROVIDERS: Record<PieceSet, PieceSetProvider> = {
+  scifi: {
+    preload: preloadSciFiModels,
+    createPieceInstance: createSciFiPieceInstance
+  },
+  standard: {
+    preload: preloadStandardModels,
+    createPieceInstance: createStandardPieceInstance
+  }
 };
 
 const TILE_SIZE = 1;
@@ -42,8 +59,11 @@ export class SceneView {
   private pendingState: GameState | null = null;
   private readyPromise: Promise<void>;
   private checkHalo: THREE.Mesh | null = null;
+  private pieceSet: PieceSet;
+  private pieceProvider: PieceSetProvider;
+  private lastState: GameState | null = null;
 
-  constructor(container: HTMLElement, handlers: SceneHandlers) {
+  constructor(container: HTMLElement, handlers: SceneHandlers, pieceSet: PieceSet = 'scifi') {
     this.handlers = handlers;
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color('#0b0d12');
@@ -66,13 +86,9 @@ export class SceneView {
     this.addLights();
     this.buildBoard();
 
-    this.readyPromise = preloadSciFiModels().then(() => {
-      this.modelsReady = true;
-      if (this.pendingState) {
-        this.applyState(this.pendingState);
-        this.pendingState = null;
-      }
-    });
+    this.pieceSet = pieceSet;
+    this.pieceProvider = PIECE_SET_PROVIDERS[this.pieceSet];
+    this.readyPromise = this.loadPieceSet(this.pieceSet);
 
     window.addEventListener('resize', () => this.handleResize(container));
     window.addEventListener('keydown', (event) => this.cameraController.handleKey(event.key));
@@ -106,6 +122,7 @@ export class SceneView {
   }
 
   setState(state: GameState): void {
+    this.lastState = state;
     if (!this.modelsReady) {
       this.pendingState = state;
       return;
@@ -115,6 +132,32 @@ export class SceneView {
 
   ready(): Promise<void> {
     return this.readyPromise;
+  }
+
+  setPieceSet(pieceSet: PieceSet): Promise<void> {
+    if (this.pieceSet === pieceSet) {
+      return this.readyPromise;
+    }
+    this.pieceSet = pieceSet;
+    this.pieceProvider = PIECE_SET_PROVIDERS[pieceSet];
+    this.modelsReady = false;
+    this.pendingState = this.lastState;
+    this.readyPromise = this.loadPieceSet(pieceSet, true);
+    return this.readyPromise;
+  }
+
+  private loadPieceSet(pieceSet: PieceSet, rebuild = false): Promise<void> {
+    const provider = PIECE_SET_PROVIDERS[pieceSet];
+    return provider.preload().then(() => {
+      this.modelsReady = true;
+      if (rebuild) {
+        this.clearPieces();
+      }
+      if (this.pendingState) {
+        this.applyState(this.pendingState);
+        this.pendingState = null;
+      }
+    });
   }
 
   private applyState(state: GameState): void {
@@ -135,7 +178,7 @@ export class SceneView {
 
       let object = this.pieceMeshes.get(id);
       if (!object) {
-        object = createSciFiPieceInstance(piece.type, piece.color, id);
+        object = this.pieceProvider.createPieceInstance(piece.type, piece.color, id);
         this.piecesGroup.add(object);
         this.pieceMeshes.set(id, object);
       }
@@ -332,6 +375,13 @@ export class SceneView {
       (this.checkHalo.material as THREE.Material).dispose();
       this.checkHalo = null;
     }
+  }
+
+  private clearPieces(): void {
+    for (const mesh of this.pieceMeshes.values()) {
+      this.piecesGroup.remove(mesh);
+    }
+    this.pieceMeshes.clear();
   }
 
   private findPieceAtSquare(

@@ -1,7 +1,7 @@
 import type { AiDifficulty } from '../ai/ai';
 import { GameStatus, Color } from '../rules';
 import { GameSummary } from '../gameSummary';
-import { GameMode, SnapView } from '../types';
+import { GameMode, PieceSet, SnapView } from '../types';
 import { PieceType } from '../rules';
 
 export type UiState = {
@@ -20,6 +20,7 @@ type UIHandlers = {
   onAiDelayChange: (delayMs: number) => void;
   onStartAiVsAi: () => void;
   onToggleAiVsAiRunning: (running: boolean) => void;
+  onPieceSetChange: (pieceSet: PieceSet) => void;
   onUiStateChange: (state: UiState) => void;
 };
 
@@ -29,6 +30,7 @@ type UIOptions = {
   aiDifficulty?: AiDifficulty;
   aiDelayMs?: number;
   soundEnabled?: boolean;
+  pieceSet?: PieceSet;
 };
 
 const UI_STATE_KEY = 'chess.uiState';
@@ -63,6 +65,7 @@ export class GameUI {
   private mode: GameMode;
   private aiToggle: HTMLInputElement;
   private difficultySelect: HTMLSelectElement;
+  private pieceSetSelect: HTMLSelectElement;
   private soundToggle: HTMLInputElement;
   private nameWhiteEl: HTMLSpanElement;
   private nameBlackEl: HTMLSpanElement;
@@ -152,6 +155,7 @@ export class GameUI {
     const initialDifficulty = options.aiDifficulty ?? 'medium';
     const initialDelay = options.aiDelayMs ?? 700;
     const initialSoundEnabled = options.soundEnabled ?? true;
+    const initialPieceSet = options.pieceSet ?? 'scifi';
     this.aiToggle.checked = initialAiEnabled;
     this.aiToggle.addEventListener('change', () => {
       const enabled = this.aiToggle.checked;
@@ -176,6 +180,24 @@ export class GameUI {
     });
 
     aiRow.append(aiLabel, this.difficultySelect);
+
+    const pieceSetTitle = document.createElement('div');
+    pieceSetTitle.className = 'section-title expand-only';
+    pieceSetTitle.textContent = 'Piece Set';
+
+    const pieceSetRow = document.createElement('div');
+    pieceSetRow.className = 'control-row expand-only';
+
+    this.pieceSetSelect = document.createElement('select');
+    this.pieceSetSelect.innerHTML = `
+      <option value="scifi">Sci-Fi</option>
+      <option value="standard">Standard</option>
+    `;
+    this.pieceSetSelect.value = initialPieceSet;
+    this.pieceSetSelect.addEventListener('change', () => {
+      this.handlers.onPieceSetChange(this.pieceSetSelect.value as PieceSet);
+    });
+    pieceSetRow.append(this.pieceSetSelect);
 
     this.delayRow = document.createElement('div');
     this.delayRow.className = 'control-row expand-only';
@@ -292,6 +314,8 @@ export class GameUI {
       this.aiStatusEl,
       modeTitle,
       modeRow,
+      pieceSetTitle,
+      pieceSetRow,
       namesTitle,
       namesBlock,
       scoreTitle,
@@ -319,6 +343,7 @@ export class GameUI {
     this.mode = initialMode;
     this.setAiDelay(initialDelay);
     this.setMode(initialMode);
+    this.setPieceSet(initialPieceSet);
     this.setAiVsAiState({ started: false, running: false });
     this.applyUiState();
   }
@@ -391,6 +416,10 @@ export class GameUI {
   setAiDelay(delayMs: number): void {
     this.delayInput.value = delayMs.toString();
     this.delayValueEl.textContent = `${delayMs}ms`;
+  }
+
+  setPieceSet(pieceSet: PieceSet): void {
+    this.pieceSetSelect.value = pieceSet;
   }
 
   setAiVsAiState(state: { started: boolean; running: boolean }): void {
