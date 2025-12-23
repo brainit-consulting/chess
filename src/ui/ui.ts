@@ -4,7 +4,7 @@ import { GameSummary } from '../gameSummary';
 import { GameMode, PieceSet, SnapView } from '../types';
 import { PieceType } from '../rules';
 
-const PLAYER_GUIDE_URL = new URL('../../docs/player-user-guide.md', import.meta.url).href;
+const PLAYER_GUIDE_URL = `${import.meta.env.BASE_URL}player-user-guide.md`;
 
 export type UiState = {
   visible: boolean;
