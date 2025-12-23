@@ -221,7 +221,10 @@ export class GameController {
     const status = getGameStatus(this.state);
     const isCapture = move.capturedId !== undefined || move.isEnPassant;
     this.sound.play(isCapture ? 'capture' : 'move');
-    if (status.status === 'check') {
+    if (status.status === 'checkmate') {
+      this.sound.play('checkmate');
+      this.scene.settleCheckmate();
+    } else if (status.status === 'check') {
       this.sound.play('check');
     }
     this.scene.nudgeTurnChange();

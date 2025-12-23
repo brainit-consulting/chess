@@ -1,4 +1,4 @@
-export type SoundEffect = 'move' | 'capture' | 'check' | 'ui';
+export type SoundEffect = 'move' | 'capture' | 'check' | 'checkmate' | 'ui';
 
 type SoundSpec = {
   duration: number;
@@ -13,6 +13,7 @@ const SOUND_SPECS: Record<SoundEffect, SoundSpec> = {
   move: { duration: 0.08, cutoff: 1200, gain: 0.08, minIntervalMs: 80 },
   capture: { duration: 0.12, cutoff: 900, gain: 0.12, minIntervalMs: 120 },
   check: { duration: 0.1, cutoff: 700, gain: 0.1, minIntervalMs: 200 },
+  checkmate: { duration: 0.18, cutoff: 650, gain: 0.09, minIntervalMs: 400 },
   ui: { duration: 0.06, cutoff: 1400, gain: 0.05, minIntervalMs: 80 }
 };
 

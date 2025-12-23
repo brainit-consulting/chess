@@ -9,18 +9,22 @@ export class CameraController {
   private biasTarget = new THREE.Vector3();
   private biasCurrent = new THREE.Vector3();
   private baseFov: number;
+  private baseDamping: number;
   private zoomFrom = 0;
   private zoomTo = 0;
   private zoomStart = 0;
   private zoomDuration = 240;
   private nudgeStart: number | null = null;
   private nudgeDuration = 220;
+  private settleStart: number | null = null;
+  private settleDuration = 420;
 
   constructor(camera: THREE.PerspectiveCamera, domElement: HTMLElement) {
     this.camera = camera;
     this.controls = new OrbitControls(camera, domElement);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.08;
+    this.baseDamping = this.controls.dampingFactor;
     this.controls.minDistance = 5.5;
     this.controls.maxDistance = 18;
     this.controls.minPolarAngle = 0.35;
@@ -40,6 +44,7 @@ export class CameraController {
   update(): void {
     // Apply subtle target bias before OrbitControls updates camera.
     this.applyTargetBias();
+    this.applySettle();
     this.controls.update();
     // Ease UI zoom and turn nudge without snapping.
     this.applyUiZoom();
@@ -93,6 +98,11 @@ export class CameraController {
     this.nudgeStart = performance.now();
   }
 
+  settleCheckmate(): void {
+    // Briefly increase damping so the view feels like it settles.
+    this.settleStart = performance.now();
+  }
+
   setCheckTarget(target: THREE.Vector3 | null): void {
     // Softly bias the camera toward the checked king.
     if (!target) {
@@ -139,6 +149,24 @@ export class CameraController {
     this.camera.position.add(direction.multiplyScalar(strength));
     if (t >= 1) {
       this.nudgeStart = null;
+    }
+  }
+
+  private applySettle(): void {
+    if (!this.settleStart) {
+      if (this.controls.dampingFactor !== this.baseDamping) {
+        this.controls.dampingFactor = this.baseDamping;
+      }
+      return;
+    }
+    const elapsed = performance.now() - this.settleStart;
+    const t = Math.min(elapsed / this.settleDuration, 1);
+    const eased = t * (2 - t);
+    const peak = this.baseDamping + 0.08;
+    this.controls.dampingFactor = lerp(peak, this.baseDamping, eased);
+    if (t >= 1) {
+      this.settleStart = null;
+      this.controls.dampingFactor = this.baseDamping;
     }
   }
 }

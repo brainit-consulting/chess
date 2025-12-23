@@ -194,6 +194,10 @@ export class SceneView {
     this.cameraController.nudgeTurn();
   }
 
+  settleCheckmate(): void {
+    this.cameraController.settleCheckmate();
+  }
+
   private handleResize(container: HTMLElement): void {
     const width = container.clientWidth;
     const height = container.clientHeight;

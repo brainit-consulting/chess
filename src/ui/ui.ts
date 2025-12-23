@@ -229,7 +229,7 @@ export class GameUI {
   setStatus(status: GameStatus): void {
     if (status.status === 'checkmate') {
       this.statusEl.textContent =
-        status.winner === 'w' ? 'Checkmate - White wins' : 'Checkmate - Black wins';
+        status.winner === 'w' ? 'Checkmate — White wins' : 'Checkmate — Black wins';
       this.noticeEl.textContent = 'Game over.';
       this.noticeEl.className = 'notice danger';
       return;
