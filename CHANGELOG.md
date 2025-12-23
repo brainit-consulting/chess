@@ -6,6 +6,8 @@ The format is based on Keep a Changelog, and this project adheres to
 Semantic Versioning.
 
 ## [Unreleased]
+### Changed
+- Improve responsiveness by running AI search in a Web Worker (no gameplay changes).
 
 ## [1.1.3] - 2025-12-23
 

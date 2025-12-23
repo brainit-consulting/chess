@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { chooseMove } from '../ai';
+import { computeAiMove } from '../aiWorker';
+import { shouldApplyAiResponse } from '../aiWorkerClient';
 import { findBestMove } from '../search';
 import {
   addPiece,
@@ -90,6 +92,42 @@ describe('AI move selection', () => {
 
     const staleMove = chooseMove(stalemate, { difficulty: 'easy', seed: 1 });
     expect(staleMove).toBeNull();
+  });
+
+  it('matches worker move selection for the same position', () => {
+    const state = createInitialState();
+    state.activeColor = 'b';
+
+    const direct = chooseMove(state, { difficulty: 'medium', seed: 99 });
+    const worker = computeAiMove({
+      requestId: 1,
+      state,
+      color: 'b',
+      difficulty: 'medium',
+      seed: 99
+    });
+
+    expect(direct).not.toBeNull();
+    expect(worker.move).not.toBeNull();
+    if (!direct || !worker.move) {
+      throw new Error('Expected both paths to return a move.');
+    }
+    expect(sameMove(direct, worker.move)).toBe(true);
+  });
+
+  it('ignores stale AI worker responses', () => {
+    const apply = shouldApplyAiResponse({
+      requestId: 1,
+      currentRequestId: 2,
+      gameOver: false,
+      mode: 'aivai',
+      aiVsAiStarted: true,
+      aiVsAiRunning: true,
+      aiVsAiPaused: false,
+      isAiControlled: true
+    });
+
+    expect(apply).toBe(false);
   });
 
   it('penalizes repeating positions when play-for-win is enabled', () => {
