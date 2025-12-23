@@ -18,6 +18,8 @@ type UIHandlers = {
   onDifficultyChange: (difficulty: AiDifficulty) => void;
   onToggleSound: (enabled: boolean) => void;
   onAiDelayChange: (delayMs: number) => void;
+  onStartAiVsAi: () => void;
+  onToggleAiVsAiRunning: (running: boolean) => void;
   onUiStateChange: (state: UiState) => void;
 };
 
@@ -45,6 +47,15 @@ export class GameUI {
   private summaryOutcomeEl: HTMLParagraphElement;
   private summaryMaterialEl: HTMLParagraphElement;
   private summaryDetailEl: HTMLParagraphElement;
+  private aiVsAiRow: HTMLDivElement;
+  private aiVsAiStartButton: HTMLButtonElement;
+  private aiVsAiPauseButton: HTMLButtonElement;
+  private aiVsAiResumeButton: HTMLButtonElement;
+  private aiThinking = false;
+  private aiThinkingColor?: Color;
+  private aiVsAiReady = false;
+  private aiVsAiStarted = false;
+  private aiVsAiRunning = false;
   private modeButtons: Record<GameMode, HTMLButtonElement>;
   private delayRow: HTMLDivElement;
   private delayValueEl: HTMLSpanElement;
@@ -197,6 +208,27 @@ export class GameUI {
     delayStack.append(delayRowMeta, this.delayInput);
     this.delayRow.append(delayStack);
 
+    this.aiVsAiRow = document.createElement('div');
+    this.aiVsAiRow.className = 'control-row expand-only';
+
+    this.aiVsAiStartButton = this.makeButton('Start Game', () =>
+      this.handlers.onStartAiVsAi()
+    );
+
+    this.aiVsAiPauseButton = this.makeButton('Pause', () =>
+      this.handlers.onToggleAiVsAiRunning(false)
+    );
+
+    this.aiVsAiResumeButton = this.makeButton('Resume', () =>
+      this.handlers.onToggleAiVsAiRunning(true)
+    );
+
+    this.aiVsAiRow.append(
+      this.aiVsAiStartButton,
+      this.aiVsAiPauseButton,
+      this.aiVsAiResumeButton
+    );
+
     const soundRow = document.createElement('div');
     soundRow.className = 'control-row expand-only';
 
@@ -267,6 +299,7 @@ export class GameUI {
       this.expandButton,
       soundRow,
       this.delayRow,
+      this.aiVsAiRow,
       aiRow,
       buttonRow
     );
@@ -286,6 +319,7 @@ export class GameUI {
     this.mode = initialMode;
     this.setAiDelay(initialDelay);
     this.setMode(initialMode);
+    this.setAiVsAiState({ started: false, running: false });
     this.applyUiState();
   }
 
@@ -344,16 +378,9 @@ export class GameUI {
   }
 
   setAiThinking(thinking: boolean, color?: Color): void {
-    if (!thinking) {
-      this.aiStatusEl.textContent = ' ';
-      return;
-    }
-    if (!color) {
-      this.aiStatusEl.textContent = 'AI thinking...';
-      return;
-    }
-    const label = color === 'w' ? 'White' : 'Black';
-    this.aiStatusEl.textContent = `${label} AI thinking...`;
+    this.aiThinking = thinking;
+    this.aiThinkingColor = color;
+    this.renderAiStatus();
   }
 
   setMode(mode: GameMode): void {
@@ -364,6 +391,14 @@ export class GameUI {
   setAiDelay(delayMs: number): void {
     this.delayInput.value = delayMs.toString();
     this.delayValueEl.textContent = `${delayMs}ms`;
+  }
+
+  setAiVsAiState(state: { started: boolean; running: boolean }): void {
+    this.aiVsAiStarted = state.started;
+    this.aiVsAiRunning = state.running;
+    this.aiVsAiReady = this.mode === 'aivai' && !this.aiVsAiStarted;
+    this.updateAiVsAiControls();
+    this.renderAiStatus();
   }
 
   showSummary(summary: GameSummary): void {
@@ -504,6 +539,38 @@ export class GameUI {
     this.aiToggle.checked = aiEnabled;
     this.difficultySelect.disabled = !aiEnabled;
     this.delayRow.classList.toggle('hidden', this.mode !== 'aivai');
+    this.aiVsAiReady = this.mode === 'aivai' && !this.aiVsAiStarted;
+    this.updateAiVsAiControls();
+    this.renderAiStatus();
+  }
+
+  private renderAiStatus(): void {
+    if (this.aiThinking) {
+      if (!this.aiThinkingColor) {
+        this.aiStatusEl.textContent = 'AI thinking...';
+        return;
+      }
+      const label = this.aiThinkingColor === 'w' ? 'White' : 'Black';
+      this.aiStatusEl.textContent = `${label} AI thinking...`;
+      return;
+    }
+
+    if (this.aiVsAiReady) {
+      this.aiStatusEl.textContent = 'AI vs AI ready - press Start Game';
+      return;
+    }
+
+    this.aiStatusEl.textContent = ' ';
+  }
+
+  private updateAiVsAiControls(): void {
+    const show = this.mode === 'aivai';
+    this.aiVsAiRow.classList.toggle('hidden', !show);
+    this.aiVsAiStartButton.classList.toggle('hidden', !show || this.aiVsAiStarted);
+    const showPause = show && this.aiVsAiStarted && this.aiVsAiRunning;
+    const showResume = show && this.aiVsAiStarted && !this.aiVsAiRunning;
+    this.aiVsAiPauseButton.classList.toggle('hidden', !showPause);
+    this.aiVsAiResumeButton.classList.toggle('hidden', !showResume);
   }
 
   private setUiVisible(visible: boolean): void {

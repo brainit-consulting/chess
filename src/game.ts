@@ -70,6 +70,9 @@ export class GameController {
   private aiTimeout: number | null = null;
   private aiRequestId = 0;
   private summaryShown = false;
+  private aiVsAiStarted = false;
+  private aiVsAiRunning = false;
+  private aiVsAiPaused = false;
   private baseNames: PlayerNames = { ...DEFAULT_NAMES };
 
   constructor(sceneRoot: HTMLElement, uiRoot: HTMLElement) {
@@ -94,6 +97,8 @@ export class GameController {
       onDifficultyChange: (difficulty) => this.setAiDifficulty(difficulty),
       onToggleSound: (enabled) => this.setSoundEnabled(enabled),
       onAiDelayChange: (delayMs) => this.setAiDelay(delayMs),
+      onStartAiVsAi: () => this.startAiVsAi(),
+      onToggleAiVsAiRunning: (running) => this.setAiVsAiRunning(running),
       onUiStateChange: (state) => this.handleUiStateChange(state)
     }, {
       mode: this.mode,
@@ -107,6 +112,7 @@ export class GameController {
     this.ui.setScores(this.stats.getScores());
     this.updatePlayerNames();
     this.scene.setUiState(this.ui.getUiState());
+    this.syncAiVsAiState();
     this.setupSoundUnlock();
 
     window.addEventListener('keydown', (event) => {
@@ -131,6 +137,10 @@ export class GameController {
     this.pendingPromotion = null;
     this.gameOver = false;
     this.summaryShown = false;
+    this.aiVsAiStarted = false;
+    this.aiVsAiRunning = false;
+    this.aiVsAiPaused = false;
+    this.syncAiVsAiState();
     this.ui.hideSummary();
     this.stats.reset(this.state);
     this.ui.setScores(this.stats.getScores());
@@ -262,6 +272,13 @@ export class GameController {
       this.ui.setAiThinking(false);
       return;
     }
+    if (
+      this.mode === 'aivai' &&
+      (!this.aiVsAiStarted || this.aiVsAiPaused || !this.aiVsAiRunning)
+    ) {
+      this.ui.setAiThinking(false);
+      return;
+    }
     if (!this.isAiControlled(this.state.activeColor)) {
       this.ui.setAiThinking(false);
       return;
@@ -280,6 +297,10 @@ export class GameController {
       if (requestId !== this.aiRequestId) {
         return;
       }
+      if (this.mode === 'aivai' && (!this.aiVsAiRunning || this.aiVsAiPaused)) {
+        this.ui.setAiThinking(false);
+        return;
+      }
       if (this.gameOver || !this.isAiControlled(this.state.activeColor)) {
         this.ui.setAiThinking(false);
         return;
@@ -294,6 +315,11 @@ export class GameController {
       if (!move) {
         this.ui.setAiThinking(false);
         this.sync();
+        return;
+      }
+
+      if (this.mode === 'aivai' && (!this.aiVsAiRunning || this.aiVsAiPaused)) {
+        this.ui.setAiThinking(false);
         return;
       }
 
@@ -320,9 +346,13 @@ export class GameController {
       return;
     }
     this.mode = mode;
+    this.aiVsAiStarted = false;
+    this.aiVsAiRunning = false;
+    this.aiVsAiPaused = false;
     this.persistPreferences();
     this.ui.setMode(mode);
     this.updatePlayerNames();
+    this.syncAiVsAiState();
     this.cancelAiMove();
     this.maybeScheduleAiMove();
   }
@@ -379,6 +409,51 @@ export class GameController {
     return this.mode === 'aivai' ? this.aiDelayMs : HUMAN_VS_AI_DELAY_MS;
   }
 
+  private startAiVsAi(): void {
+    if (this.mode !== 'aivai') {
+      return;
+    }
+    if (this.gameOver) {
+      return;
+    }
+    this.aiVsAiStarted = true;
+    this.aiVsAiRunning = true;
+    this.aiVsAiPaused = false;
+    this.syncAiVsAiState();
+    this.maybeScheduleAiMove();
+  }
+
+  private setAiVsAiRunning(running: boolean): void {
+    if (this.mode !== 'aivai') {
+      return;
+    }
+    if (!this.aiVsAiStarted) {
+      return;
+    }
+    if (running && this.gameOver) {
+      return;
+    }
+    this.aiVsAiRunning = running;
+    this.aiVsAiPaused = !running;
+    this.syncAiVsAiState();
+    if (!running) {
+      this.cancelAiMove();
+      return;
+    }
+    this.maybeScheduleAiMove();
+  }
+
+  private syncAiVsAiState(): void {
+    if (this.mode !== 'aivai') {
+      this.ui.setAiVsAiState({ started: false, running: false });
+      return;
+    }
+    this.ui.setAiVsAiState({
+      started: this.aiVsAiStarted,
+      running: this.aiVsAiRunning
+    });
+  }
+
   private maybeShowSummary(status: GameStatus): void {
     if (this.summaryShown) {
       return;
@@ -389,6 +464,13 @@ export class GameController {
       status.status !== 'draw'
     ) {
       return;
+    }
+    if (this.mode === 'aivai') {
+      this.aiVsAiStarted = false;
+      this.aiVsAiRunning = false;
+      this.aiVsAiPaused = false;
+      this.syncAiVsAiState();
+      this.cancelAiMove();
     }
     const summary = createGameSummary(this.state, status, this.stats.getScores());
     if (!summary) {
