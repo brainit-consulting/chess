@@ -30,9 +30,9 @@ Welcome to **3D Chess**! This guide explains all available game modes, controls,
 
 ### AI Difficulty
 
-- **Easy**: Makes simple, non‑optimal moves.
+- **Easy**: Makes simple, non-optimal moves.
 - **Medium**: Balanced play.
-- **Hard**: Stronger evaluation and deeper look‑ahead.
+- **Hard**: Stronger evaluation and deeper look-ahead.
 
 ### AI Move Delay
 
@@ -63,7 +63,7 @@ AI will **not** start automatically — setup always comes first.
 
 You can switch between visual styles:
 
-- **Sci‑Fi**: Futuristic default set.
+- **Sci-Fi**: Futuristic default set.
 - **Standard**: Classic chess pieces (imported from Blender).
 
 Changing the piece set:
@@ -80,7 +80,7 @@ Choose how you see the board:
 - **White View**: Behind White’s pieces.
 - **Black View**: Behind Black’s pieces.
 - **Isometric**: Angled 3D view.
-- **Top‑Down**: Drone‑style view directly above the board.
+- **Top-Down**: Drone-style view directly above the board.
 
 ---
 
@@ -90,9 +90,9 @@ The game will automatically end and show a summary when:
 
 - **Checkmate**
 - **Stalemate**
-- **Insufficient material** (e.g. King vs King)
+- **Insufficient material** (for example, King vs King)
 - **Threefold repetition**
-- **50‑move rule** (if enabled)
+- **50-move rule** (if enabled)
 
 ### Game Summary Popup
 
@@ -132,8 +132,9 @@ All preferences are restored on reload.
 - Use **AI vs AI + Play for Win** to study openings and endgames.
 - Slow down AI move delay when learning.
 - Switch camera views for better board awareness.
-- Top‑Down view is ideal for analyzing positions.
+- Top-Down view is ideal for analyzing positions.
 
 ---
 
-Enjoy the game, and have fun exploring chess in 3D! ♟️
+Enjoy the game, and have fun exploring chess in 3D!
+Emile from brainitconsulting.com
