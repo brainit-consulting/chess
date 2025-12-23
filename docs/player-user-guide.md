@@ -4,45 +4,51 @@ Welcome to **3D Chess**! This guide explains all available game modes, controls,
 
 ---
 
-## 🎮 Game Modes
+## Game Modes
 
 ### Human vs Human
+
 - Two players share the same device.
 - Turns alternate between White and Black.
 - No AI assistance.
 
 ### Human vs AI
+
 - You play against the computer.
 - Choose AI difficulty (Easy / Medium / Hard).
 - You can play as White or Black.
 
 ### AI vs AI
+
 - Watch two AI players compete.
 - Useful for learning strategies or testing the engine.
 - Includes additional controls such as **Start**, **Pause**, and **Play for Win**.
 
 ---
 
-## 🧠 AI Settings
+## AI Settings
 
 ### AI Difficulty
+
 - **Easy**: Makes simple, non‑optimal moves.
 - **Medium**: Balanced play.
 - **Hard**: Stronger evaluation and deeper look‑ahead.
 
 ### AI Move Delay
+
 - Adds a delay (in milliseconds) between AI moves.
 - Helps you visually follow the game.
 - Adjustable before or during AI vs AI play.
 
 ### Play for Win (AI vs AI only)
+
 - Encourages the AI to avoid repetitive or drawish move loops.
 - Reduces threefold repetition.
 - Adds move variety when multiple good options exist.
 
 ---
 
-## ▶️ AI vs AI Controls
+## AI vs AI Controls
 
 - **Start Game**: Begins AI vs AI play after setup.
 - **Pause**: Immediately stops AI thinking and movement.
@@ -53,7 +59,7 @@ AI will **not** start automatically — setup always comes first.
 
 ---
 
-## ♟️ Piece Sets
+## Piece Sets
 
 You can switch between visual styles:
 
@@ -61,12 +67,13 @@ You can switch between visual styles:
 - **Standard**: Classic chess pieces (imported from Blender).
 
 Changing the piece set:
+
 - Preserves the current game state.
 - Updates visuals instantly.
 
 ---
 
-## 📷 Camera Views
+## Camera Views
 
 Choose how you see the board:
 
@@ -77,7 +84,7 @@ Choose how you see the board:
 
 ---
 
-## 🧾 Game End Conditions
+## Game End Conditions
 
 The game will automatically end and show a summary when:
 
@@ -88,7 +95,9 @@ The game will automatically end and show a summary when:
 - **50‑move rule** (if enabled)
 
 ### Game Summary Popup
+
 Includes:
+
 - Result (Win / Loss / Draw)
 - Reason (Checkmate, repetition, etc.)
 - Final material score
@@ -96,16 +105,17 @@ Includes:
 
 ---
 
-## 🔊 Sound
+## Sound
 
 - Toggle sound effects on or off.
 - Applies to moves, captures, and game events.
 
 ---
 
-## 💾 Preferences & Persistence
+## Preferences & Persistence
 
 The game remembers:
+
 - Last game mode
 - AI difficulty
 - AI move delay
@@ -117,7 +127,7 @@ All preferences are restored on reload.
 
 ---
 
-## 🧪 Tips
+## Tips
 
 - Use **AI vs AI + Play for Win** to study openings and endgames.
 - Slow down AI move delay when learning.

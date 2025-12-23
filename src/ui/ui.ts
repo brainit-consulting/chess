@@ -4,6 +4,8 @@ import { GameSummary } from '../gameSummary';
 import { GameMode, PieceSet, SnapView } from '../types';
 import { PieceType } from '../rules';
 
+const PLAYER_GUIDE_URL = new URL('../../docs/player-user-guide.md', import.meta.url).href;
+
 export type UiState = {
   visible: boolean;
   collapsed: boolean;
@@ -78,6 +80,7 @@ export class GameUI {
   private hideButton: HTMLButtonElement;
   private showButton: HTMLButtonElement;
   private collapseButton: HTMLButtonElement;
+  private helpButton: HTMLButtonElement;
   private expandButton: HTMLButtonElement;
   private handlers: UIHandlers;
   private uiState: UiState;
@@ -106,13 +109,20 @@ export class GameUI {
     const headerActions = document.createElement('div');
     headerActions.className = 'panel-actions expand-only';
 
+    this.helpButton = this.makeButton('ⓘ', () => {
+      window.open(PLAYER_GUIDE_URL, '_blank', 'noopener');
+    });
+    this.helpButton.classList.add('ghost', 'info-button');
+    this.helpButton.setAttribute('aria-label', 'Player Guide');
+    this.helpButton.title = 'Player Guide';
+
     this.hideButton = this.makeButton('Hide UI', () => this.setUiVisible(false));
     this.hideButton.classList.add('ghost');
 
     this.collapseButton = this.makeButton('Collapse', () => this.setUiCollapsed(true));
     this.collapseButton.classList.add('ghost');
 
-    headerActions.append(this.collapseButton, this.hideButton);
+    headerActions.append(this.helpButton, this.collapseButton, this.hideButton);
     header.append(title, headerActions);
 
     this.turnEl = document.createElement('div');

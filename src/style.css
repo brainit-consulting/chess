@@ -82,6 +82,25 @@ body {
   font-size: 12px;
 }
 
+.info-button {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.85;
+}
+
+.info-button:hover,
+.info-button:focus-visible {
+  opacity: 1;
+  border-color: rgba(255, 255, 255, 0.28);
+  box-shadow: 0 0 0 2px rgba(224, 195, 109, 0.15);
+}
+
 .ui-show-button {
   position: absolute;
   top: 18px;
