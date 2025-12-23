@@ -21,6 +21,7 @@ import { SceneView, PickResult } from './client/scene';
 import { GameUI, UiState } from './ui/ui';
 import { GameStats } from './gameStats';
 import { SoundManager } from './sound/soundManager';
+import { initMusic, MusicManager } from './audio/musicManager';
 import { GameMode, PieceSet } from './types';
 import { createGameSummary } from './gameSummary';
 
@@ -66,6 +67,7 @@ export class GameController {
   private ui: GameUI;
   private stats: GameStats;
   private sound: SoundManager;
+  private music: MusicManager;
   private selected: Square | null = null;
   private legalMoves: Move[] = [];
   private pendingPromotion: Move[] | null = null;
@@ -98,6 +100,7 @@ export class GameController {
     this.playForWinAiVsAi = preferences.playForWinAiVsAi;
     const soundEnabled = SoundManager.loadEnabled();
     this.sound = new SoundManager(soundEnabled);
+    this.music = initMusic();
     this.scene = new SceneView(sceneRoot, {
       onPick: (pick) => this.handlePick(pick),
       onCancel: () => this.clearSelection()
@@ -111,6 +114,8 @@ export class GameController {
       onModeChange: (mode) => this.setMode(mode),
       onDifficultyChange: (difficulty) => this.setAiDifficulty(difficulty),
       onToggleSound: (enabled) => this.setSoundEnabled(enabled),
+      onToggleMusic: (enabled) => this.setMusicEnabled(enabled),
+      onMusicVolumeChange: (volume) => this.setMusicVolume(volume),
       onAiDelayChange: (delayMs) => this.setAiDelay(delayMs),
       onStartAiVsAi: () => this.startAiVsAi(),
       onToggleAiVsAiRunning: (running) => this.setAiVsAiRunning(running),
@@ -123,6 +128,8 @@ export class GameController {
       aiDifficulty: this.aiDifficulty,
       aiDelayMs: this.aiDelayMs,
       soundEnabled,
+      musicEnabled: this.music.getMusicEnabled(),
+      musicVolume: this.music.getMusicVolume(),
       pieceSet: this.pieceSet,
       playForWin: this.playForWinAiVsAi
     });
@@ -133,6 +140,10 @@ export class GameController {
     this.scene.setUiState(this.ui.getUiState());
     this.syncAiVsAiState();
     this.setupSoundUnlock();
+    this.music.setOnUnlockNeeded((needed) => this.ui.setMusicUnlockHint(needed));
+    if (this.music.getUnlockNeeded()) {
+      this.ui.setMusicUnlockHint(true);
+    }
     this.resetPositionHistory();
 
     window.addEventListener('keydown', (event) => {
@@ -389,6 +400,15 @@ export class GameController {
 
   private setSoundEnabled(enabled: boolean): void {
     this.sound.setEnabled(enabled);
+  }
+
+  private setMusicEnabled(enabled: boolean): void {
+    this.music.setMusicEnabled(enabled);
+    this.ui.setMusicEnabled(enabled);
+  }
+
+  private setMusicVolume(volume: number): void {
+    this.music.setMusicVolume(volume);
   }
 
   private handleUiStateChange(state: UiState): void {

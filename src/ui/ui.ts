@@ -19,6 +19,8 @@ type UIHandlers = {
   onModeChange: (mode: GameMode) => void;
   onDifficultyChange: (difficulty: AiDifficulty) => void;
   onToggleSound: (enabled: boolean) => void;
+  onToggleMusic: (enabled: boolean) => void;
+  onMusicVolumeChange: (volume: number) => void;
   onAiDelayChange: (delayMs: number) => void;
   onStartAiVsAi: () => void;
   onToggleAiVsAiRunning: (running: boolean) => void;
@@ -33,6 +35,8 @@ type UIOptions = {
   aiDifficulty?: AiDifficulty;
   aiDelayMs?: number;
   soundEnabled?: boolean;
+  musicEnabled?: boolean;
+  musicVolume?: number;
   pieceSet?: PieceSet;
   playForWin?: boolean;
 };
@@ -75,6 +79,11 @@ export class GameUI {
   private playForWinRow: HTMLDivElement;
   private playForWinToggle: HTMLInputElement;
   private soundToggle: HTMLInputElement;
+  private musicToggle: HTMLInputElement;
+  private musicVolumeRow: HTMLDivElement;
+  private musicVolumeValueEl: HTMLSpanElement;
+  private musicVolumeInput: HTMLInputElement;
+  private musicHintEl: HTMLDivElement;
   private nameWhiteEl: HTMLSpanElement;
   private nameBlackEl: HTMLSpanElement;
   private scoreWhiteEl: HTMLSpanElement;
@@ -175,6 +184,8 @@ export class GameUI {
     const initialDifficulty = options.aiDifficulty ?? 'medium';
     const initialDelay = options.aiDelayMs ?? 700;
     const initialSoundEnabled = options.soundEnabled ?? true;
+    const initialMusicEnabled = options.musicEnabled ?? false;
+    const initialMusicVolume = options.musicVolume ?? 0.2;
     const initialPieceSet = options.pieceSet ?? 'scifi';
     const initialPlayForWin = options.playForWin ?? true;
     this.aiToggle.checked = initialAiEnabled;
@@ -308,6 +319,61 @@ export class GameUI {
     soundLabel.append(this.soundToggle, soundText);
     soundRow.append(soundLabel);
 
+    const musicRow = document.createElement('div');
+    musicRow.className = 'control-row expand-only';
+
+    const musicLabel = document.createElement('label');
+    musicLabel.className = 'toggle';
+
+    this.musicToggle = document.createElement('input');
+    this.musicToggle.type = 'checkbox';
+    this.musicToggle.checked = initialMusicEnabled;
+    this.musicToggle.addEventListener('change', () => {
+      const enabled = this.musicToggle.checked;
+      this.setMusicEnabled(enabled);
+      this.handlers.onToggleMusic(enabled);
+    });
+
+    const musicText = document.createElement('span');
+    musicText.textContent = 'Music';
+    musicLabel.append(this.musicToggle, musicText);
+    musicRow.append(musicLabel);
+
+    this.musicVolumeRow = document.createElement('div');
+    this.musicVolumeRow.className = 'control-row expand-only';
+
+    const volumeLabel = document.createElement('span');
+    volumeLabel.className = 'stat-label';
+    volumeLabel.textContent = 'Music Volume';
+
+    this.musicVolumeValueEl = document.createElement('span');
+    this.musicVolumeValueEl.className = 'stat-value';
+
+    this.musicVolumeInput = document.createElement('input');
+    this.musicVolumeInput.type = 'range';
+    this.musicVolumeInput.min = '0';
+    this.musicVolumeInput.max = '100';
+    this.musicVolumeInput.step = '1';
+    this.musicVolumeInput.value = Math.round(initialMusicVolume * 100).toString();
+    this.musicVolumeInput.addEventListener('input', () => {
+      const value = Number(this.musicVolumeInput.value) / 100;
+      this.setMusicVolume(value);
+      this.handlers.onMusicVolumeChange(value);
+    });
+
+    const musicVolumeMeta = document.createElement('div');
+    musicVolumeMeta.className = 'stat-row';
+    musicVolumeMeta.append(volumeLabel, this.musicVolumeValueEl);
+
+    const musicVolumeStack = document.createElement('div');
+    musicVolumeStack.className = 'delay-stack';
+    musicVolumeStack.append(musicVolumeMeta, this.musicVolumeInput);
+    this.musicVolumeRow.append(musicVolumeStack);
+
+    this.musicHintEl = document.createElement('div');
+    this.musicHintEl.className = 'music-hint expand-only';
+    this.musicHintEl.textContent = 'Click anywhere to enable music';
+
     const namesTitle = document.createElement('div');
     namesTitle.className = 'section-title expand-only';
     namesTitle.textContent = 'Player names';
@@ -362,6 +428,9 @@ export class GameUI {
       scoreBlock,
       this.expandButton,
       soundRow,
+      musicRow,
+      this.musicVolumeRow,
+      this.musicHintEl,
       this.delayRow,
       this.aiVsAiRow,
       this.playForWinRow,
@@ -386,6 +455,9 @@ export class GameUI {
     this.setMode(initialMode);
     this.setPieceSet(initialPieceSet);
     this.setPlayForWin(initialPlayForWin);
+    this.setMusicVolume(initialMusicVolume);
+    this.setMusicEnabled(initialMusicEnabled);
+    this.setMusicUnlockHint(false);
     this.setAiVsAiState({ started: false, running: false });
     this.applyUiState();
   }
@@ -466,6 +538,21 @@ export class GameUI {
 
   setPlayForWin(enabled: boolean): void {
     this.playForWinToggle.checked = enabled;
+  }
+
+  setMusicEnabled(enabled: boolean): void {
+    this.musicToggle.checked = enabled;
+    this.musicVolumeRow.classList.toggle('hidden', !enabled);
+  }
+
+  setMusicVolume(volume: number): void {
+    const percent = Math.round(volume * 100);
+    this.musicVolumeInput.value = percent.toString();
+    this.musicVolumeValueEl.textContent = `${percent}%`;
+  }
+
+  setMusicUnlockHint(visible: boolean): void {
+    this.musicHintEl.classList.toggle('hidden', !visible);
   }
 
   setAiVsAiState(state: { started: boolean; running: boolean }): void {
