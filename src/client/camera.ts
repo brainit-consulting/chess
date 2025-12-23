@@ -67,12 +67,18 @@ export class CameraController {
   snap(view: SnapView): void {
     const radius = 10.5;
     const elevation = 6.5;
+    const topRadius = 11;
+    const topAngle = THREE.MathUtils.degToRad(15);
     const camera = this.controls.object as THREE.PerspectiveCamera;
 
     if (view === 'white') {
       camera.position.set(0, elevation, radius);
     } else if (view === 'black') {
       camera.position.set(0, elevation, -radius);
+    } else if (view === 'top') {
+      const height = Math.cos(topAngle) * topRadius;
+      const offset = Math.sin(topAngle) * topRadius;
+      camera.position.set(0, height, offset);
     } else {
       camera.position.set(radius * 0.7, elevation, radius * 0.7);
     }

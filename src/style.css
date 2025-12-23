@@ -224,6 +224,22 @@ select {
   border-radius: 10px;
 }
 
+select option {
+  background: #10151f;
+  color: #f4efe5;
+}
+
+select option:hover,
+select option:focus {
+  background: #1a2433;
+  color: #ffffff;
+}
+
+select option:checked {
+  background: #243047;
+  color: #ffffff;
+}
+
 input[type='range'] {
   width: 100%;
 }

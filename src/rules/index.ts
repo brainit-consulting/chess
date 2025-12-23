@@ -816,7 +816,7 @@ function isInside(file: number, rank: number): boolean {
   return file >= 0 && file < BOARD_SIZE && rank >= 0 && rank < BOARD_SIZE;
 }
 
-function getPositionKey(state: GameState): string {
+export function getPositionKey(state: GameState): string {
   let boardKey = '';
   for (let rank = 0; rank < BOARD_SIZE; rank += 1) {
     for (let file = 0; file < BOARD_SIZE; file += 1) {

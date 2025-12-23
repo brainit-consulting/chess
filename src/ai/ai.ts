@@ -8,6 +8,8 @@ export type AiOptions = {
   difficulty?: AiDifficulty;
   seed?: number;
   rng?: () => number;
+  playForWin?: boolean;
+  recentPositions?: string[];
 };
 
 const DEPTH_BY_DIFFICULTY: Record<AiDifficulty, number> = {
@@ -28,7 +30,13 @@ export function chooseMove(state: GameState, options: AiOptions = {}): Move | nu
   const difficulty = options.difficulty ?? 'medium';
   const depth = DEPTH_BY_DIFFICULTY[difficulty];
 
-  return findBestMove(state, color, { depth, rng, legalMoves });
+  return findBestMove(state, color, {
+    depth,
+    rng,
+    legalMoves,
+    playForWin: options.playForWin,
+    recentPositions: options.recentPositions
+  });
 }
 
 function createSeededRng(seed: number): () => number {

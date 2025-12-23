@@ -5,6 +5,7 @@ import {
   Move,
   getAllLegalMoves,
   getPieceAt,
+  getPositionKey,
   isInCheck,
   applyMove
 } from '../rules';
@@ -14,9 +15,15 @@ type SearchOptions = {
   depth: number;
   rng: () => number;
   legalMoves?: Move[];
+  playForWin?: boolean;
+  recentPositions?: string[];
+  repetitionPenalty?: number;
+  topMoveWindow?: number;
 };
 
 const MATE_SCORE = 20000;
+const DEFAULT_REPETITION_PENALTY = 15;
+const DEFAULT_TOP_MOVE_WINDOW = 10;
 
 export function findBestMove(state: GameState, color: Color, options: SearchOptions): Move | null {
   const legalMoves = options.legalMoves ?? getAllLegalMoves(state, color);
@@ -25,15 +32,17 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
   }
 
   const ordered = orderMoves(state, legalMoves, color, options.rng);
-  let bestScore = -Infinity;
-  let bestMoves: Move[] = [];
+  const scoredMoves: { move: Move; score: number }[] = [];
+  const playForWin = Boolean(options.playForWin && options.recentPositions?.length);
+  const repetitionPenalty = options.repetitionPenalty ?? DEFAULT_REPETITION_PENALTY;
+  const topMoveWindow = options.topMoveWindow ?? DEFAULT_TOP_MOVE_WINDOW;
 
   for (const move of ordered) {
     const next = cloneState(state);
     next.activeColor = color;
     applyMove(next, move);
 
-    const score = alphaBeta(
+    let score = alphaBeta(
       next,
       options.depth - 1,
       -Infinity,
@@ -43,20 +52,28 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
       options.rng
     );
 
-    if (score > bestScore) {
-      bestScore = score;
-      bestMoves = [move];
-    } else if (score === bestScore) {
-      bestMoves.push(move);
+    if (playForWin) {
+      const key = getPositionKey(next);
+      if (options.recentPositions?.includes(key)) {
+        score -= repetitionPenalty;
+      }
     }
+
+    scoredMoves.push({ move, score });
   }
 
-  if (bestMoves.length === 1) {
-    return bestMoves[0];
+  if (scoredMoves.length === 1) {
+    return scoredMoves[0].move;
   }
 
-  const index = Math.floor(options.rng() * bestMoves.length);
-  return bestMoves[index];
+  const bestScore = Math.max(...scoredMoves.map((entry) => entry.score));
+  const windowed =
+    playForWin && topMoveWindow > 0
+      ? scoredMoves.filter((entry) => entry.score >= bestScore - topMoveWindow)
+      : scoredMoves.filter((entry) => entry.score === bestScore);
+
+  const index = Math.floor(options.rng() * windowed.length);
+  return windowed[index].move;
 }
 
 function alphaBeta(

@@ -21,6 +21,7 @@ type UIHandlers = {
   onStartAiVsAi: () => void;
   onToggleAiVsAiRunning: (running: boolean) => void;
   onPieceSetChange: (pieceSet: PieceSet) => void;
+  onTogglePlayForWin: (enabled: boolean) => void;
   onUiStateChange: (state: UiState) => void;
 };
 
@@ -31,6 +32,7 @@ type UIOptions = {
   aiDelayMs?: number;
   soundEnabled?: boolean;
   pieceSet?: PieceSet;
+  playForWin?: boolean;
 };
 
 const UI_STATE_KEY = 'chess.uiState';
@@ -66,6 +68,8 @@ export class GameUI {
   private aiToggle: HTMLInputElement;
   private difficultySelect: HTMLSelectElement;
   private pieceSetSelect: HTMLSelectElement;
+  private playForWinRow: HTMLDivElement;
+  private playForWinToggle: HTMLInputElement;
   private soundToggle: HTMLInputElement;
   private nameWhiteEl: HTMLSpanElement;
   private nameBlackEl: HTMLSpanElement;
@@ -156,6 +160,7 @@ export class GameUI {
     const initialDelay = options.aiDelayMs ?? 700;
     const initialSoundEnabled = options.soundEnabled ?? true;
     const initialPieceSet = options.pieceSet ?? 'scifi';
+    const initialPlayForWin = options.playForWin ?? true;
     this.aiToggle.checked = initialAiEnabled;
     this.aiToggle.addEventListener('change', () => {
       const enabled = this.aiToggle.checked;
@@ -251,6 +256,24 @@ export class GameUI {
       this.aiVsAiResumeButton
     );
 
+    this.playForWinRow = document.createElement('div');
+    this.playForWinRow.className = 'control-row expand-only';
+
+    const playForWinLabel = document.createElement('label');
+    playForWinLabel.className = 'toggle';
+
+    this.playForWinToggle = document.createElement('input');
+    this.playForWinToggle.type = 'checkbox';
+    this.playForWinToggle.checked = initialPlayForWin;
+    this.playForWinToggle.addEventListener('change', () => {
+      this.handlers.onTogglePlayForWin(this.playForWinToggle.checked);
+    });
+
+    const playForWinText = document.createElement('span');
+    playForWinText.textContent = 'Play for Win';
+    playForWinLabel.append(this.playForWinToggle, playForWinText);
+    this.playForWinRow.append(playForWinLabel);
+
     const soundRow = document.createElement('div');
     soundRow.className = 'control-row expand-only';
 
@@ -302,9 +325,10 @@ export class GameUI {
     const whiteBtn = this.makeButton('White View', () => handlers.onSnap('white'));
     const blackBtn = this.makeButton('Black View', () => handlers.onSnap('black'));
     const isoBtn = this.makeButton('Isometric', () => handlers.onSnap('iso'));
+    const topBtn = this.makeButton('Top-Down', () => handlers.onSnap('top'));
     const restartBtn = this.makeButton('Restart', () => handlers.onRestart());
 
-    buttonRow.append(whiteBtn, blackBtn, isoBtn, restartBtn);
+    buttonRow.append(whiteBtn, blackBtn, isoBtn, topBtn, restartBtn);
 
     this.panel.append(
       header,
@@ -324,6 +348,7 @@ export class GameUI {
       soundRow,
       this.delayRow,
       this.aiVsAiRow,
+      this.playForWinRow,
       aiRow,
       buttonRow
     );
@@ -344,6 +369,7 @@ export class GameUI {
     this.setAiDelay(initialDelay);
     this.setMode(initialMode);
     this.setPieceSet(initialPieceSet);
+    this.setPlayForWin(initialPlayForWin);
     this.setAiVsAiState({ started: false, running: false });
     this.applyUiState();
   }
@@ -420,6 +446,10 @@ export class GameUI {
 
   setPieceSet(pieceSet: PieceSet): void {
     this.pieceSetSelect.value = pieceSet;
+  }
+
+  setPlayForWin(enabled: boolean): void {
+    this.playForWinToggle.checked = enabled;
   }
 
   setAiVsAiState(state: { started: boolean; running: boolean }): void {
@@ -595,6 +625,7 @@ export class GameUI {
   private updateAiVsAiControls(): void {
     const show = this.mode === 'aivai';
     this.aiVsAiRow.classList.toggle('hidden', !show);
+    this.playForWinRow.classList.toggle('hidden', !show);
     this.aiVsAiStartButton.classList.toggle('hidden', !show || this.aiVsAiStarted);
     const showPause = show && this.aiVsAiStarted && this.aiVsAiRunning;
     const showResume = show && this.aiVsAiStarted && !this.aiVsAiRunning;

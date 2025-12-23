@@ -11,6 +11,7 @@ import {
   getPieceAt,
   getGameStatus,
   getLegalMovesForSquare,
+  getPositionKey,
   sameSquare
 } from './rules';
 import { AiDifficulty, chooseMove } from './ai/ai';
@@ -37,6 +38,7 @@ type Preferences = {
   mode: GameMode;
   aiDelayMs: number;
   pieceSet: PieceSet;
+  playForWinAiVsAi: boolean;
 };
 
 const DEFAULT_NAMES: PlayerNames = { white: 'White', black: 'Black' };
@@ -47,7 +49,8 @@ const STORAGE_KEYS = {
   ai: 'chess.aiSettings',
   mode: 'chess.gameMode',
   aiDelay: 'chess.aiDelayMs',
-  pieceSet: 'chess.pieceSet'
+  pieceSet: 'chess.pieceSet',
+  playForWinAiVsAi: 'chess.playForWinAiVsAi'
 };
 const AI_LABELS: Record<AiDifficulty, string> = {
   easy: 'Easy',
@@ -77,6 +80,8 @@ export class GameController {
   private aiVsAiPaused = false;
   private baseNames: PlayerNames = { ...DEFAULT_NAMES };
   private pieceSet: PieceSet = 'scifi';
+  private playForWinAiVsAi = true;
+  private recentPositions: string[] = [];
 
   constructor(sceneRoot: HTMLElement, uiRoot: HTMLElement) {
     this.state = createInitialState();
@@ -86,6 +91,7 @@ export class GameController {
     this.aiDelayMs = preferences.aiDelayMs;
     this.baseNames = preferences.names;
     this.pieceSet = preferences.pieceSet;
+    this.playForWinAiVsAi = preferences.playForWinAiVsAi;
     const soundEnabled = SoundManager.loadEnabled();
     this.sound = new SoundManager(soundEnabled);
     this.scene = new SceneView(sceneRoot, {
@@ -104,6 +110,7 @@ export class GameController {
       onStartAiVsAi: () => this.startAiVsAi(),
       onToggleAiVsAiRunning: (running) => this.setAiVsAiRunning(running),
       onPieceSetChange: (pieceSet) => this.setPieceSet(pieceSet),
+      onTogglePlayForWin: (enabled) => this.setPlayForWinAiVsAi(enabled),
       onUiStateChange: (state) => this.handleUiStateChange(state)
     }, {
       mode: this.mode,
@@ -111,7 +118,8 @@ export class GameController {
       aiDifficulty: this.aiDifficulty,
       aiDelayMs: this.aiDelayMs,
       soundEnabled,
-      pieceSet: this.pieceSet
+      pieceSet: this.pieceSet,
+      playForWin: this.playForWinAiVsAi
     });
     this.stats = new GameStats();
     this.stats.reset(this.state);
@@ -120,6 +128,7 @@ export class GameController {
     this.scene.setUiState(this.ui.getUiState());
     this.syncAiVsAiState();
     this.setupSoundUnlock();
+    this.resetPositionHistory();
 
     window.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') {
@@ -150,6 +159,7 @@ export class GameController {
     this.ui.hideSummary();
     this.stats.reset(this.state);
     this.ui.setScores(this.stats.getScores());
+    this.resetPositionHistory();
     this.sync();
     this.maybeScheduleAiMove();
   }
@@ -255,6 +265,7 @@ export class GameController {
     this.cancelAiMove();
     const moverColor = this.state.activeColor;
     applyMove(this.state, move);
+    this.recordPositionKey();
     this.stats.updateAfterMove(this.state, moverColor);
     this.ui.setScores(this.stats.getScores());
     this.selected = null;
@@ -312,10 +323,13 @@ export class GameController {
         return;
       }
 
+      const playForWin = this.mode === 'aivai' && this.playForWinAiVsAi;
       const move = chooseMove(this.state, {
         color: this.state.activeColor,
         difficulty: this.aiDifficulty,
-        seed: this.aiSeed
+        seed: this.aiSeed,
+        playForWin,
+        recentPositions: playForWin ? this.getRecentPositionKeys() : undefined
       });
 
       if (!move) {
@@ -382,6 +396,12 @@ export class GameController {
     this.persistPreferences();
     this.ui.setPieceSet(pieceSet);
     void this.scene.setPieceSet(pieceSet);
+  }
+
+  private setPlayForWinAiVsAi(enabled: boolean): void {
+    this.playForWinAiVsAi = enabled;
+    this.persistPreferences();
+    this.ui.setPlayForWin(enabled);
   }
 
   private setSoundEnabled(enabled: boolean): void {
@@ -513,6 +533,7 @@ export class GameController {
     let mode: GameMode = ai.enabled ? 'hvai' : 'hvh';
     let aiDelayMs = DEFAULT_AI_DELAY_MS;
     let pieceSet: PieceSet = 'scifi';
+    let playForWinAiVsAi = true;
 
     if (storage) {
       const rawNames = storage.getItem(STORAGE_KEYS.names);
@@ -562,14 +583,20 @@ export class GameController {
         pieceSet = rawPieceSet;
       }
 
+      const rawPlayForWin = storage.getItem(STORAGE_KEYS.playForWinAiVsAi);
+      if (rawPlayForWin !== null) {
+        playForWinAiVsAi = rawPlayForWin === 'true';
+      }
+
       storage.setItem(STORAGE_KEYS.names, JSON.stringify(names));
       storage.setItem(STORAGE_KEYS.ai, JSON.stringify(ai));
       storage.setItem(STORAGE_KEYS.mode, mode);
       storage.setItem(STORAGE_KEYS.aiDelay, aiDelayMs.toString());
       storage.setItem(STORAGE_KEYS.pieceSet, pieceSet);
+      storage.setItem(STORAGE_KEYS.playForWinAiVsAi, playForWinAiVsAi.toString());
     }
 
-    return { names, ai, mode, aiDelayMs, pieceSet };
+    return { names, ai, mode, aiDelayMs, pieceSet, playForWinAiVsAi };
   }
 
   private persistPreferences(): void {
@@ -586,6 +613,23 @@ export class GameController {
     storage.setItem(STORAGE_KEYS.mode, this.mode);
     storage.setItem(STORAGE_KEYS.aiDelay, this.aiDelayMs.toString());
     storage.setItem(STORAGE_KEYS.pieceSet, this.pieceSet);
+    storage.setItem(STORAGE_KEYS.playForWinAiVsAi, this.playForWinAiVsAi.toString());
+  }
+
+  private resetPositionHistory(): void {
+    this.recentPositions = [getPositionKey(this.state)];
+  }
+
+  private recordPositionKey(): void {
+    this.recentPositions.push(getPositionKey(this.state));
+    const max = 12;
+    if (this.recentPositions.length > max) {
+      this.recentPositions.splice(0, this.recentPositions.length - max);
+    }
+  }
+
+  private getRecentPositionKeys(): string[] {
+    return [...this.recentPositions];
   }
 
   private getStorage(): Storage | null {

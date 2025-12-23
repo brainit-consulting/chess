@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { chooseMove } from '../ai';
+import { findBestMove } from '../search';
 import {
   addPiece,
+  applyMove,
   createEmptyState,
   createInitialState,
   getAllLegalMoves,
+  getPositionKey,
+  GameState,
+  Piece,
   Square,
   Move
 } from '../../rules';
@@ -21,6 +26,24 @@ function sameMove(a: Move, b: Move): boolean {
     a.isCastle === b.isCastle &&
     a.isEnPassant === b.isEnPassant
   );
+}
+
+function cloneState(state: GameState): GameState {
+  const board = state.board.map((row) => row.slice());
+  const pieces = new Map<number, Piece>();
+  for (const [id, piece] of state.pieces) {
+    pieces.set(id, { ...piece });
+  }
+  return {
+    board,
+    pieces,
+    activeColor: state.activeColor,
+    castlingRights: { ...state.castlingRights },
+    enPassantTarget: state.enPassantTarget ? { ...state.enPassantTarget } : null,
+    halfmoveClock: state.halfmoveClock,
+    fullmoveNumber: state.fullmoveNumber,
+    lastMove: state.lastMove ? { ...state.lastMove } : null
+  };
 }
 
 describe('AI move selection', () => {
@@ -67,5 +90,38 @@ describe('AI move selection', () => {
 
     const staleMove = chooseMove(stalemate, { difficulty: 'easy', seed: 1 });
     expect(staleMove).toBeNull();
+  });
+
+  it('penalizes repeating positions when play-for-win is enabled', () => {
+    const state = createEmptyState();
+    addPiece(state, 'king', 'w', sq(3, 3));
+    addPiece(state, 'king', 'b', sq(7, 7));
+    state.activeColor = 'w';
+
+    const legalMoves = getAllLegalMoves(state, 'w');
+    const moveA = legalMoves.find((move) => move.to.file === 2 && move.to.rank === 3);
+    const moveB = legalMoves.find((move) => move.to.file === 4 && move.to.rank === 3);
+
+    if (!moveA || !moveB) {
+      throw new Error('Expected two comparable king moves for repetition test.');
+    }
+
+    const nextA = cloneState(state);
+    nextA.activeColor = 'w';
+    applyMove(nextA, moveA);
+    const repeatKey = getPositionKey(nextA);
+
+    const chosen = findBestMove(state, 'w', {
+      depth: 1,
+      rng: () => 0,
+      legalMoves: [moveA, moveB],
+      playForWin: true,
+      recentPositions: [repeatKey],
+      repetitionPenalty: 1000,
+      topMoveWindow: 0
+    });
+
+    expect(chosen).not.toBeNull();
+    expect(sameMove(chosen as Move, moveA)).toBe(false);
   });
 });
