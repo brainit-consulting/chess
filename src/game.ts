@@ -234,12 +234,15 @@ export class GameController {
 
   private maybeScheduleAiMove(): void {
     if (!this.aiEnabled) {
+      this.ui.setAiThinking(false);
       return;
     }
     if (this.gameOver) {
+      this.ui.setAiThinking(false);
       return;
     }
     if (this.state.activeColor !== 'b') {
+      this.ui.setAiThinking(false);
       return;
     }
     this.scheduleAiMove();
@@ -249,6 +252,7 @@ export class GameController {
     this.cancelAiMove();
     const requestId = this.aiRequestId;
     const delayMs = 380;
+    this.ui.setAiThinking(true);
 
     this.aiTimeout = window.setTimeout(() => {
       if (requestId !== this.aiRequestId) {
@@ -265,10 +269,12 @@ export class GameController {
       });
 
       if (!move) {
+        this.ui.setAiThinking(false);
         this.sync();
         return;
       }
 
+      this.ui.setAiThinking(false);
       this.applyAndAdvance(move);
     }, delayMs);
   }
@@ -279,6 +285,7 @@ export class GameController {
       window.clearTimeout(this.aiTimeout);
       this.aiTimeout = null;
     }
+    this.ui.setAiThinking(false);
   }
 
   private setAiEnabled(enabled: boolean): void {

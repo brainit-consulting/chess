@@ -33,6 +33,7 @@ export class GameUI {
   private turnEl: HTMLDivElement;
   private statusEl: HTMLDivElement;
   private noticeEl: HTMLDivElement;
+  private aiStatusEl: HTMLDivElement;
   private modal: HTMLDivElement;
   private aiToggle: HTMLInputElement;
   private difficultySelect: HTMLSelectElement;
@@ -89,6 +90,9 @@ export class GameUI {
 
     this.noticeEl = document.createElement('div');
     this.noticeEl.className = 'notice expand-only';
+
+    this.aiStatusEl = document.createElement('div');
+    this.aiStatusEl.className = 'ai-status expand-only';
 
     const aiRow = document.createElement('div');
     aiRow.className = 'control-row expand-only';
@@ -186,6 +190,7 @@ export class GameUI {
       this.turnEl,
       this.statusEl,
       this.noticeEl,
+      this.aiStatusEl,
       namesTitle,
       namesBlock,
       scoreTitle,
@@ -252,6 +257,10 @@ export class GameUI {
     this.statusEl.textContent = ' ';
     this.noticeEl.textContent = ' ';
     this.noticeEl.className = 'notice';
+  }
+
+  setAiThinking(thinking: boolean): void {
+    this.aiStatusEl.textContent = thinking ? 'AI thinking...' : ' ';
   }
 
   showPromotion(): void {
