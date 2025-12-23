@@ -3,22 +3,25 @@ import { GameStatus, Color } from '../rules';
 import { SnapView } from '../types';
 import { PieceType } from '../rules';
 
+export type UiState = {
+  visible: boolean;
+  collapsed: boolean;
+};
+
 type UIHandlers = {
   onRestart: () => void;
   onSnap: (view: SnapView) => void;
   onPromotionChoice: (type: PieceType) => void;
   onToggleAi: (enabled: boolean) => void;
   onDifficultyChange: (difficulty: AiDifficulty) => void;
+  onToggleSound: (enabled: boolean) => void;
+  onUiStateChange: (state: UiState) => void;
 };
 
 type UIOptions = {
   aiEnabled?: boolean;
   aiDifficulty?: AiDifficulty;
-};
-
-type UiState = {
-  visible: boolean;
-  collapsed: boolean;
+  soundEnabled?: boolean;
 };
 
 const UI_STATE_KEY = 'chess.uiState';
@@ -33,6 +36,7 @@ export class GameUI {
   private modal: HTMLDivElement;
   private aiToggle: HTMLInputElement;
   private difficultySelect: HTMLSelectElement;
+  private soundToggle: HTMLInputElement;
   private nameWhiteEl: HTMLSpanElement;
   private nameBlackEl: HTMLSpanElement;
   private scoreWhiteEl: HTMLSpanElement;
@@ -96,6 +100,7 @@ export class GameUI {
     this.aiToggle.type = 'checkbox';
     const initialAiEnabled = options.aiEnabled ?? true;
     const initialDifficulty = options.aiDifficulty ?? 'medium';
+    const initialSoundEnabled = options.soundEnabled ?? true;
     this.aiToggle.checked = initialAiEnabled;
     this.aiToggle.addEventListener('change', () => {
       const enabled = this.aiToggle.checked;
@@ -120,6 +125,24 @@ export class GameUI {
     });
 
     aiRow.append(aiLabel, this.difficultySelect);
+
+    const soundRow = document.createElement('div');
+    soundRow.className = 'control-row expand-only';
+
+    const soundLabel = document.createElement('label');
+    soundLabel.className = 'toggle';
+
+    this.soundToggle = document.createElement('input');
+    this.soundToggle.type = 'checkbox';
+    this.soundToggle.checked = initialSoundEnabled;
+    this.soundToggle.addEventListener('change', () => {
+      this.handlers.onToggleSound(this.soundToggle.checked);
+    });
+
+    const soundText = document.createElement('span');
+    soundText.textContent = 'Sound';
+    soundLabel.append(this.soundToggle, soundText);
+    soundRow.append(soundLabel);
 
     const namesTitle = document.createElement('div');
     namesTitle.className = 'section-title expand-only';
@@ -168,6 +191,7 @@ export class GameUI {
       scoreTitle,
       scoreBlock,
       this.expandButton,
+      soundRow,
       aiRow,
       buttonRow
     );
@@ -186,6 +210,10 @@ export class GameUI {
 
   setTurn(color: Color): void {
     this.turnEl.textContent = color === 'w' ? 'White to move' : 'Black to move';
+  }
+
+  getUiState(): UiState {
+    return { ...this.uiState };
   }
 
   setPlayerNames(names: { white: string; black: string }): void {
@@ -290,15 +318,23 @@ export class GameUI {
   }
 
   private setUiVisible(visible: boolean): void {
+    if (this.uiState.visible === visible) {
+      return;
+    }
     this.uiState.visible = visible;
     this.persistUiState();
     this.applyUiState();
+    this.handlers.onUiStateChange({ ...this.uiState });
   }
 
   private setUiCollapsed(collapsed: boolean): void {
+    if (this.uiState.collapsed === collapsed) {
+      return;
+    }
     this.uiState.collapsed = collapsed;
     this.persistUiState();
     this.applyUiState();
+    this.handlers.onUiStateChange({ ...this.uiState });
   }
 
   private applyUiState(): void {

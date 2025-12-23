@@ -1,5 +1,6 @@
 import {
   GameState,
+  GameStatus,
   Move,
   PieceType,
   Square,
@@ -13,8 +14,9 @@ import {
 } from './rules';
 import { AiDifficulty, chooseMove } from './ai/ai';
 import { SceneView, PickResult } from './client/scene';
-import { GameUI } from './ui/ui';
+import { GameUI, UiState } from './ui/ui';
 import { GameStats } from './gameStats';
+import { SoundManager } from './sound/soundManager';
 
 type PlayerNames = {
   white: string;
@@ -42,6 +44,7 @@ export class GameController {
   private scene: SceneView;
   private ui: GameUI;
   private stats: GameStats;
+  private sound: SoundManager;
   private selected: Square | null = null;
   private legalMoves: Move[] = [];
   private pendingPromotion: Move[] | null = null;
@@ -59,6 +62,8 @@ export class GameController {
     this.aiEnabled = preferences.ai.enabled;
     this.aiDifficulty = preferences.ai.difficulty;
     this.baseNames = preferences.names;
+    const soundEnabled = SoundManager.loadEnabled();
+    this.sound = new SoundManager(soundEnabled);
     this.scene = new SceneView(sceneRoot, {
       onPick: (pick) => this.handlePick(pick),
       onCancel: () => this.clearSelection()
@@ -68,15 +73,20 @@ export class GameController {
       onSnap: (view) => this.scene.snapView(view),
       onPromotionChoice: (type) => this.resolvePromotion(type),
       onToggleAi: (enabled) => this.setAiEnabled(enabled),
-      onDifficultyChange: (difficulty) => this.setAiDifficulty(difficulty)
+      onDifficultyChange: (difficulty) => this.setAiDifficulty(difficulty),
+      onToggleSound: (enabled) => this.setSoundEnabled(enabled),
+      onUiStateChange: (state) => this.handleUiStateChange(state)
     }, {
       aiEnabled: this.aiEnabled,
-      aiDifficulty: this.aiDifficulty
+      aiDifficulty: this.aiDifficulty,
+      soundEnabled
     });
     this.stats = new GameStats();
     this.stats.reset(this.state);
     this.ui.setScores(this.stats.getScores());
     this.updatePlayerNames();
+    this.scene.setUiState(this.ui.getUiState());
+    this.setupSoundUnlock();
 
     window.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') {
@@ -105,10 +115,10 @@ export class GameController {
     this.maybeScheduleAiMove();
   }
 
-  private sync(): void {
+  private sync(statusOverride?: GameStatus): void {
     this.scene.setState(this.state);
 
-    const status = getGameStatus(this.state);
+    const status = statusOverride ?? getGameStatus(this.state);
     this.gameOver = status.status === 'checkmate' || status.status === 'stalemate';
     this.ui.setTurn(this.state.activeColor);
     this.ui.setStatus(status);
@@ -208,7 +218,14 @@ export class GameController {
     this.ui.setScores(this.stats.getScores());
     this.selected = null;
     this.legalMoves = [];
-    this.sync();
+    const status = getGameStatus(this.state);
+    const isCapture = move.capturedId !== undefined || move.isEnPassant;
+    this.sound.play(isCapture ? 'capture' : 'move');
+    if (status.status === 'check') {
+      this.sound.play('check');
+    }
+    this.scene.nudgeTurnChange();
+    this.sync(status);
     this.maybeScheduleAiMove();
   }
 
@@ -275,6 +292,15 @@ export class GameController {
     this.updatePlayerNames();
   }
 
+  private setSoundEnabled(enabled: boolean): void {
+    this.sound.setEnabled(enabled);
+  }
+
+  private handleUiStateChange(state: UiState): void {
+    this.scene.setUiState(state);
+    this.sound.play('ui');
+  }
+
   private updatePlayerNames(): void {
     if (this.aiEnabled) {
       this.ui.setPlayerNames({
@@ -285,6 +311,16 @@ export class GameController {
     }
 
     this.ui.setPlayerNames({ ...this.baseNames });
+  }
+
+  private setupSoundUnlock(): void {
+    const unlock = () => {
+      this.sound.unlock();
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
+    window.addEventListener('pointerdown', unlock);
+    window.addEventListener('keydown', unlock);
   }
 
   private loadPreferences(): { names: PlayerNames; ai: AiSettings } {

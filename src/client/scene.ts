@@ -168,8 +168,12 @@ export class SceneView {
     if (highlights.checkSquare) {
       this.tintSquare(highlights.checkSquare, '#8f2f2f');
       this.updateCheckHalo(highlights.checkSquare);
+      const world = this.squareToWorld(highlights.checkSquare);
+      world.y = 0;
+      this.cameraController.setCheckTarget(world);
     } else {
       this.clearCheckHalo();
+      this.cameraController.setCheckTarget(null);
     }
 
     for (const move of highlights.legalMoves) {
@@ -180,6 +184,14 @@ export class SceneView {
 
   snapView(view: SnapView): void {
     this.cameraController.snap(view);
+  }
+
+  setUiState(state: { visible: boolean; collapsed: boolean }): void {
+    this.cameraController.setUiZoomedOut(!state.visible || state.collapsed);
+  }
+
+  nudgeTurnChange(): void {
+    this.cameraController.nudgeTurn();
   }
 
   private handleResize(container: HTMLElement): void {

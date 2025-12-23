@@ -4,8 +4,20 @@ import { SnapView } from '../types';
 
 export class CameraController {
   private controls: OrbitControls;
+  private camera: THREE.PerspectiveCamera;
+  private baseTarget = new THREE.Vector3();
+  private biasTarget = new THREE.Vector3();
+  private biasCurrent = new THREE.Vector3();
+  private baseFov: number;
+  private zoomFrom = 0;
+  private zoomTo = 0;
+  private zoomStart = 0;
+  private zoomDuration = 240;
+  private nudgeStart: number | null = null;
+  private nudgeDuration = 220;
 
   constructor(camera: THREE.PerspectiveCamera, domElement: HTMLElement) {
+    this.camera = camera;
     this.controls = new OrbitControls(camera, domElement);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.08;
@@ -19,10 +31,19 @@ export class CameraController {
       MIDDLE: THREE.MOUSE.DOLLY,
       RIGHT: THREE.MOUSE.ROTATE
     };
+    this.baseTarget.copy(this.controls.target);
+    this.baseFov = camera.fov;
+    this.zoomFrom = camera.fov;
+    this.zoomTo = camera.fov;
   }
 
   update(): void {
+    // Apply subtle target bias before OrbitControls updates camera.
+    this.applyTargetBias();
     this.controls.update();
+    // Ease UI zoom and turn nudge without snapping.
+    this.applyUiZoom();
+    this.applyNudge();
   }
 
   handleKey(key: string): void {
@@ -51,7 +72,77 @@ export class CameraController {
       camera.position.set(radius * 0.7, elevation, radius * 0.7);
     }
 
-    this.controls.target.set(0, 0, 0);
+    this.baseTarget.set(0, 0, 0);
+    this.controls.target.copy(this.baseTarget).add(this.biasCurrent);
     this.controls.update();
   }
+
+  setUiZoomedOut(zoomedOut: boolean): void {
+    // Slight FOV lift when UI is hidden/collapsed.
+    const targetFov = this.baseFov * (zoomedOut ? 1.08 : 1);
+    if (Math.abs(targetFov - this.zoomTo) < 0.01) {
+      return;
+    }
+    this.zoomFrom = this.camera.fov;
+    this.zoomTo = targetFov;
+    this.zoomStart = performance.now();
+  }
+
+  nudgeTurn(): void {
+    // Gentle micro-nudge to acknowledge turn changes.
+    this.nudgeStart = performance.now();
+  }
+
+  setCheckTarget(target: THREE.Vector3 | null): void {
+    // Softly bias the camera toward the checked king.
+    if (!target) {
+      this.biasTarget.set(0, 0, 0);
+      return;
+    }
+    const offset = target.clone().sub(this.baseTarget);
+    offset.y = 0;
+    if (offset.lengthSq() < 0.0001) {
+      this.biasTarget.set(0, 0, 0);
+      return;
+    }
+    offset.normalize().multiplyScalar(0.35);
+    this.biasTarget.copy(offset);
+  }
+
+  private applyTargetBias(): void {
+    this.biasCurrent.lerp(this.biasTarget, 0.08);
+    this.controls.target.copy(this.baseTarget).add(this.biasCurrent);
+  }
+
+  private applyUiZoom(): void {
+    if (!this.zoomStart) {
+      return;
+    }
+    const elapsed = performance.now() - this.zoomStart;
+    const t = Math.min(elapsed / this.zoomDuration, 1);
+    const eased = t * (2 - t);
+    this.camera.fov = lerp(this.zoomFrom, this.zoomTo, eased);
+    this.camera.updateProjectionMatrix();
+    if (t >= 1) {
+      this.zoomStart = 0;
+    }
+  }
+
+  private applyNudge(): void {
+    if (!this.nudgeStart) {
+      return;
+    }
+    const elapsed = performance.now() - this.nudgeStart;
+    const t = Math.min(elapsed / this.nudgeDuration, 1);
+    const strength = Math.sin(Math.PI * t) * 0.08;
+    const direction = this.camera.position.clone().sub(this.controls.target).normalize();
+    this.camera.position.add(direction.multiplyScalar(strength));
+    if (t >= 1) {
+      this.nudgeStart = null;
+    }
+  }
+}
+
+function lerp(from: number, to: number, t: number): number {
+  return from + (to - from) * t;
 }
