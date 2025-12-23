@@ -8,6 +8,7 @@
     "build": "vite build",
     "predeploy": "npm run build",
     "deploy": "gh-pages -d dist",
+    "export:chess-standard": "blender --background --python scripts/export_chess_standard.py",
     "preview": "vite preview",
     "test": "vitest",
     "test:run": "vitest --run"

@@ -1,0 +1,8 @@
+{
+  "king": "king.glb",
+  "queen": "queen.glb",
+  "rook": "rook.glb",
+  "bishop": "bishop.glb",
+  "knight": "knight.glb",
+  "pawn": "pawn.glb"
+}
