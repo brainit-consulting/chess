@@ -1,4 +1,6 @@
-# 3D Chess Game. Player User Guide
+# 3D Chess Game by Emile du Toit
+
+## Player User Guide
 
 Welcome to **3D Chess**! This guide explains all available game modes, controls, and features so you can get the most out of the experience.
 
