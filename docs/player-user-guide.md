@@ -1,4 +1,4 @@
-# 3D Chess — Player User Guide
+# 3D Chess : Player User Guide
 
 Welcome to **3D Chess**! This guide explains all available game modes, controls, and features so you can get the most out of the experience.
 
@@ -55,7 +55,7 @@ Welcome to **3D Chess**! This guide explains all available game modes, controls,
 - **Resume**: Continues from the current position.
 - **Restart**: Resets the board and AI state.
 
-AI will **not** start automatically — setup always comes first.
+AI will **not** start automatically - setup always comes first.
 
 ---
 
