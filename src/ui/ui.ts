@@ -11,6 +11,11 @@ type UIHandlers = {
   onDifficultyChange: (difficulty: AiDifficulty) => void;
 };
 
+type UIOptions = {
+  aiEnabled?: boolean;
+  aiDifficulty?: AiDifficulty;
+};
+
 export class GameUI {
   private turnEl: HTMLDivElement;
   private statusEl: HTMLDivElement;
@@ -18,9 +23,13 @@ export class GameUI {
   private modal: HTMLDivElement;
   private aiToggle: HTMLInputElement;
   private difficultySelect: HTMLSelectElement;
+  private nameWhiteEl: HTMLSpanElement;
+  private nameBlackEl: HTMLSpanElement;
+  private scoreWhiteEl: HTMLSpanElement;
+  private scoreBlackEl: HTMLSpanElement;
   private handlers: UIHandlers;
 
-  constructor(root: HTMLElement, handlers: UIHandlers) {
+  constructor(root: HTMLElement, handlers: UIHandlers, options: UIOptions = {}) {
     this.handlers = handlers;
 
     root.innerHTML = '';
@@ -51,7 +60,9 @@ export class GameUI {
 
     this.aiToggle = document.createElement('input');
     this.aiToggle.type = 'checkbox';
-    this.aiToggle.checked = true;
+    const initialAiEnabled = options.aiEnabled ?? true;
+    const initialDifficulty = options.aiDifficulty ?? 'medium';
+    this.aiToggle.checked = initialAiEnabled;
     this.aiToggle.addEventListener('change', () => {
       const enabled = this.aiToggle.checked;
       this.difficultySelect.disabled = !enabled;
@@ -65,15 +76,40 @@ export class GameUI {
     this.difficultySelect = document.createElement('select');
     this.difficultySelect.innerHTML = `
       <option value="easy">Easy</option>
-      <option value="medium" selected>Medium</option>
+      <option value="medium">Medium</option>
       <option value="hard">Hard</option>
     `;
-    this.difficultySelect.disabled = !this.aiToggle.checked;
+    this.difficultySelect.value = initialDifficulty;
+    this.difficultySelect.disabled = !initialAiEnabled;
     this.difficultySelect.addEventListener('change', () => {
       this.handlers.onDifficultyChange(this.difficultySelect.value as AiDifficulty);
     });
 
     aiRow.append(aiLabel, this.difficultySelect);
+
+    const namesTitle = document.createElement('div');
+    namesTitle.className = 'section-title';
+    namesTitle.textContent = 'Player names';
+
+    const namesBlock = document.createElement('div');
+    namesBlock.className = 'stat-block';
+    const nameWhiteRow = this.makeStatRow('White');
+    const nameBlackRow = this.makeStatRow('Black');
+    this.nameWhiteEl = nameWhiteRow.value;
+    this.nameBlackEl = nameBlackRow.value;
+    namesBlock.append(nameWhiteRow.row, nameBlackRow.row);
+
+    const scoreTitle = document.createElement('div');
+    scoreTitle.className = 'section-title';
+    scoreTitle.textContent = 'Score';
+
+    const scoreBlock = document.createElement('div');
+    scoreBlock.className = 'stat-block';
+    const scoreWhiteRow = this.makeStatRow('White');
+    const scoreBlackRow = this.makeStatRow('Black');
+    this.scoreWhiteEl = scoreWhiteRow.value;
+    this.scoreBlackEl = scoreBlackRow.value;
+    scoreBlock.append(scoreWhiteRow.row, scoreBlackRow.row);
 
     const buttonRow = document.createElement('div');
     buttonRow.className = 'button-row';
@@ -85,7 +121,18 @@ export class GameUI {
 
     buttonRow.append(whiteBtn, blackBtn, isoBtn, restartBtn);
 
-    panel.append(title, this.turnEl, this.statusEl, this.noticeEl, aiRow, buttonRow);
+    panel.append(
+      title,
+      this.turnEl,
+      this.statusEl,
+      this.noticeEl,
+      namesTitle,
+      namesBlock,
+      scoreTitle,
+      scoreBlock,
+      aiRow,
+      buttonRow
+    );
     hud.append(panel);
     root.append(hud);
 
@@ -95,6 +142,16 @@ export class GameUI {
 
   setTurn(color: Color): void {
     this.turnEl.textContent = color === 'w' ? 'White to move' : 'Black to move';
+  }
+
+  setPlayerNames(names: { white: string; black: string }): void {
+    this.nameWhiteEl.textContent = names.white;
+    this.nameBlackEl.textContent = names.black;
+  }
+
+  setScores(scores: { w: number; b: number }): void {
+    this.scoreWhiteEl.textContent = scores.w.toString();
+    this.scoreBlackEl.textContent = scores.b.toString();
   }
 
   setStatus(status: GameStatus): void {
@@ -170,5 +227,21 @@ export class GameUI {
     button.textContent = label;
     button.addEventListener('click', onClick);
     return button;
+  }
+
+  private makeStatRow(label: string): { row: HTMLDivElement; value: HTMLSpanElement } {
+    const row = document.createElement('div');
+    row.className = 'stat-row';
+
+    const labelEl = document.createElement('span');
+    labelEl.className = 'stat-label';
+    labelEl.textContent = label;
+
+    const valueEl = document.createElement('span');
+    valueEl.className = 'stat-value';
+    valueEl.textContent = '-';
+
+    row.append(labelEl, valueEl);
+    return { row, value: valueEl };
   }
 }

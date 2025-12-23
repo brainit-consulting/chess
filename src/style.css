@@ -85,6 +85,35 @@ body {
   margin-top: 10px;
 }
 
+.section-title {
+  margin-top: 10px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+}
+
+.stat-block {
+  display: grid;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.stat-label {
+  color: var(--muted);
+}
+
+.stat-value {
+  font-weight: 600;
+}
+
 .control-row {
   display: flex;
   align-items: center;

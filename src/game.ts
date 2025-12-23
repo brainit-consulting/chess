@@ -14,11 +14,34 @@ import {
 import { AiDifficulty, chooseMove } from './ai/ai';
 import { SceneView, PickResult } from './client/scene';
 import { GameUI } from './ui/ui';
+import { GameStats } from './gameStats';
+
+type PlayerNames = {
+  white: string;
+  black: string;
+};
+
+type AiSettings = {
+  enabled: boolean;
+  difficulty: AiDifficulty;
+};
+
+const DEFAULT_NAMES: PlayerNames = { white: 'White', black: 'Black' };
+const STORAGE_KEYS = {
+  names: 'chess.playerNames',
+  ai: 'chess.aiSettings'
+};
+const AI_LABELS: Record<AiDifficulty, string> = {
+  easy: 'Easy',
+  medium: 'Medium',
+  hard: 'Hard'
+};
 
 export class GameController {
   private state: GameState;
   private scene: SceneView;
   private ui: GameUI;
+  private stats: GameStats;
   private selected: Square | null = null;
   private legalMoves: Move[] = [];
   private pendingPromotion: Move[] | null = null;
@@ -28,9 +51,14 @@ export class GameController {
   private aiSeed: number | undefined;
   private aiTimeout: number | null = null;
   private aiRequestId = 0;
+  private baseNames: PlayerNames = { ...DEFAULT_NAMES };
 
   constructor(sceneRoot: HTMLElement, uiRoot: HTMLElement) {
     this.state = createInitialState();
+    const preferences = this.loadPreferences();
+    this.aiEnabled = preferences.ai.enabled;
+    this.aiDifficulty = preferences.ai.difficulty;
+    this.baseNames = preferences.names;
     this.scene = new SceneView(sceneRoot, {
       onPick: (pick) => this.handlePick(pick),
       onCancel: () => this.clearSelection()
@@ -41,7 +69,14 @@ export class GameController {
       onPromotionChoice: (type) => this.resolvePromotion(type),
       onToggleAi: (enabled) => this.setAiEnabled(enabled),
       onDifficultyChange: (difficulty) => this.setAiDifficulty(difficulty)
+    }, {
+      aiEnabled: this.aiEnabled,
+      aiDifficulty: this.aiDifficulty
     });
+    this.stats = new GameStats();
+    this.stats.reset(this.state);
+    this.ui.setScores(this.stats.getScores());
+    this.updatePlayerNames();
 
     window.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') {
@@ -64,6 +99,8 @@ export class GameController {
     this.legalMoves = [];
     this.pendingPromotion = null;
     this.gameOver = false;
+    this.stats.reset(this.state);
+    this.ui.setScores(this.stats.getScores());
     this.sync();
     this.maybeScheduleAiMove();
   }
@@ -165,7 +202,10 @@ export class GameController {
 
   private applyAndAdvance(move: Move): void {
     this.cancelAiMove();
+    const moverColor = this.state.activeColor;
     applyMove(this.state, move);
+    this.stats.updateAfterMove(this.state, moverColor);
+    this.ui.setScores(this.stats.getScores());
     this.selected = null;
     this.legalMoves = [];
     this.sync();
@@ -223,11 +263,90 @@ export class GameController {
 
   private setAiEnabled(enabled: boolean): void {
     this.aiEnabled = enabled;
+    this.persistPreferences();
+    this.updatePlayerNames();
     this.cancelAiMove();
     this.maybeScheduleAiMove();
   }
 
   private setAiDifficulty(difficulty: AiDifficulty): void {
     this.aiDifficulty = difficulty;
+    this.persistPreferences();
+    this.updatePlayerNames();
+  }
+
+  private updatePlayerNames(): void {
+    if (this.aiEnabled) {
+      this.ui.setPlayerNames({
+        white: 'You',
+        black: `AI (${AI_LABELS[this.aiDifficulty]})`
+      });
+      return;
+    }
+
+    this.ui.setPlayerNames({ ...this.baseNames });
+  }
+
+  private loadPreferences(): { names: PlayerNames; ai: AiSettings } {
+    const storage = this.getStorage();
+    let names = { ...DEFAULT_NAMES };
+    let ai: AiSettings = { enabled: true, difficulty: 'medium' };
+
+    if (storage) {
+      const rawNames = storage.getItem(STORAGE_KEYS.names);
+      if (rawNames) {
+        try {
+          const parsed = JSON.parse(rawNames) as PlayerNames;
+          if (parsed.white && parsed.black) {
+            names = parsed;
+          }
+        } catch {
+          // ignore malformed storage values
+        }
+      }
+
+      const rawAi = storage.getItem(STORAGE_KEYS.ai);
+      if (rawAi) {
+        try {
+          const parsed = JSON.parse(rawAi) as AiSettings;
+          if (typeof parsed.enabled === 'boolean') {
+            ai.enabled = parsed.enabled;
+          }
+          if (parsed.difficulty && AI_LABELS[parsed.difficulty]) {
+            ai.difficulty = parsed.difficulty;
+          }
+        } catch {
+          // ignore malformed storage values
+        }
+      }
+
+      storage.setItem(STORAGE_KEYS.names, JSON.stringify(names));
+      storage.setItem(STORAGE_KEYS.ai, JSON.stringify(ai));
+    }
+
+    return { names, ai };
+  }
+
+  private persistPreferences(): void {
+    const storage = this.getStorage();
+    if (!storage) {
+      return;
+    }
+    storage.setItem(STORAGE_KEYS.names, JSON.stringify(this.baseNames));
+    storage.setItem(
+      STORAGE_KEYS.ai,
+      JSON.stringify({ enabled: this.aiEnabled, difficulty: this.aiDifficulty })
+    );
+  }
+
+  private getStorage(): Storage | null {
+    if (typeof window === 'undefined') {
+      return null;
+    }
+    try {
+      return window.localStorage;
+    } catch {
+      return null;
+    }
   }
 }
