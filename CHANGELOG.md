@@ -7,6 +7,10 @@ Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.1.2] - 2025-12-23
+### Fixed
+- AI vs AI pause/resume now cancels pending AI moves immediately.
+
 ## [1.1.1] - 2025-12-23
 ### Added
 - Draw detection for insufficient material and stalemate outcomes.
