@@ -3,8 +3,10 @@ import {
   addPiece,
   applyMove,
   createEmptyState,
+  getAllLegalMoves,
   getGameStatus,
-  getLegalMovesForSquare
+  getLegalMovesForSquare,
+  getPieceAt
 } from '../index';
 
 const sq = (file: number, rank: number) => ({ file, rank });
@@ -30,6 +32,132 @@ it('blocks castling through check', () => {
 
   const moves = getLegalMovesForSquare(state, sq(4, 0));
   expect(moves.some((move) => move.isCastle)).toBe(false);
+});
+
+it('allows castling both directions for both colors when clear', () => {
+  const state = createEmptyState();
+  addPiece(state, 'king', 'w', sq(4, 0));
+  addPiece(state, 'rook', 'w', sq(7, 0));
+  addPiece(state, 'rook', 'w', sq(0, 0));
+  addPiece(state, 'king', 'b', sq(4, 7));
+  addPiece(state, 'rook', 'b', sq(7, 7));
+  addPiece(state, 'rook', 'b', sq(0, 7));
+  state.castlingRights = { wK: true, wQ: true, bK: true, bQ: true };
+
+  const whiteMoves = getLegalMovesForSquare(state, sq(4, 0));
+  expect(whiteMoves.some((move) => move.isCastle && move.to.file === 6)).toBe(true);
+  expect(whiteMoves.some((move) => move.isCastle && move.to.file === 2)).toBe(true);
+
+  const blackMoves = getLegalMovesForSquare(state, sq(4, 7));
+  expect(blackMoves.some((move) => move.isCastle && move.to.file === 6)).toBe(true);
+  expect(blackMoves.some((move) => move.isCastle && move.to.file === 2)).toBe(true);
+});
+
+it('exposes castling moves in all-legal-moves list', () => {
+  const state = createEmptyState();
+  addPiece(state, 'king', 'w', sq(4, 0));
+  addPiece(state, 'rook', 'w', sq(7, 0));
+  addPiece(state, 'rook', 'w', sq(0, 0));
+  addPiece(state, 'king', 'b', sq(4, 7));
+  state.castlingRights = { wK: true, wQ: true, bK: false, bQ: false };
+
+  const moves = getAllLegalMoves(state, 'w');
+  expect(
+    moves.some((move) => move.isCastle && move.to.file === 6 && move.to.rank === 0)
+  ).toBe(true);
+});
+
+it('moves king and rook to correct squares on castling', () => {
+  const whiteState = createEmptyState();
+  const whiteKingId = addPiece(whiteState, 'king', 'w', sq(4, 0));
+  const whiteRookId = addPiece(whiteState, 'rook', 'w', sq(7, 0));
+  addPiece(whiteState, 'king', 'b', sq(4, 7));
+  whiteState.castlingRights = { wK: true, wQ: false, bK: false, bQ: false };
+
+  const whiteCastle = getLegalMovesForSquare(whiteState, sq(4, 0)).find(
+    (move) => move.isCastle && move.to.file === 6
+  );
+  expect(whiteCastle).toBeTruthy();
+  if (whiteCastle) {
+    applyMove(whiteState, whiteCastle);
+    expect(getPieceAt(whiteState, sq(6, 0))?.type).toBe('king');
+    expect(getPieceAt(whiteState, sq(5, 0))?.type).toBe('rook');
+    expect(getPieceAt(whiteState, sq(7, 0))).toBeNull();
+    expect(whiteState.pieces.get(whiteKingId)?.hasMoved).toBe(true);
+    expect(whiteState.pieces.get(whiteRookId)?.hasMoved).toBe(true);
+    expect(whiteState.castlingRights.wK).toBe(false);
+    expect(whiteState.castlingRights.wQ).toBe(false);
+  }
+
+  const blackState = createEmptyState();
+  const blackKingId = addPiece(blackState, 'king', 'b', sq(4, 7));
+  const blackRookId = addPiece(blackState, 'rook', 'b', sq(0, 7));
+  addPiece(blackState, 'king', 'w', sq(4, 0));
+  blackState.castlingRights = { wK: false, wQ: false, bK: false, bQ: true };
+
+  const blackCastle = getLegalMovesForSquare(blackState, sq(4, 7)).find(
+    (move) => move.isCastle && move.to.file === 2
+  );
+  expect(blackCastle).toBeTruthy();
+  if (blackCastle) {
+    applyMove(blackState, blackCastle);
+    expect(getPieceAt(blackState, sq(2, 7))?.type).toBe('king');
+    expect(getPieceAt(blackState, sq(3, 7))?.type).toBe('rook');
+    expect(getPieceAt(blackState, sq(0, 7))).toBeNull();
+    expect(blackState.pieces.get(blackKingId)?.hasMoved).toBe(true);
+    expect(blackState.pieces.get(blackRookId)?.hasMoved).toBe(true);
+    expect(blackState.castlingRights.bK).toBe(false);
+    expect(blackState.castlingRights.bQ).toBe(false);
+  }
+});
+
+it('disallows castling when king or rook has moved', () => {
+  const state = createEmptyState();
+  addPiece(state, 'king', 'w', sq(4, 0));
+  addPiece(state, 'rook', 'w', sq(7, 0));
+  addPiece(state, 'king', 'b', sq(4, 7));
+  state.castlingRights = { wK: true, wQ: false, bK: false, bQ: false };
+
+  applyMove(state, { from: sq(7, 0), to: sq(7, 1) });
+  state.activeColor = 'w';
+  applyMove(state, { from: sq(7, 1), to: sq(7, 0) });
+
+  const moves = getLegalMovesForSquare(state, sq(4, 0));
+  expect(moves.some((move) => move.isCastle)).toBe(false);
+});
+
+it('disallows castling when pieces block the path', () => {
+  const state = createEmptyState();
+  addPiece(state, 'king', 'w', sq(4, 0));
+  addPiece(state, 'rook', 'w', sq(7, 0));
+  addPiece(state, 'bishop', 'w', sq(5, 0));
+  addPiece(state, 'king', 'b', sq(4, 7));
+  state.castlingRights = { wK: true, wQ: false, bK: false, bQ: false };
+
+  const moves = getLegalMovesForSquare(state, sq(4, 0));
+  expect(moves.some((move) => move.isCastle)).toBe(false);
+});
+
+it('disallows castling when the king is in check or would land in check', () => {
+  const inCheck = createEmptyState();
+  addPiece(inCheck, 'king', 'w', sq(4, 0));
+  addPiece(inCheck, 'rook', 'w', sq(7, 0));
+  addPiece(inCheck, 'king', 'b', sq(0, 7));
+  addPiece(inCheck, 'rook', 'b', sq(4, 6));
+  inCheck.castlingRights = { wK: true, wQ: false, bK: false, bQ: false };
+
+  const inCheckMoves = getLegalMovesForSquare(inCheck, sq(4, 0));
+  expect(inCheckMoves.some((move) => move.isCastle)).toBe(false);
+
+  const landingCheck = createEmptyState();
+  addPiece(landingCheck, 'king', 'w', sq(4, 0));
+  addPiece(landingCheck, 'rook', 'w', sq(7, 0));
+  addPiece(landingCheck, 'king', 'b', sq(0, 7));
+  addPiece(landingCheck, 'rook', 'b', sq(6, 7));
+  landingCheck.castlingRights = { wK: true, wQ: false, bK: false, bQ: false };
+
+  const landingMoves = getLegalMovesForSquare(landingCheck, sq(4, 0));
+  expect(landingMoves.some((move) => move.isCastle)).toBe(false);
 });
 
 it('handles en passant capture and expiry', () => {
