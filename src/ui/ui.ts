@@ -1,6 +1,7 @@
 import type { AiDifficulty } from '../ai/ai';
 import { GameStatus, Color } from '../rules';
-import { SnapView } from '../types';
+import { GameSummary } from '../gameSummary';
+import { GameMode, SnapView } from '../types';
 import { PieceType } from '../rules';
 
 export type UiState = {
@@ -13,14 +14,18 @@ type UIHandlers = {
   onSnap: (view: SnapView) => void;
   onPromotionChoice: (type: PieceType) => void;
   onToggleAi: (enabled: boolean) => void;
+  onModeChange: (mode: GameMode) => void;
   onDifficultyChange: (difficulty: AiDifficulty) => void;
   onToggleSound: (enabled: boolean) => void;
+  onAiDelayChange: (delayMs: number) => void;
   onUiStateChange: (state: UiState) => void;
 };
 
 type UIOptions = {
+  mode?: GameMode;
   aiEnabled?: boolean;
   aiDifficulty?: AiDifficulty;
+  aiDelayMs?: number;
   soundEnabled?: boolean;
 };
 
@@ -35,6 +40,16 @@ export class GameUI {
   private noticeEl: HTMLDivElement;
   private aiStatusEl: HTMLDivElement;
   private modal: HTMLDivElement;
+  private summaryModal: HTMLDivElement;
+  private summaryTitleEl: HTMLHeadingElement;
+  private summaryOutcomeEl: HTMLParagraphElement;
+  private summaryMaterialEl: HTMLParagraphElement;
+  private summaryDetailEl: HTMLParagraphElement;
+  private modeButtons: Record<GameMode, HTMLButtonElement>;
+  private delayRow: HTMLDivElement;
+  private delayValueEl: HTMLSpanElement;
+  private delayInput: HTMLInputElement;
+  private mode: GameMode;
   private aiToggle: HTMLInputElement;
   private difficultySelect: HTMLSelectElement;
   private soundToggle: HTMLInputElement;
@@ -94,6 +109,25 @@ export class GameUI {
     this.aiStatusEl = document.createElement('div');
     this.aiStatusEl.className = 'ai-status expand-only';
 
+    const modeTitle = document.createElement('div');
+    modeTitle.className = 'section-title expand-only';
+    modeTitle.textContent = 'Mode';
+
+    const modeRow = document.createElement('div');
+    modeRow.className = 'segmented control-row expand-only';
+
+    this.modeButtons = {
+      hvh: this.makeModeButton('Human vs Human', 'hvh'),
+      hvai: this.makeModeButton('Human vs AI', 'hvai'),
+      aivai: this.makeModeButton('AI vs AI', 'aivai')
+    };
+
+    modeRow.append(
+      this.modeButtons.hvh,
+      this.modeButtons.hvai,
+      this.modeButtons.aivai
+    );
+
     const aiRow = document.createElement('div');
     aiRow.className = 'control-row expand-only';
 
@@ -103,7 +137,9 @@ export class GameUI {
     this.aiToggle = document.createElement('input');
     this.aiToggle.type = 'checkbox';
     const initialAiEnabled = options.aiEnabled ?? true;
+    const initialMode = options.mode ?? (initialAiEnabled ? 'hvai' : 'hvh');
     const initialDifficulty = options.aiDifficulty ?? 'medium';
+    const initialDelay = options.aiDelayMs ?? 700;
     const initialSoundEnabled = options.soundEnabled ?? true;
     this.aiToggle.checked = initialAiEnabled;
     this.aiToggle.addEventListener('change', () => {
@@ -129,6 +165,37 @@ export class GameUI {
     });
 
     aiRow.append(aiLabel, this.difficultySelect);
+
+    this.delayRow = document.createElement('div');
+    this.delayRow.className = 'control-row expand-only';
+
+    const delayLabel = document.createElement('span');
+    delayLabel.className = 'stat-label';
+    delayLabel.textContent = 'AI Move Delay';
+
+    this.delayValueEl = document.createElement('span');
+    this.delayValueEl.className = 'stat-value';
+
+    this.delayInput = document.createElement('input');
+    this.delayInput.type = 'range';
+    this.delayInput.min = '400';
+    this.delayInput.max = '1200';
+    this.delayInput.step = '50';
+    this.delayInput.value = initialDelay.toString();
+    this.delayInput.addEventListener('input', () => {
+      const value = Number(this.delayInput.value);
+      this.setAiDelay(value);
+      this.handlers.onAiDelayChange(value);
+    });
+
+    const delayRowMeta = document.createElement('div');
+    delayRowMeta.className = 'stat-row';
+    delayRowMeta.append(delayLabel, this.delayValueEl);
+
+    const delayStack = document.createElement('div');
+    delayStack.className = 'delay-stack';
+    delayStack.append(delayRowMeta, this.delayInput);
+    this.delayRow.append(delayStack);
 
     const soundRow = document.createElement('div');
     soundRow.className = 'control-row expand-only';
@@ -191,12 +258,15 @@ export class GameUI {
       this.statusEl,
       this.noticeEl,
       this.aiStatusEl,
+      modeTitle,
+      modeRow,
       namesTitle,
       namesBlock,
       scoreTitle,
       scoreBlock,
       this.expandButton,
       soundRow,
+      this.delayRow,
       aiRow,
       buttonRow
     );
@@ -210,6 +280,12 @@ export class GameUI {
     this.modal = this.buildPromotionModal();
     root.append(this.modal);
 
+    this.summaryModal = this.buildSummaryModal();
+    root.append(this.summaryModal);
+
+    this.mode = initialMode;
+    this.setAiDelay(initialDelay);
+    this.setMode(initialMode);
     this.applyUiState();
   }
 
@@ -259,8 +335,39 @@ export class GameUI {
     this.noticeEl.className = 'notice';
   }
 
-  setAiThinking(thinking: boolean): void {
-    this.aiStatusEl.textContent = thinking ? 'AI thinking...' : ' ';
+  setAiThinking(thinking: boolean, color?: Color): void {
+    if (!thinking) {
+      this.aiStatusEl.textContent = ' ';
+      return;
+    }
+    if (!color) {
+      this.aiStatusEl.textContent = 'AI thinking...';
+      return;
+    }
+    const label = color === 'w' ? 'White' : 'Black';
+    this.aiStatusEl.textContent = `${label} AI thinking...`;
+  }
+
+  setMode(mode: GameMode): void {
+    this.mode = mode;
+    this.syncModeControls();
+  }
+
+  setAiDelay(delayMs: number): void {
+    this.delayInput.value = delayMs.toString();
+    this.delayValueEl.textContent = `${delayMs}ms`;
+  }
+
+  showSummary(summary: GameSummary): void {
+    this.summaryTitleEl.textContent = summary.title;
+    this.summaryOutcomeEl.textContent = summary.outcome;
+    this.summaryMaterialEl.textContent = summary.material;
+    this.summaryDetailEl.textContent = summary.detail;
+    this.summaryModal.classList.add('open');
+  }
+
+  hideSummary(): void {
+    this.summaryModal.classList.remove('open');
   }
 
   showPromotion(): void {
@@ -303,10 +410,55 @@ export class GameUI {
     return modal;
   }
 
+  private buildSummaryModal(): HTMLDivElement {
+    const modal = document.createElement('div');
+    modal.className = 'modal summary-modal';
+
+    const card = document.createElement('div');
+    card.className = 'modal-card summary-card';
+
+    this.summaryTitleEl = document.createElement('h2');
+    this.summaryTitleEl.textContent = 'Game Over';
+
+    const body = document.createElement('div');
+    body.className = 'summary-body';
+
+    this.summaryOutcomeEl = document.createElement('p');
+    this.summaryOutcomeEl.className = 'summary-line';
+
+    this.summaryMaterialEl = document.createElement('p');
+    this.summaryMaterialEl.className = 'summary-line';
+
+    this.summaryDetailEl = document.createElement('p');
+    this.summaryDetailEl.className = 'summary-detail';
+
+    body.append(this.summaryOutcomeEl, this.summaryMaterialEl, this.summaryDetailEl);
+
+    const buttonRow = document.createElement('div');
+    buttonRow.className = 'button-row';
+
+    const closeBtn = this.makeButton('Close', () => this.hideSummary());
+    const restartBtn = this.makeButton('Restart', () => {
+      this.hideSummary();
+      this.handlers.onRestart();
+    });
+
+    buttonRow.append(closeBtn, restartBtn);
+    card.append(this.summaryTitleEl, body, buttonRow);
+    modal.append(card);
+    return modal;
+  }
+
   private makeButton(label: string, onClick: () => void): HTMLButtonElement {
     const button = document.createElement('button');
     button.textContent = label;
     button.addEventListener('click', onClick);
+    return button;
+  }
+
+  private makeModeButton(label: string, mode: GameMode): HTMLButtonElement {
+    const button = this.makeButton(label, () => this.handleModeSelect(mode));
+    button.classList.add('segment');
     return button;
   }
 
@@ -324,6 +476,26 @@ export class GameUI {
 
     row.append(labelEl, valueEl);
     return { row, value: valueEl };
+  }
+
+  private handleModeSelect(mode: GameMode): void {
+    if (this.mode === mode) {
+      return;
+    }
+    this.mode = mode;
+    this.syncModeControls();
+    this.handlers.onModeChange(mode);
+  }
+
+  private syncModeControls(): void {
+    this.modeButtons.hvh.classList.toggle('active', this.mode === 'hvh');
+    this.modeButtons.hvai.classList.toggle('active', this.mode === 'hvai');
+    this.modeButtons.aivai.classList.toggle('active', this.mode === 'aivai');
+
+    const aiEnabled = this.mode !== 'hvh';
+    this.aiToggle.checked = aiEnabled;
+    this.difficultySelect.disabled = !aiEnabled;
+    this.delayRow.classList.toggle('hidden', this.mode !== 'aivai');
   }
 
   private setUiVisible(visible: boolean): void {

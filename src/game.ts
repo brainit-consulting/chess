@@ -1,6 +1,7 @@
 import {
   GameState,
   GameStatus,
+  Color,
   Move,
   PieceType,
   Square,
@@ -17,6 +18,8 @@ import { SceneView, PickResult } from './client/scene';
 import { GameUI, UiState } from './ui/ui';
 import { GameStats } from './gameStats';
 import { SoundManager } from './sound/soundManager';
+import { GameMode } from './types';
+import { createGameSummary } from './gameSummary';
 
 type PlayerNames = {
   white: string;
@@ -28,10 +31,21 @@ type AiSettings = {
   difficulty: AiDifficulty;
 };
 
+type Preferences = {
+  names: PlayerNames;
+  ai: AiSettings;
+  mode: GameMode;
+  aiDelayMs: number;
+};
+
 const DEFAULT_NAMES: PlayerNames = { white: 'White', black: 'Black' };
+const DEFAULT_AI_DELAY_MS = 700;
+const HUMAN_VS_AI_DELAY_MS = 380;
 const STORAGE_KEYS = {
   names: 'chess.playerNames',
-  ai: 'chess.aiSettings'
+  ai: 'chess.aiSettings',
+  mode: 'chess.gameMode',
+  aiDelay: 'chess.aiDelayMs'
 };
 const AI_LABELS: Record<AiDifficulty, string> = {
   easy: 'Easy',
@@ -49,18 +63,21 @@ export class GameController {
   private legalMoves: Move[] = [];
   private pendingPromotion: Move[] | null = null;
   private gameOver = false;
-  private aiEnabled = true;
+  private mode: GameMode = 'hvai';
   private aiDifficulty: AiDifficulty = 'medium';
   private aiSeed: number | undefined;
+  private aiDelayMs = DEFAULT_AI_DELAY_MS;
   private aiTimeout: number | null = null;
   private aiRequestId = 0;
+  private summaryShown = false;
   private baseNames: PlayerNames = { ...DEFAULT_NAMES };
 
   constructor(sceneRoot: HTMLElement, uiRoot: HTMLElement) {
     this.state = createInitialState();
     const preferences = this.loadPreferences();
-    this.aiEnabled = preferences.ai.enabled;
+    this.mode = preferences.mode;
     this.aiDifficulty = preferences.ai.difficulty;
+    this.aiDelayMs = preferences.aiDelayMs;
     this.baseNames = preferences.names;
     const soundEnabled = SoundManager.loadEnabled();
     this.sound = new SoundManager(soundEnabled);
@@ -73,12 +90,16 @@ export class GameController {
       onSnap: (view) => this.scene.snapView(view),
       onPromotionChoice: (type) => this.resolvePromotion(type),
       onToggleAi: (enabled) => this.setAiEnabled(enabled),
+      onModeChange: (mode) => this.setMode(mode),
       onDifficultyChange: (difficulty) => this.setAiDifficulty(difficulty),
       onToggleSound: (enabled) => this.setSoundEnabled(enabled),
+      onAiDelayChange: (delayMs) => this.setAiDelay(delayMs),
       onUiStateChange: (state) => this.handleUiStateChange(state)
     }, {
-      aiEnabled: this.aiEnabled,
+      mode: this.mode,
+      aiEnabled: this.mode !== 'hvh',
       aiDifficulty: this.aiDifficulty,
+      aiDelayMs: this.aiDelayMs,
       soundEnabled
     });
     this.stats = new GameStats();
@@ -109,6 +130,8 @@ export class GameController {
     this.legalMoves = [];
     this.pendingPromotion = null;
     this.gameOver = false;
+    this.summaryShown = false;
+    this.ui.hideSummary();
     this.stats.reset(this.state);
     this.ui.setScores(this.stats.getScores());
     this.sync();
@@ -122,6 +145,7 @@ export class GameController {
     this.gameOver = status.status === 'checkmate' || status.status === 'stalemate';
     this.ui.setTurn(this.state.activeColor);
     this.ui.setStatus(status);
+    this.maybeShowSummary(status);
 
     const checkSquare =
       status.status === 'check' || status.status === 'checkmate'
@@ -141,7 +165,7 @@ export class GameController {
       return;
     }
 
-    if (this.aiEnabled && this.state.activeColor === 'b') {
+    if (this.isAiControlled(this.state.activeColor)) {
       return;
     }
 
@@ -233,37 +257,35 @@ export class GameController {
   }
 
   private maybeScheduleAiMove(): void {
-    if (!this.aiEnabled) {
-      this.ui.setAiThinking(false);
-      return;
-    }
     if (this.gameOver) {
       this.ui.setAiThinking(false);
       return;
     }
-    if (this.state.activeColor !== 'b') {
+    if (!this.isAiControlled(this.state.activeColor)) {
       this.ui.setAiThinking(false);
       return;
     }
-    this.scheduleAiMove();
+    this.scheduleAiMove(this.state.activeColor);
   }
 
-  private scheduleAiMove(): void {
+  private scheduleAiMove(color: Color): void {
     this.cancelAiMove();
     const requestId = this.aiRequestId;
-    const delayMs = 380;
-    this.ui.setAiThinking(true);
+    const delayMs = this.getAiDelayMs();
+    const thinkingColor = this.mode === 'aivai' ? color : undefined;
+    this.ui.setAiThinking(true, thinkingColor);
 
     this.aiTimeout = window.setTimeout(() => {
       if (requestId !== this.aiRequestId) {
         return;
       }
-      if (!this.aiEnabled || this.gameOver || this.state.activeColor !== 'b') {
+      if (this.gameOver || !this.isAiControlled(this.state.activeColor)) {
+        this.ui.setAiThinking(false);
         return;
       }
 
       const move = chooseMove(this.state, {
-        color: 'b',
+        color: this.state.activeColor,
         difficulty: this.aiDifficulty,
         seed: this.aiSeed
       });
@@ -289,8 +311,16 @@ export class GameController {
   }
 
   private setAiEnabled(enabled: boolean): void {
-    this.aiEnabled = enabled;
+    this.setMode(enabled ? 'hvai' : 'hvh');
+  }
+
+  private setMode(mode: GameMode): void {
+    if (this.mode === mode) {
+      return;
+    }
+    this.mode = mode;
     this.persistPreferences();
+    this.ui.setMode(mode);
     this.updatePlayerNames();
     this.cancelAiMove();
     this.maybeScheduleAiMove();
@@ -300,6 +330,11 @@ export class GameController {
     this.aiDifficulty = difficulty;
     this.persistPreferences();
     this.updatePlayerNames();
+  }
+
+  private setAiDelay(delayMs: number): void {
+    this.aiDelayMs = delayMs;
+    this.persistPreferences();
   }
 
   private setSoundEnabled(enabled: boolean): void {
@@ -312,7 +347,12 @@ export class GameController {
   }
 
   private updatePlayerNames(): void {
-    if (this.aiEnabled) {
+    if (this.mode === 'hvh') {
+      this.ui.setPlayerNames({ ...this.baseNames });
+      return;
+    }
+
+    if (this.mode === 'hvai') {
       this.ui.setPlayerNames({
         white: 'You',
         black: `AI (${AI_LABELS[this.aiDifficulty]})`
@@ -320,7 +360,37 @@ export class GameController {
       return;
     }
 
-    this.ui.setPlayerNames({ ...this.baseNames });
+    const label = `AI (${AI_LABELS[this.aiDifficulty]})`;
+    this.ui.setPlayerNames({ white: label, black: label });
+  }
+
+  private isAiControlled(color: Color): boolean {
+    if (this.mode === 'hvh') {
+      return false;
+    }
+    if (this.mode === 'hvai') {
+      return color === 'b';
+    }
+    return true;
+  }
+
+  private getAiDelayMs(): number {
+    return this.mode === 'aivai' ? this.aiDelayMs : HUMAN_VS_AI_DELAY_MS;
+  }
+
+  private maybeShowSummary(status: GameStatus): void {
+    if (this.summaryShown) {
+      return;
+    }
+    if (status.status !== 'checkmate' && status.status !== 'stalemate') {
+      return;
+    }
+    const summary = createGameSummary(this.state, status, this.stats.getScores());
+    if (!summary) {
+      return;
+    }
+    this.ui.showSummary(summary);
+    this.summaryShown = true;
   }
 
   private setupSoundUnlock(): void {
@@ -333,10 +403,12 @@ export class GameController {
     window.addEventListener('keydown', unlock);
   }
 
-  private loadPreferences(): { names: PlayerNames; ai: AiSettings } {
+  private loadPreferences(): Preferences {
     const storage = this.getStorage();
     let names = { ...DEFAULT_NAMES };
     let ai: AiSettings = { enabled: true, difficulty: 'medium' };
+    let mode: GameMode = ai.enabled ? 'hvai' : 'hvh';
+    let aiDelayMs = DEFAULT_AI_DELAY_MS;
 
     if (storage) {
       const rawNames = storage.getItem(STORAGE_KEYS.names);
@@ -366,11 +438,28 @@ export class GameController {
         }
       }
 
+      const rawMode = storage.getItem(STORAGE_KEYS.mode);
+      if (rawMode === 'hvh' || rawMode === 'hvai' || rawMode === 'aivai') {
+        mode = rawMode;
+      } else {
+        mode = ai.enabled ? 'hvai' : 'hvh';
+      }
+
+      const rawDelay = storage.getItem(STORAGE_KEYS.aiDelay);
+      if (rawDelay) {
+        const parsed = Number(rawDelay);
+        if (Number.isFinite(parsed) && parsed >= 400) {
+          aiDelayMs = parsed;
+        }
+      }
+
       storage.setItem(STORAGE_KEYS.names, JSON.stringify(names));
       storage.setItem(STORAGE_KEYS.ai, JSON.stringify(ai));
+      storage.setItem(STORAGE_KEYS.mode, mode);
+      storage.setItem(STORAGE_KEYS.aiDelay, aiDelayMs.toString());
     }
 
-    return { names, ai };
+    return { names, ai, mode, aiDelayMs };
   }
 
   private persistPreferences(): void {
@@ -378,11 +467,14 @@ export class GameController {
     if (!storage) {
       return;
     }
+    const aiEnabled = this.mode !== 'hvh';
     storage.setItem(STORAGE_KEYS.names, JSON.stringify(this.baseNames));
     storage.setItem(
       STORAGE_KEYS.ai,
-      JSON.stringify({ enabled: this.aiEnabled, difficulty: this.aiDifficulty })
+      JSON.stringify({ enabled: aiEnabled, difficulty: this.aiDifficulty })
     );
+    storage.setItem(STORAGE_KEYS.mode, this.mode);
+    storage.setItem(STORAGE_KEYS.aiDelay, this.aiDelayMs.toString());
   }
 
   private getStorage(): Storage | null {

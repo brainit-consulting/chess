@@ -41,6 +41,11 @@ npm run test:run
 - Play vs AI toggle: enable Human (White) vs AI (Black)
 - Difficulty selector: Easy / Medium / Hard
 
+## Modes
+
+- Mode selector: Human vs Human, Human vs AI, or AI vs AI.
+- AI vs AI includes an AI move delay slider and shows a game-over summary modal.
+
 ## Structure
 
 - `src/rules`: pure chess rules engine (no rendering dependencies)
