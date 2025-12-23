@@ -16,7 +16,17 @@ type UIOptions = {
   aiDifficulty?: AiDifficulty;
 };
 
+type UiState = {
+  visible: boolean;
+  collapsed: boolean;
+};
+
+const UI_STATE_KEY = 'chess.uiState';
+
 export class GameUI {
+  private root: HTMLElement;
+  private hud: HTMLDivElement;
+  private panel: HTMLDivElement;
   private turnEl: HTMLDivElement;
   private statusEl: HTMLDivElement;
   private noticeEl: HTMLDivElement;
@@ -27,33 +37,57 @@ export class GameUI {
   private nameBlackEl: HTMLSpanElement;
   private scoreWhiteEl: HTMLSpanElement;
   private scoreBlackEl: HTMLSpanElement;
+  private hideButton: HTMLButtonElement;
+  private showButton: HTMLButtonElement;
+  private collapseButton: HTMLButtonElement;
+  private expandButton: HTMLButtonElement;
   private handlers: UIHandlers;
+  private uiState: UiState;
 
   constructor(root: HTMLElement, handlers: UIHandlers, options: UIOptions = {}) {
+    this.root = root;
     this.handlers = handlers;
 
     root.innerHTML = '';
 
-    const hud = document.createElement('div');
-    hud.className = 'hud-stack';
+    this.hud = document.createElement('div');
+    this.hud.className = 'hud-stack';
 
-    const panel = document.createElement('div');
-    panel.className = 'panel';
+    this.panel = document.createElement('div');
+    this.panel.className = 'panel ui-panel';
+
+    this.uiState = this.loadUiState();
+
+    const header = document.createElement('div');
+    header.className = 'panel-header';
 
     const title = document.createElement('h1');
+    title.className = 'expand-only';
     title.textContent = '3D Chess';
+
+    const headerActions = document.createElement('div');
+    headerActions.className = 'panel-actions expand-only';
+
+    this.hideButton = this.makeButton('Hide UI', () => this.setUiVisible(false));
+    this.hideButton.classList.add('ghost');
+
+    this.collapseButton = this.makeButton('Collapse', () => this.setUiCollapsed(true));
+    this.collapseButton.classList.add('ghost');
+
+    headerActions.append(this.collapseButton, this.hideButton);
+    header.append(title, headerActions);
 
     this.turnEl = document.createElement('div');
     this.turnEl.className = 'turn';
 
     this.statusEl = document.createElement('div');
-    this.statusEl.className = 'status';
+    this.statusEl.className = 'status expand-only';
 
     this.noticeEl = document.createElement('div');
-    this.noticeEl.className = 'notice';
+    this.noticeEl.className = 'notice expand-only';
 
     const aiRow = document.createElement('div');
-    aiRow.className = 'control-row';
+    aiRow.className = 'control-row expand-only';
 
     const aiLabel = document.createElement('label');
     aiLabel.className = 'toggle';
@@ -88,11 +122,11 @@ export class GameUI {
     aiRow.append(aiLabel, this.difficultySelect);
 
     const namesTitle = document.createElement('div');
-    namesTitle.className = 'section-title';
+    namesTitle.className = 'section-title expand-only';
     namesTitle.textContent = 'Player names';
 
     const namesBlock = document.createElement('div');
-    namesBlock.className = 'stat-block';
+    namesBlock.className = 'stat-block expand-only';
     const nameWhiteRow = this.makeStatRow('White');
     const nameBlackRow = this.makeStatRow('Black');
     this.nameWhiteEl = nameWhiteRow.value;
@@ -111,8 +145,11 @@ export class GameUI {
     this.scoreBlackEl = scoreBlackRow.value;
     scoreBlock.append(scoreWhiteRow.row, scoreBlackRow.row);
 
+    this.expandButton = this.makeButton('Expand', () => this.setUiCollapsed(false));
+    this.expandButton.classList.add('ghost', 'collapse-only');
+
     const buttonRow = document.createElement('div');
-    buttonRow.className = 'button-row';
+    buttonRow.className = 'button-row expand-only';
 
     const whiteBtn = this.makeButton('White View', () => handlers.onSnap('white'));
     const blackBtn = this.makeButton('Black View', () => handlers.onSnap('black'));
@@ -121,8 +158,8 @@ export class GameUI {
 
     buttonRow.append(whiteBtn, blackBtn, isoBtn, restartBtn);
 
-    panel.append(
-      title,
+    this.panel.append(
+      header,
       this.turnEl,
       this.statusEl,
       this.noticeEl,
@@ -130,14 +167,21 @@ export class GameUI {
       namesBlock,
       scoreTitle,
       scoreBlock,
+      this.expandButton,
       aiRow,
       buttonRow
     );
-    hud.append(panel);
-    root.append(hud);
+    this.hud.append(this.panel);
+    root.append(this.hud);
+
+    this.showButton = this.makeButton('Show UI', () => this.setUiVisible(true));
+    this.showButton.classList.add('ui-show-button');
+    root.append(this.showButton);
 
     this.modal = this.buildPromotionModal();
     root.append(this.modal);
+
+    this.applyUiState();
   }
 
   setTurn(color: Color): void {
@@ -243,5 +287,73 @@ export class GameUI {
 
     row.append(labelEl, valueEl);
     return { row, value: valueEl };
+  }
+
+  private setUiVisible(visible: boolean): void {
+    this.uiState.visible = visible;
+    this.persistUiState();
+    this.applyUiState();
+  }
+
+  private setUiCollapsed(collapsed: boolean): void {
+    this.uiState.collapsed = collapsed;
+    this.persistUiState();
+    this.applyUiState();
+  }
+
+  private applyUiState(): void {
+    if (this.uiState.visible) {
+      this.root.classList.remove('ui-hidden');
+    } else {
+      this.root.classList.add('ui-hidden');
+    }
+
+    if (this.uiState.collapsed) {
+      this.root.classList.add('ui-collapsed');
+    } else {
+      this.root.classList.remove('ui-collapsed');
+    }
+  }
+
+  private loadUiState(): UiState {
+    const fallback: UiState = { visible: true, collapsed: false };
+    const storage = this.getStorage();
+    if (!storage) {
+      return fallback;
+    }
+    const raw = storage.getItem(UI_STATE_KEY);
+    if (!raw) {
+      storage.setItem(UI_STATE_KEY, JSON.stringify(fallback));
+      return fallback;
+    }
+    try {
+      const parsed = JSON.parse(raw) as UiState;
+      if (typeof parsed.visible === 'boolean' && typeof parsed.collapsed === 'boolean') {
+        return parsed;
+      }
+    } catch {
+      // ignore malformed values
+    }
+    storage.setItem(UI_STATE_KEY, JSON.stringify(fallback));
+    return fallback;
+  }
+
+  private persistUiState(): void {
+    const storage = this.getStorage();
+    if (!storage) {
+      return;
+    }
+    storage.setItem(UI_STATE_KEY, JSON.stringify(this.uiState));
+  }
+
+  private getStorage(): Storage | null {
+    if (typeof window === 'undefined') {
+      return null;
+    }
+    try {
+      return window.localStorage;
+    } catch {
+      return null;
+    }
   }
 }

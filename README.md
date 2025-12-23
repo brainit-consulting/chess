@@ -7,6 +7,7 @@ Live demo: https://brainit-consulting.github.io/chess/
 GitHub Pages: Settings → Pages → Source: GitHub Actions
 
 The UI now shows player names (including AI labels) and a running captured-material score.
+You can hide the UI panel or collapse it to a compact view from the header controls.
 
 ## Run
 

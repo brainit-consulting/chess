@@ -60,6 +60,65 @@ body {
   min-width: 220px;
 }
 
+.ui-panel {
+  transition: transform 0.25s ease, opacity 0.25s ease;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.panel-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.ghost {
+  background: rgba(255, 255, 255, 0.04);
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.ui-show-button {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  pointer-events: auto;
+  opacity: 0;
+  transform: translateX(-8px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 10;
+}
+
+.ui-hidden .ui-panel {
+  transform: translateX(-120%);
+  opacity: 0;
+}
+
+.ui-hidden .hud-stack {
+  pointer-events: none;
+}
+
+.ui-hidden .ui-show-button {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.collapse-only {
+  display: none;
+}
+
+.ui-collapsed .expand-only {
+  display: none;
+}
+
+.ui-collapsed .collapse-only {
+  display: inline-flex;
+}
+
 .panel h1 {
   margin: 0 0 6px;
   font-size: 16px;
