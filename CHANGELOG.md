@@ -16,6 +16,7 @@ Semantic Versioning.
 - Play for Win (AI vs AI only): lightly penalizes moves that repeat recent positions and adds small top-move variety so self-play avoids repetition loops and reaches a result.
 - Top-Down camera preset for quick analysis viewing.
 - Player user guide documentation.
+- Subtle animated dot-pulse indicator shown while AI is thinking (CSS-only, non-blocking).
 
 ### Changed
 

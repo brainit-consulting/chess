@@ -47,6 +47,8 @@ export class GameUI {
   private statusEl: HTMLDivElement;
   private noticeEl: HTMLDivElement;
   private aiStatusEl: HTMLDivElement;
+  private aiStatusText: HTMLSpanElement;
+  private aiStatusDots: HTMLSpanElement;
   private modal: HTMLDivElement;
   private summaryModal: HTMLDivElement;
   private summaryTitleEl: HTMLHeadingElement;
@@ -136,6 +138,10 @@ export class GameUI {
 
     this.aiStatusEl = document.createElement('div');
     this.aiStatusEl.className = 'ai-status expand-only';
+    this.aiStatusText = document.createElement('span');
+    this.aiStatusDots = document.createElement('span');
+    this.aiStatusDots.className = 'ai-thinking-dots';
+    this.aiStatusEl.append(this.aiStatusText, this.aiStatusDots);
 
     const modeTitle = document.createElement('div');
     modeTitle.className = 'section-title expand-only';
@@ -616,20 +622,24 @@ export class GameUI {
   private renderAiStatus(): void {
     if (this.aiThinking) {
       if (!this.aiThinkingColor) {
-        this.aiStatusEl.textContent = 'AI thinking...';
+        this.aiStatusText.textContent = 'AI thinking';
+        this.aiStatusDots.classList.add('active');
         return;
       }
       const label = this.aiThinkingColor === 'w' ? 'White' : 'Black';
-      this.aiStatusEl.textContent = `${label} AI thinking...`;
+      this.aiStatusText.textContent = `${label} AI thinking`;
+      this.aiStatusDots.classList.add('active');
       return;
     }
 
     if (this.aiVsAiReady) {
-      this.aiStatusEl.textContent = 'AI vs AI ready - press Start Game';
+      this.aiStatusText.textContent = 'AI vs AI ready - press Start Game';
+      this.aiStatusDots.classList.remove('active');
       return;
     }
 
-    this.aiStatusEl.textContent = ' ';
+    this.aiStatusText.textContent = ' ';
+    this.aiStatusDots.classList.remove('active');
   }
 
   private updateAiVsAiControls(): void {
