@@ -6,6 +6,8 @@ The format is based on Keep a Changelog, and this project adheres to
 Semantic Versioning.
 
 ## [Unreleased]
+
+## [1.1.1] - 2025-12-23
 ### Added
 - Draw detection for insufficient material and stalemate outcomes.
 

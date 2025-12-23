@@ -45,6 +45,7 @@ npm run test:run
 
 - Mode selector: Human vs Human, Human vs AI, or AI vs AI.
 - AI vs AI includes an AI move delay slider and shows a game-over summary modal.
+- Draws include stalemate and insufficient material (e.g., K vs K, K+N/B vs K).
 
 ## Structure
 
