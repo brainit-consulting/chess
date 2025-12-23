@@ -23,16 +23,17 @@ export function createGameSummary(
   status: GameStatus,
   scores: Scores
 ): GameSummary | null {
-  if (status.status !== 'checkmate' && status.status !== 'stalemate') {
+  if (
+    status.status !== 'checkmate' &&
+    status.status !== 'stalemate' &&
+    status.status !== 'draw'
+  ) {
     return null;
   }
 
   const winner = status.status === 'checkmate' ? status.winner : null;
   const winnerLabel = winner ? colorLabel(winner) : 'Draw';
-  const outcome =
-    status.status === 'checkmate'
-      ? `Winner: ${winnerLabel}`
-      : 'Result: Draw (stalemate)';
+  const outcome = buildOutcome(status, winnerLabel);
   const material = `Material score: White ${scores.w} - Black ${scores.b}`;
 
   const diff = scores.w - scores.b;
@@ -52,6 +53,12 @@ export function createGameSummary(
     } else {
       detail = 'Drawn by stalemate with roughly even material.';
     }
+  } else if (status.status === 'draw') {
+    if (status.reason) {
+      detail = `Draw by ${status.reason}.`;
+    } else {
+      detail = 'Draw by agreement.';
+    }
   }
 
   return {
@@ -60,6 +67,19 @@ export function createGameSummary(
     material,
     detail
   };
+}
+
+function buildOutcome(status: GameStatus, winnerLabel: string): string {
+  if (status.status === 'checkmate') {
+    return `Winner: ${winnerLabel}`;
+  }
+  if (status.status === 'stalemate') {
+    return 'Result: Draw (stalemate)';
+  }
+  if (status.status === 'draw') {
+    return status.reason ? `Result: Draw (${status.reason})` : 'Result: Draw';
+  }
+  return 'Result: Draw';
 }
 
 function colorLabel(color: Color): string {

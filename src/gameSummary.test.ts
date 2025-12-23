@@ -34,4 +34,16 @@ describe('createGameSummary', () => {
     expect(summary).not.toBeNull();
     expect(summary?.outcome).toContain('Draw');
   });
+
+  it('returns a draw summary for insufficient material', () => {
+    const state = createEmptyState();
+    addPiece(state, 'king', 'w', sq(4, 0));
+    addPiece(state, 'king', 'b', sq(4, 7));
+
+    const status = getGameStatus(state);
+    const summary = createGameSummary(state, status, { w: 0, b: 0 });
+
+    expect(summary).not.toBeNull();
+    expect(summary?.outcome).toContain('insufficient material');
+  });
 });

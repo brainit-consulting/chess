@@ -105,3 +105,38 @@ it('detects checkmate and stalemate', () => {
   const staleStatus = getGameStatus(stalemate);
   expect(staleStatus.status).toBe('stalemate');
 });
+
+it('detects insufficient material draws', () => {
+  const onlyKings = createEmptyState();
+  addPiece(onlyKings, 'king', 'w', sq(4, 0));
+  addPiece(onlyKings, 'king', 'b', sq(4, 7));
+
+  const kingsStatus = getGameStatus(onlyKings);
+  expect(kingsStatus.status).toBe('draw');
+  expect(kingsStatus.reason).toBe('insufficient material');
+
+  const kingKnight = createEmptyState();
+  addPiece(kingKnight, 'king', 'w', sq(4, 0));
+  addPiece(kingKnight, 'knight', 'w', sq(2, 2));
+  addPiece(kingKnight, 'king', 'b', sq(4, 7));
+
+  const knightStatus = getGameStatus(kingKnight);
+  expect(knightStatus.status).toBe('draw');
+
+  const kingBishop = createEmptyState();
+  addPiece(kingBishop, 'king', 'w', sq(4, 0));
+  addPiece(kingBishop, 'bishop', 'w', sq(2, 2));
+  addPiece(kingBishop, 'king', 'b', sq(4, 7));
+
+  const bishopStatus = getGameStatus(kingBishop);
+  expect(bishopStatus.status).toBe('draw');
+
+  const bishopsOnly = createEmptyState();
+  addPiece(bishopsOnly, 'king', 'w', sq(4, 0));
+  addPiece(bishopsOnly, 'bishop', 'w', sq(1, 1));
+  addPiece(bishopsOnly, 'king', 'b', sq(4, 7));
+  addPiece(bishopsOnly, 'bishop', 'b', sq(6, 6));
+
+  const bishopsStatus = getGameStatus(bishopsOnly);
+  expect(bishopsStatus.status).toBe('draw');
+});

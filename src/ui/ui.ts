@@ -310,9 +310,17 @@ export class GameUI {
   setStatus(status: GameStatus): void {
     if (status.status === 'checkmate') {
       this.statusEl.textContent =
-        status.winner === 'w' ? 'Checkmate — White wins' : 'Checkmate — Black wins';
+        status.winner === 'w' ? 'Checkmate - White wins' : 'Checkmate - Black wins';
       this.noticeEl.textContent = 'Game over.';
       this.noticeEl.className = 'notice danger';
+      return;
+    }
+
+    if (status.status === 'draw') {
+      const reason = status.reason ? ` - ${status.reason}` : '';
+      this.statusEl.textContent = `Draw${reason}`;
+      this.noticeEl.textContent = 'Game over.';
+      this.noticeEl.className = 'notice';
       return;
     }
 

@@ -41,8 +41,9 @@ export interface GameState {
 }
 
 export type GameStatus = {
-  status: 'ongoing' | 'check' | 'checkmate' | 'stalemate';
+  status: 'ongoing' | 'check' | 'checkmate' | 'stalemate' | 'draw';
   winner?: Color;
+  reason?: string;
 };
 
 const BOARD_SIZE = 8;
@@ -261,6 +262,10 @@ export function isInCheck(state: GameState, color: Color): boolean {
 }
 
 export function getGameStatus(state: GameState): GameStatus {
+  if (isInsufficientMaterial(state)) {
+    return { status: 'draw', reason: 'insufficient material' };
+  }
+
   const inCheck = isInCheck(state, state.activeColor);
   const legalMoves = getAllLegalMoves(state, state.activeColor);
 
@@ -272,6 +277,53 @@ export function getGameStatus(state: GameState): GameStatus {
   }
 
   return inCheck ? { status: 'check' } : { status: 'ongoing' };
+}
+
+function isInsufficientMaterial(state: GameState): boolean {
+  const counts: Record<Color, Record<PieceType, number>> = {
+    w: { pawn: 0, knight: 0, bishop: 0, rook: 0, queen: 0, king: 0 },
+    b: { pawn: 0, knight: 0, bishop: 0, rook: 0, queen: 0, king: 0 }
+  };
+
+  for (const piece of state.pieces.values()) {
+    counts[piece.color][piece.type] += 1;
+  }
+
+  const hasMajor =
+    counts.w.pawn +
+      counts.w.rook +
+      counts.w.queen +
+      counts.b.pawn +
+      counts.b.rook +
+      counts.b.queen >
+    0;
+  if (hasMajor) {
+    return false;
+  }
+
+  const whiteMinors = counts.w.bishop + counts.w.knight;
+  const blackMinors = counts.b.bishop + counts.b.knight;
+
+  if (whiteMinors === 0 && blackMinors === 0) {
+    return true;
+  }
+  if (whiteMinors === 1 && blackMinors === 0) {
+    return true;
+  }
+  if (blackMinors === 1 && whiteMinors === 0) {
+    return true;
+  }
+
+  if (
+    whiteMinors === 1 &&
+    blackMinors === 1 &&
+    counts.w.knight === 0 &&
+    counts.b.knight === 0
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 function createEmptyBoard(): (number | null)[][] {

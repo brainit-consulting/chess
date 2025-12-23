@@ -142,7 +142,8 @@ export class GameController {
     this.scene.setState(this.state);
 
     const status = statusOverride ?? getGameStatus(this.state);
-    this.gameOver = status.status === 'checkmate' || status.status === 'stalemate';
+    this.gameOver =
+      status.status === 'checkmate' || status.status === 'stalemate' || status.status === 'draw';
     this.ui.setTurn(this.state.activeColor);
     this.ui.setStatus(status);
     this.maybeShowSummary(status);
@@ -382,7 +383,11 @@ export class GameController {
     if (this.summaryShown) {
       return;
     }
-    if (status.status !== 'checkmate' && status.status !== 'stalemate') {
+    if (
+      status.status !== 'checkmate' &&
+      status.status !== 'stalemate' &&
+      status.status !== 'draw'
+    ) {
       return;
     }
     const summary = createGameSummary(this.state, status, this.stats.getScores());
