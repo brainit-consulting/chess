@@ -4,7 +4,7 @@ import { Color, PieceType } from '../../rules';
 
 type ModelTemplate = {
   object: THREE.Group;
-  scale: number;
+  scale: THREE.Vector3;
 };
 
 const BASE_URL = import.meta.env.BASE_URL;
@@ -31,6 +31,9 @@ const TARGET_HEIGHTS: Record<PieceType, number> = {
   queen: 1.1,
   king: 1.2
 };
+
+const SCALE_Y = 1.6;
+const SCALE_XZ = 0.75;
 
 const templates = new Map<PieceType, ModelTemplate>();
 const materials = new Map<Color, THREE.MeshStandardMaterial>();
@@ -105,7 +108,7 @@ export function createSciFiPieceInstance(
   }
 
   const clone = template.object.clone(true);
-  clone.scale.setScalar(template.scale);
+  clone.scale.copy(template.scale);
 
   const tag = { pickType: 'piece', pieceId: id, type };
   clone.userData = { ...tag };
@@ -134,7 +137,12 @@ function normalizeModel(object: THREE.Group, targetHeight: number): ModelTemplat
   root.add(object);
 
   const safeHeight = Math.max(size.y, 0.001);
-  const scale = targetHeight / safeHeight;
+  const baseScale = targetHeight / safeHeight;
+  const scale = new THREE.Vector3(
+    baseScale * SCALE_XZ,
+    baseScale * SCALE_Y,
+    baseScale * SCALE_XZ
+  );
 
   return { object: root, scale };
 }
