@@ -268,3 +268,25 @@ it('detects insufficient material draws', () => {
   const bishopsStatus = getGameStatus(bishopsOnly);
   expect(bishopsStatus.status).toBe('draw');
 });
+
+it('detects threefold repetition draws', () => {
+  const state = createEmptyState();
+  addPiece(state, 'king', 'w', sq(4, 0));
+  addPiece(state, 'rook', 'w', sq(0, 0));
+  addPiece(state, 'king', 'b', sq(4, 7));
+  addPiece(state, 'rook', 'b', sq(0, 7));
+
+  const cycle = () => {
+    applyMove(state, { from: sq(0, 0), to: sq(0, 1) });
+    applyMove(state, { from: sq(0, 7), to: sq(0, 6) });
+    applyMove(state, { from: sq(0, 1), to: sq(0, 0) });
+    applyMove(state, { from: sq(0, 6), to: sq(0, 7) });
+  };
+
+  cycle();
+  cycle();
+
+  const status = getGameStatus(state);
+  expect(status.status).toBe('draw');
+  expect(status.reason).toBe('threefold repetition');
+});

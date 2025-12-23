@@ -38,6 +38,7 @@ export interface GameState {
   halfmoveClock: number;
   fullmoveNumber: number;
   lastMove: Move | null;
+  positionCounts?: Map<string, number>;
 }
 
 export type GameStatus = {
@@ -57,7 +58,8 @@ export function createEmptyState(): GameState {
     enPassantTarget: null,
     halfmoveClock: 0,
     fullmoveNumber: 1,
-    lastMove: null
+    lastMove: null,
+    positionCounts: new Map()
   };
 }
 
@@ -96,6 +98,7 @@ export function createInitialState(): GameState {
   }
 
   state.castlingRights = { wK: true, wQ: true, bK: true, bQ: true };
+  ensurePositionCount(state);
   return state;
 }
 
@@ -171,6 +174,7 @@ export function getAllLegalMoves(state: GameState, color: Color = state.activeCo
 }
 
 export function applyMove(state: GameState, move: Move): GameState {
+  ensurePositionCount(state);
   const movingId = state.board[move.from.rank]?.[move.from.file];
   if (!movingId) {
     throw new Error('No piece at source square.');
@@ -249,6 +253,7 @@ export function applyMove(state: GameState, move: Move): GameState {
 
   state.lastMove = cloneMove(move);
   state.activeColor = opponentColor(state.activeColor);
+  recordPosition(state);
 
   return state;
 }
@@ -262,6 +267,10 @@ export function isInCheck(state: GameState, color: Color): boolean {
 }
 
 export function getGameStatus(state: GameState): GameStatus {
+  ensurePositionCount(state);
+  if (getPositionCount(state) >= 3) {
+    return { status: 'draw', reason: 'threefold repetition' };
+  }
   if (isInsufficientMaterial(state)) {
     return { status: 'draw', reason: 'insufficient material' };
   }
@@ -783,7 +792,8 @@ function cloneState(state: GameState): GameState {
     enPassantTarget: state.enPassantTarget ? { ...state.enPassantTarget } : null,
     halfmoveClock: state.halfmoveClock,
     fullmoveNumber: state.fullmoveNumber,
-    lastMove: state.lastMove ? cloneMove(state.lastMove) : null
+    lastMove: state.lastMove ? cloneMove(state.lastMove) : null,
+    positionCounts: state.positionCounts ? new Map(state.positionCounts) : undefined
   };
 }
 
@@ -804,4 +814,79 @@ function opponentColor(color: Color): Color {
 
 function isInside(file: number, rank: number): boolean {
   return file >= 0 && file < BOARD_SIZE && rank >= 0 && rank < BOARD_SIZE;
+}
+
+function getPositionKey(state: GameState): string {
+  let boardKey = '';
+  for (let rank = 0; rank < BOARD_SIZE; rank += 1) {
+    for (let file = 0; file < BOARD_SIZE; file += 1) {
+      const id = state.board[rank][file];
+      if (!id) {
+        boardKey += '.';
+        continue;
+      }
+      const piece = state.pieces.get(id);
+      if (!piece) {
+        boardKey += '.';
+        continue;
+      }
+      boardKey += pieceToChar(piece);
+    }
+  }
+
+  const castling = serializeCastling(state.castlingRights);
+  const enPassant = state.enPassantTarget
+    ? `${String.fromCharCode(97 + state.enPassantTarget.file)}${state.enPassantTarget.rank + 1}`
+    : '-';
+
+  return `${boardKey}|${state.activeColor}|${castling}|${enPassant}`;
+}
+
+function pieceToChar(piece: Piece): string {
+  const map: Record<PieceType, string> = {
+    pawn: 'p',
+    knight: 'n',
+    bishop: 'b',
+    rook: 'r',
+    queen: 'q',
+    king: 'k'
+  };
+  const char = map[piece.type] ?? 'p';
+  return piece.color === 'w' ? char.toUpperCase() : char;
+}
+
+function serializeCastling(rights: CastlingRights): string {
+  let value = '';
+  if (rights.wK) value += 'K';
+  if (rights.wQ) value += 'Q';
+  if (rights.bK) value += 'k';
+  if (rights.bQ) value += 'q';
+  return value || '-';
+}
+
+function ensurePositionCount(state: GameState): void {
+  if (!state.positionCounts) {
+    state.positionCounts = new Map();
+  }
+  const key = getPositionKey(state);
+  if (!state.positionCounts.has(key)) {
+    state.positionCounts.set(key, 1);
+  }
+}
+
+function recordPosition(state: GameState): void {
+  if (!state.positionCounts) {
+    state.positionCounts = new Map();
+  }
+  const key = getPositionKey(state);
+  const current = state.positionCounts.get(key) ?? 0;
+  state.positionCounts.set(key, current + 1);
+}
+
+function getPositionCount(state: GameState): number {
+  if (!state.positionCounts) {
+    return 0;
+  }
+  const key = getPositionKey(state);
+  return state.positionCounts.get(key) ?? 0;
 }
