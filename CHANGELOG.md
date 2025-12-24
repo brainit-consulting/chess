@@ -6,8 +6,11 @@ The format is based on Keep a Changelog, and this project adheres to
 Semantic Versioning.
 
 ## [Unreleased]
+
+## [1.1.18] - 2025-12-24
 ### Added
 - Plain English game history HTML export.
+- Analysis links in the UI help, game-over summary, README, and player guide.
 
 ## [1.1.17] - 2025-12-24
 ### Added
