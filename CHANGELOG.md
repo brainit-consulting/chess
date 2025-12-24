@@ -6,6 +6,8 @@ The format is based on Keep a Changelog, and this project adheres to
 Semantic Versioning.
 
 ## [Unreleased]
+### Added
+- Display the app version in the UI panel footer.
 
 ## [1.1.22] - 2025-12-24
 ### Changed

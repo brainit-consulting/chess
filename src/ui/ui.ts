@@ -9,6 +9,7 @@ import { PieceType } from '../rules';
 const PLAYER_GUIDE_URL = `${import.meta.env.BASE_URL}player-user-guide.md`;
 const ANALYSIS_URL = 'https://chessanalysis.pro/';
 const LIVE_URL = 'https://brainit-consulting.github.io/chess/';
+const APP_VERSION = 'v1.1.22';
 
 export type UiState = {
   visible: boolean;
@@ -494,6 +495,10 @@ export class GameUI {
 
     buttonRow.append(whiteBtn, blackBtn, isoBtn, topBtn, restartBtn);
 
+    const versionNote = document.createElement('div');
+    versionNote.className = 'ui-version expand-only';
+    versionNote.textContent = APP_VERSION;
+
     this.panel.append(
       header,
       this.turnEl,
@@ -520,7 +525,8 @@ export class GameUI {
       aiRow,
       helpTitle,
       helpNote,
-      buttonRow
+      buttonRow,
+      versionNote
     );
     this.hud.append(this.panel);
     root.append(this.hud);
