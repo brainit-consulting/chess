@@ -12,6 +12,10 @@ Semantic Versioning.
 - Hint Mode for Human vs AI (best-move square highlight).
 - "Why this move?" explanations for AI moves (engine-facts-based).
 
+## [1.1.5] - 2025-12-24
+### Changed
+- Expand "Why this move?" explanations with capture threats and mobility facts.
+
 ## [1.1.3] - 2025-12-23
 
 ### Added

@@ -7,6 +7,7 @@ import {
   applyMove,
   getAllLegalMoves,
   getGameStatus,
+  getLegalMovesForSquare,
   getPieceAt,
   getPositionKey,
   isInCheck
@@ -88,6 +89,18 @@ export function explainMove(
     tags.push('material');
   }
 
+  const captureThreat = findCaptureThreat(next, move.to, moverColor);
+  if (captureThreat) {
+    bullets.push(`Creates a capture threat against a ${captureThreat.toLowerCase()}.`);
+    tags.push('threat');
+  }
+
+  const mobilityDelta = getMobilityDelta(state, next, moverColor);
+  if (mobilityDelta >= 2) {
+    bullets.push(`Increases available moves by +${mobilityDelta}.`);
+    tags.push('mobility');
+  }
+
   if (options.playForWin && options.recentPositions?.length) {
     const nextKey = getPositionKey(next);
     if (!options.recentPositions.includes(nextKey)) {
@@ -156,6 +169,37 @@ function formatPawnDelta(delta: number): string {
   const value = delta / 100;
   const rounded = Math.round(value * 10) / 10;
   return rounded % 1 === 0 ? `${rounded.toFixed(0)}` : `${rounded.toFixed(1)}`;
+}
+
+function findCaptureThreat(
+  state: GameState,
+  square: { file: number; rank: number },
+  moverColor: Color
+): string | null {
+  const moves = getLegalMovesForSquare(state, square);
+  let bestType: PieceType | null = null;
+  for (const candidate of moves) {
+    if (candidate.isEnPassant) {
+      if (!bestType || PIECE_VALUES.pawn > PIECE_VALUES[bestType]) {
+        bestType = 'pawn';
+      }
+      continue;
+    }
+    const target = getPieceAt(state, candidate.to);
+    if (!target || target.color === moverColor) {
+      continue;
+    }
+    if (!bestType || PIECE_VALUES[target.type] > PIECE_VALUES[bestType]) {
+      bestType = target.type;
+    }
+  }
+  return bestType ? PIECE_NAMES[bestType] : null;
+}
+
+function getMobilityDelta(before: GameState, after: GameState, color: Color): number {
+  const beforeMoves = getAllLegalMoves(before, color).length;
+  const afterMoves = getAllLegalMoves(after, color).length;
+  return afterMoves - beforeMoves;
 }
 
 function cloneState(state: GameState): GameState {
