@@ -1,5 +1,6 @@
 import { GameMode } from '../types';
 import { Color } from '../rules';
+import { AiWorkerRequest } from './aiWorkerTypes';
 
 export type AiResponseGate = {
   requestId: number;
@@ -52,6 +53,10 @@ export type ExplainResumeGate = {
   mode: GameMode;
   aiVsAiStarted: boolean;
   gameOver: boolean;
+};
+
+export type WorkerLike = {
+  postMessage: (request: AiWorkerRequest) => void;
 };
 
 export function shouldApplyAiResponse(state: AiResponseGate): boolean {
@@ -126,4 +131,15 @@ export function shouldPauseForExplanation(state: ExplainPauseGate): boolean {
 
 export function shouldResumeAfterExplanation(state: ExplainResumeGate): boolean {
   return state.mode === 'aivai' && state.aiVsAiStarted && !state.gameOver;
+}
+
+export function selectWorkerForRequest(
+  request: AiWorkerRequest,
+  aiWorker: WorkerLike | null,
+  explainWorker: WorkerLike | null
+): WorkerLike | null {
+  if (request.kind === 'explain' && explainWorker) {
+    return explainWorker;
+  }
+  return aiWorker ?? null;
 }

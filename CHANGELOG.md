@@ -9,6 +9,12 @@ Semantic Versioning.
 ### Added
 - Display the app version in the UI panel footer.
 
+## [1.1.23] - 2025-12-24
+### Fixed
+- Guarantee explain requests route to the explain worker to avoid long waits.
+- Prevent explanation analysis from queueing behind hard AI searches.
+- Add deterministic tests for explain-worker routing.
+
 ## [1.1.22] - 2025-12-24
 ### Changed
 - Run "Why this move?" analysis on a dedicated worker and show a timeout hint if it runs long.

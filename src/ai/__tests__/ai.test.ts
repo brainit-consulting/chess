@@ -8,7 +8,8 @@ import {
   shouldApplyHintResponse,
   shouldPauseForExplanation,
   shouldRequestHint,
-  shouldResumeAfterExplanation
+  shouldResumeAfterExplanation,
+  selectWorkerForRequest
 } from '../aiWorkerClient';
 import { findBestMove } from '../search';
 import {
@@ -300,6 +301,40 @@ describe('AI move selection', () => {
       gameOver: true
     });
     expect(gameOver).toBe(false);
+  });
+
+  it('routes explain requests to the explain worker', () => {
+    const state = createInitialState();
+    const aiWorker = { postMessage: () => undefined };
+    const explainWorker = { postMessage: () => undefined };
+    const request = {
+      kind: 'explain',
+      requestId: 1,
+      positionKey: 'p',
+      moveSignature: 'm',
+      state,
+      move: { from: sq(4, 1), to: sq(4, 3) },
+      options: {}
+    } as const;
+
+    const worker = selectWorkerForRequest(request, aiWorker, explainWorker);
+    expect(worker).toBe(explainWorker);
+  });
+
+  it('routes non-explain requests to the AI worker', () => {
+    const state = createInitialState();
+    const aiWorker = { postMessage: () => undefined };
+    const explainWorker = { postMessage: () => undefined };
+    const request = {
+      kind: 'move',
+      requestId: 2,
+      state,
+      color: 'b',
+      difficulty: 'easy'
+    } as const;
+
+    const worker = selectWorkerForRequest(request, aiWorker, explainWorker);
+    expect(worker).toBe(aiWorker);
   });
 
   it('explains en passant captures', () => {

@@ -29,7 +29,8 @@ import {
   shouldApplyHintResponse,
   shouldPauseForExplanation,
   shouldRequestHint,
-  shouldResumeAfterExplanation
+  shouldResumeAfterExplanation,
+  selectWorkerForRequest
 } from './ai/aiWorkerClient';
 import { SceneView, PickResult } from './client/scene';
 import { GameUI, UiState } from './ui/ui';
@@ -773,12 +774,9 @@ export class GameController {
   }
 
   private postAiRequest(request: AiWorkerRequest): void {
-    if (request.kind === 'explain' && this.explainWorker) {
-      this.explainWorker.postMessage(request);
-      return;
-    }
-    if (this.aiWorker) {
-      this.aiWorker.postMessage(request);
+    const worker = selectWorkerForRequest(request, this.aiWorker, this.explainWorker);
+    if (worker) {
+      worker.postMessage(request);
       return;
     }
     let response: AiWorkerResponse;
