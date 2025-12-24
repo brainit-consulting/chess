@@ -14,6 +14,8 @@ Semantic Versioning.
 - Guarantee explain requests route to the explain worker to avoid long waits.
 - Prevent explanation analysis from queueing behind hard AI searches.
 - Add deterministic tests for explain-worker routing.
+### Changed
+- Update the in-UI version label to v1.1.23.
 
 ## [1.1.22] - 2025-12-24
 ### Changed
