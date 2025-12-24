@@ -70,6 +70,7 @@ type Preferences = {
 const DEFAULT_NAMES: PlayerNames = { white: 'White', black: 'Black' };
 const DEFAULT_AI_DELAY_MS = 700;
 const HUMAN_VS_AI_DELAY_MS = 380;
+const EXPLAIN_TIMEOUT_MS = 10000;
 const STORAGE_KEYS = {
   names: 'chess.playerNames',
   ai: 'chess.aiSettings',
@@ -129,8 +130,10 @@ export class GameController {
   private explainRequestId = 0;
   private explainLoading = false;
   private explainPaused = false;
+  private explainTimeoutId: number | null = null;
   private explainCache = new Map<string, AiExplainResult>();
   private aiWorker: Worker | null = null;
+  private explainWorker: Worker | null = null;
   private aiPendingApplyAt = 0;
 
   constructor(sceneRoot: HTMLElement, uiRoot: HTMLElement) {
@@ -761,9 +764,19 @@ export class GameController {
     this.aiWorker.onmessage = (event: MessageEvent<AiWorkerResponse>) => {
       this.handleAiWorkerMessage(event.data);
     };
+    this.explainWorker = new Worker(new URL('./ai/aiWorker.ts', import.meta.url), {
+      type: 'module'
+    });
+    this.explainWorker.onmessage = (event: MessageEvent<AiWorkerResponse>) => {
+      this.handleAiWorkerMessage(event.data);
+    };
   }
 
   private postAiRequest(request: AiWorkerRequest): void {
+    if (request.kind === 'explain' && this.explainWorker) {
+      this.explainWorker.postMessage(request);
+      return;
+    }
     if (this.aiWorker) {
       this.aiWorker.postMessage(request);
       return;
@@ -922,6 +935,8 @@ export class GameController {
     }
 
     this.explainLoading = false;
+    this.clearExplainTimeout();
+    this.ui.setAiExplanationLoadingMessage('Analyzing...');
     this.lastAiExplanation = response.explanation;
     const cacheKey = this.getExplainCacheKey(
       response.positionKey,
@@ -1010,11 +1025,18 @@ export class GameController {
       this.setAiVsAiRunning(false);
     }
     const loading = this.explainLoading && !this.lastAiExplanation;
+    if (loading) {
+      this.startExplainTimeout();
+    } else {
+      this.clearExplainTimeout();
+    }
     this.ui.showAiExplanation(this.lastAiExplanation, loading);
   }
 
   private hideAiExplanation(): void {
     this.ui.hideAiExplanation();
+    this.clearExplainTimeout();
+    this.ui.setAiExplanationLoadingMessage('Analyzing...');
     if (!this.explainPaused) {
       return;
     }
@@ -1136,6 +1158,8 @@ export class GameController {
     this.lastAiExplanation = null;
     this.explainLoading = false;
     this.explainPaused = false;
+    this.clearExplainTimeout();
+    this.ui.setAiExplanationLoadingMessage('Analyzing...');
     this.explainRequestId += 1;
     this.ui.setAiExplanationAvailable(false);
     this.ui.hideAiExplanation();
@@ -1143,6 +1167,28 @@ export class GameController {
 
   private getExplainCacheKey(positionKey: string, moveSignature: string): string {
     return `${positionKey}|${moveSignature}`;
+  }
+
+  private startExplainTimeout(): void {
+    this.clearExplainTimeout();
+    this.ui.setAiExplanationLoadingMessage('Analyzing...');
+    this.explainTimeoutId = window.setTimeout(() => {
+      this.explainTimeoutId = null;
+      if (this.explainLoading && !this.lastAiExplanation) {
+        this.ui.setAiExplanationLoadingMessage(
+          'Analysis is taking longer - close to resume.'
+        );
+        this.ui.updateAiExplanation(null, true);
+      }
+    }, EXPLAIN_TIMEOUT_MS);
+  }
+
+  private clearExplainTimeout(): void {
+    if (this.explainTimeoutId === null) {
+      return;
+    }
+    window.clearTimeout(this.explainTimeoutId);
+    this.explainTimeoutId = null;
   }
 
   private getMoveSignature(move: Move): string {

@@ -97,6 +97,7 @@ export class GameUI {
   private explainSummaryEl: HTMLParagraphElement;
   private explainListEl: HTMLUListElement;
   private explainLoadingEl: HTMLParagraphElement;
+  private explainLoadingMessage = 'Analyzing...';
   private aiVsAiRow: HTMLDivElement;
   private aiVsAiStartButton: HTMLButtonElement;
   private aiVsAiPauseButton: HTMLButtonElement;
@@ -629,7 +630,7 @@ export class GameUI {
 
   updateAiExplanation(explanation: AiExplainResult | null, loading: boolean): void {
     if (loading) {
-      this.explainLoadingEl.textContent = 'Analyzing...';
+      this.explainLoadingEl.textContent = this.explainLoadingMessage;
       this.explainLoadingEl.classList.remove('hidden');
       this.explainMoveEl.textContent = ' ';
       this.explainSummaryEl.textContent = ' ';
@@ -668,6 +669,10 @@ export class GameUI {
 
   hideAiExplanation(): void {
     this.explainModal.classList.remove('open');
+  }
+
+  setAiExplanationLoadingMessage(message: string): void {
+    this.explainLoadingMessage = message;
   }
 
   private setSummaryHistoryView(view: 'pgn' | 'plain'): void {

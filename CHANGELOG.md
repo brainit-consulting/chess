@@ -6,6 +6,8 @@ The format is based on Keep a Changelog, and this project adheres to
 Semantic Versioning.
 
 ## [Unreleased]
+### Changed
+- Run "Why this move?" analysis on a dedicated worker and show a timeout hint if it runs long.
 
 ## [1.1.21] - 2025-12-24
 ### Added
