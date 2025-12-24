@@ -16,7 +16,7 @@ import {
 } from './rules';
 import { AiDifficulty, chooseMove } from './ai/ai';
 import { AiWorkerRequest, AiWorkerResponse } from './ai/aiWorkerTypes';
-import { shouldApplyAiResponse } from './ai/aiWorkerClient';
+import { shouldApplyAiResponse, shouldApplyHintResponse, shouldRequestHint } from './ai/aiWorkerClient';
 import { SceneView, PickResult } from './client/scene';
 import { GameUI, UiState } from './ui/ui';
 import { GameStats } from './gameStats';
@@ -42,6 +42,7 @@ type Preferences = {
   aiDelayMs: number;
   pieceSet: PieceSet;
   playForWinAiVsAi: boolean;
+  hintMode: boolean;
 };
 
 const DEFAULT_NAMES: PlayerNames = { white: 'White', black: 'Black' };
@@ -53,7 +54,8 @@ const STORAGE_KEYS = {
   mode: 'chess.gameMode',
   aiDelay: 'chess.aiDelayMs',
   pieceSet: 'chess.pieceSet',
-  playForWinAiVsAi: 'chess.playForWinAiVsAi'
+  playForWinAiVsAi: 'chess.playForWinAiVsAi',
+  hintMode: 'chess.hintMode'
 };
 const AI_LABELS: Record<AiDifficulty, string> = {
   easy: 'Easy',
@@ -86,6 +88,10 @@ export class GameController {
   private pieceSet: PieceSet = 'scifi';
   private playForWinAiVsAi = true;
   private recentPositions: string[] = [];
+  private hintMode = false;
+  private hintMove: Move | null = null;
+  private hintRequestId = 0;
+  private hintPositionKey: string | null = null;
   private aiWorker: Worker | null = null;
   private aiPendingApplyAt = 0;
 
@@ -98,6 +104,7 @@ export class GameController {
     this.baseNames = preferences.names;
     this.pieceSet = preferences.pieceSet;
     this.playForWinAiVsAi = preferences.playForWinAiVsAi;
+    this.hintMode = preferences.hintMode;
     const soundEnabled = SoundManager.loadEnabled();
     this.sound = new SoundManager(soundEnabled);
     this.music = initMusic();
@@ -121,6 +128,7 @@ export class GameController {
       onToggleAiVsAiRunning: (running) => this.setAiVsAiRunning(running),
       onPieceSetChange: (pieceSet) => this.setPieceSet(pieceSet),
       onTogglePlayForWin: (enabled) => this.setPlayForWinAiVsAi(enabled),
+      onToggleHintMode: (enabled) => this.setHintMode(enabled),
       onUiStateChange: (state) => this.handleUiStateChange(state)
     }, {
       mode: this.mode,
@@ -131,7 +139,8 @@ export class GameController {
       musicEnabled: this.music.getMusicEnabled(),
       musicVolume: this.music.getMusicVolume(),
       pieceSet: this.pieceSet,
-      playForWin: this.playForWinAiVsAi
+      playForWin: this.playForWinAiVsAi,
+      hintMode: this.hintMode
     });
     this.stats = new GameStats();
     this.stats.reset(this.state);
@@ -145,6 +154,7 @@ export class GameController {
       this.ui.setMusicUnlockHint(true);
     }
     this.resetPositionHistory();
+    this.clearHint();
 
     window.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') {
@@ -171,6 +181,7 @@ export class GameController {
     this.aiVsAiStarted = false;
     this.aiVsAiRunning = false;
     this.aiVsAiPaused = false;
+    this.clearHint();
     this.syncAiVsAiState();
     this.ui.hideSummary();
     this.stats.reset(this.state);
@@ -199,8 +210,11 @@ export class GameController {
       selected: this.selected,
       legalMoves: this.legalMoves,
       lastMove: this.state.lastMove,
-      checkSquare
+      checkSquare,
+      hintMove: this.hintMove
     });
+
+    this.maybeRequestHint();
   }
 
   private handlePick(pick: PickResult): void {
@@ -279,6 +293,7 @@ export class GameController {
 
   private applyAndAdvance(move: Move): void {
     this.cancelAiMove();
+    this.clearHint();
     const moverColor = this.state.activeColor;
     applyMove(this.state, move);
     this.recordPositionKey();
@@ -329,6 +344,7 @@ export class GameController {
 
     const playForWin = this.mode === 'aivai' && this.playForWinAiVsAi;
     const request: AiWorkerRequest = {
+      kind: 'move',
       requestId,
       state: this.state,
       color: this.state.activeColor,
@@ -367,6 +383,7 @@ export class GameController {
     this.ui.setMode(mode);
     this.updatePlayerNames();
     this.syncAiVsAiState();
+    this.clearHint();
     this.cancelAiMove();
     this.maybeScheduleAiMove();
   }
@@ -396,6 +413,14 @@ export class GameController {
     this.playForWinAiVsAi = enabled;
     this.persistPreferences();
     this.ui.setPlayForWin(enabled);
+  }
+
+  private setHintMode(enabled: boolean): void {
+    this.hintMode = enabled;
+    this.persistPreferences();
+    this.ui.setHintMode(enabled);
+    this.clearHint();
+    this.maybeRequestHint();
   }
 
   private setSoundEnabled(enabled: boolean): void {
@@ -504,6 +529,7 @@ export class GameController {
     ) {
       return;
     }
+    this.clearHint();
     if (this.mode === 'aivai') {
       this.aiVsAiStarted = false;
       this.aiVsAiRunning = false;
@@ -537,6 +563,7 @@ export class GameController {
     let aiDelayMs = DEFAULT_AI_DELAY_MS;
     let pieceSet: PieceSet = 'scifi';
     let playForWinAiVsAi = true;
+    let hintMode = false;
 
     if (storage) {
       const rawNames = storage.getItem(STORAGE_KEYS.names);
@@ -591,15 +618,21 @@ export class GameController {
         playForWinAiVsAi = rawPlayForWin === 'true';
       }
 
+      const rawHintMode = storage.getItem(STORAGE_KEYS.hintMode);
+      if (rawHintMode !== null) {
+        hintMode = rawHintMode === 'true';
+      }
+
       storage.setItem(STORAGE_KEYS.names, JSON.stringify(names));
       storage.setItem(STORAGE_KEYS.ai, JSON.stringify(ai));
       storage.setItem(STORAGE_KEYS.mode, mode);
       storage.setItem(STORAGE_KEYS.aiDelay, aiDelayMs.toString());
       storage.setItem(STORAGE_KEYS.pieceSet, pieceSet);
       storage.setItem(STORAGE_KEYS.playForWinAiVsAi, playForWinAiVsAi.toString());
+      storage.setItem(STORAGE_KEYS.hintMode, hintMode.toString());
     }
 
-    return { names, ai, mode, aiDelayMs, pieceSet, playForWinAiVsAi };
+    return { names, ai, mode, aiDelayMs, pieceSet, playForWinAiVsAi, hintMode };
   }
 
   private persistPreferences(): void {
@@ -617,6 +650,7 @@ export class GameController {
     storage.setItem(STORAGE_KEYS.aiDelay, this.aiDelayMs.toString());
     storage.setItem(STORAGE_KEYS.pieceSet, this.pieceSet);
     storage.setItem(STORAGE_KEYS.playForWinAiVsAi, this.playForWinAiVsAi.toString());
+    storage.setItem(STORAGE_KEYS.hintMode, this.hintMode.toString());
   }
 
   private resetPositionHistory(): void {
@@ -643,7 +677,7 @@ export class GameController {
       type: 'module'
     });
     this.aiWorker.onmessage = (event: MessageEvent<AiWorkerResponse>) => {
-      this.handleAiWorkerResponse(event.data);
+      this.handleAiWorkerMessage(event.data);
     };
   }
 
@@ -652,20 +686,40 @@ export class GameController {
       this.aiWorker.postMessage(request);
       return;
     }
-    const response: AiWorkerResponse = {
-      requestId: request.requestId,
-      move: chooseMove(request.state, {
-        color: request.color,
-        difficulty: request.difficulty,
-        seed: request.seed,
-        playForWin: request.playForWin,
-        recentPositions: request.recentPositions
-      })
-    };
-    this.handleAiWorkerResponse(response);
+    const response: AiWorkerResponse =
+      request.kind === 'hint'
+        ? {
+            kind: 'hint',
+            requestId: request.requestId,
+            positionKey: request.positionKey,
+            move: chooseMove(request.state, {
+              color: request.color,
+              difficulty: 'easy',
+              depthOverride: request.depthOverride,
+              seed: request.seed
+            })
+          }
+        : {
+            kind: 'move',
+            requestId: request.requestId,
+            move: chooseMove(request.state, {
+              color: request.color,
+              difficulty: request.difficulty,
+              seed: request.seed,
+              playForWin: request.playForWin,
+              recentPositions: request.recentPositions,
+              depthOverride: request.depthOverride
+            })
+          };
+    this.handleAiWorkerMessage(response);
   }
 
-  private handleAiWorkerResponse(response: AiWorkerResponse): void {
+  private handleAiWorkerMessage(response: AiWorkerResponse): void {
+    if (response.kind === 'hint') {
+      this.handleHintWorkerResponse(response);
+      return;
+    }
+
     if (
       !shouldApplyAiResponse({
         requestId: response.requestId,
@@ -716,6 +770,74 @@ export class GameController {
     }
 
     applyMove();
+  }
+
+  private handleHintWorkerResponse(response: AiWorkerResponse): void {
+    if (response.kind !== 'hint') {
+      return;
+    }
+    const currentKey = getPositionKey(this.state);
+    if (
+      !shouldApplyHintResponse({
+        requestId: response.requestId,
+        currentRequestId: this.hintRequestId,
+        positionKey: response.positionKey,
+        currentPositionKey: currentKey,
+        mode: this.mode,
+        hintMode: this.hintMode,
+        activeColor: this.state.activeColor,
+        gameOver: this.gameOver
+      })
+    ) {
+      return;
+    }
+
+    this.hintMove = response.move;
+    this.hintPositionKey = response.positionKey;
+    this.sync();
+  }
+
+  private maybeRequestHint(): void {
+    const key = getPositionKey(this.state);
+    if (
+      !shouldRequestHint({
+        mode: this.mode,
+        hintMode: this.hintMode,
+        activeColor: this.state.activeColor,
+        gameOver: this.gameOver,
+        pendingPromotion: Boolean(this.pendingPromotion)
+      })
+    ) {
+      if (this.hintMove || this.hintPositionKey) {
+        this.clearHint();
+      }
+      return;
+    }
+
+    if (this.hintPositionKey === key) {
+      return;
+    }
+
+    this.hintRequestId += 1;
+    this.hintPositionKey = key;
+
+    const request: AiWorkerRequest = {
+      kind: 'hint',
+      requestId: this.hintRequestId,
+      positionKey: key,
+      state: this.state,
+      color: 'w',
+      depthOverride: 2,
+      seed: this.aiSeed
+    };
+    this.postAiRequest(request);
+  }
+
+  private clearHint(): void {
+    this.hintMove = null;
+    this.hintPositionKey = null;
+    this.hintRequestId += 1;
+    this.scene.setHintMove(null);
   }
 
   private getStorage(): Storage | null {

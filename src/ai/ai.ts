@@ -10,6 +10,7 @@ export type AiOptions = {
   rng?: () => number;
   playForWin?: boolean;
   recentPositions?: string[];
+  depthOverride?: number;
 };
 
 const DEPTH_BY_DIFFICULTY: Record<AiDifficulty, number> = {
@@ -28,7 +29,7 @@ export function chooseMove(state: GameState, options: AiOptions = {}): Move | nu
   const rng =
     options.rng ?? (options.seed !== undefined ? createSeededRng(options.seed) : Math.random);
   const difficulty = options.difficulty ?? 'medium';
-  const depth = DEPTH_BY_DIFFICULTY[difficulty];
+  const depth = options.depthOverride ?? DEPTH_BY_DIFFICULTY[difficulty];
 
   return findBestMove(state, color, {
     depth,

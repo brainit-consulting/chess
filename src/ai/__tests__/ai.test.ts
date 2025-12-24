@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { chooseMove } from '../ai';
 import { computeAiMove } from '../aiWorker';
-import { shouldApplyAiResponse } from '../aiWorkerClient';
+import { shouldApplyAiResponse, shouldApplyHintResponse, shouldRequestHint } from '../aiWorkerClient';
 import { findBestMove } from '../search';
 import {
   addPiece,
@@ -100,6 +100,7 @@ describe('AI move selection', () => {
 
     const direct = chooseMove(state, { difficulty: 'medium', seed: 99 });
     const worker = computeAiMove({
+      kind: 'move',
       requestId: 1,
       state,
       color: 'b',
@@ -128,6 +129,77 @@ describe('AI move selection', () => {
     });
 
     expect(apply).toBe(false);
+  });
+
+  it('requests hints only in human-vs-ai on the human turn', () => {
+    const eligible = shouldRequestHint({
+      mode: 'hvai',
+      hintMode: true,
+      activeColor: 'w',
+      gameOver: false,
+      pendingPromotion: false
+    });
+    expect(eligible).toBe(true);
+
+    const wrongMode = shouldRequestHint({
+      mode: 'aivai',
+      hintMode: true,
+      activeColor: 'w',
+      gameOver: false,
+      pendingPromotion: false
+    });
+    expect(wrongMode).toBe(false);
+
+    const wrongTurn = shouldRequestHint({
+      mode: 'hvai',
+      hintMode: true,
+      activeColor: 'b',
+      gameOver: false,
+      pendingPromotion: false
+    });
+    expect(wrongTurn).toBe(false);
+  });
+
+  it('ignores stale hint responses by position key', () => {
+    const apply = shouldApplyHintResponse({
+      requestId: 3,
+      currentRequestId: 3,
+      positionKey: 'a',
+      currentPositionKey: 'b',
+      mode: 'hvai',
+      hintMode: true,
+      activeColor: 'w',
+      gameOver: false
+    });
+    expect(apply).toBe(false);
+  });
+
+  it('matches worker hint selection for a fixed position', () => {
+    const state = createInitialState();
+    state.activeColor = 'w';
+
+    const direct = chooseMove(state, {
+      color: 'w',
+      difficulty: 'easy',
+      seed: 5,
+      depthOverride: 2
+    });
+    const worker = computeAiMove({
+      kind: 'hint',
+      requestId: 7,
+      positionKey: 'p',
+      state,
+      color: 'w',
+      depthOverride: 2,
+      seed: 5
+    });
+
+    expect(direct).not.toBeNull();
+    expect(worker.move).not.toBeNull();
+    if (!direct || !worker.move) {
+      throw new Error('Expected both paths to return a move.');
+    }
+    expect(sameMove(direct, worker.move)).toBe(true);
   });
 
   it('penalizes repeating positions when play-for-win is enabled', () => {

@@ -26,6 +26,7 @@ type UIHandlers = {
   onToggleAiVsAiRunning: (running: boolean) => void;
   onPieceSetChange: (pieceSet: PieceSet) => void;
   onTogglePlayForWin: (enabled: boolean) => void;
+  onToggleHintMode: (enabled: boolean) => void;
   onUiStateChange: (state: UiState) => void;
 };
 
@@ -39,6 +40,7 @@ type UIOptions = {
   musicVolume?: number;
   pieceSet?: PieceSet;
   playForWin?: boolean;
+  hintMode?: boolean;
 };
 
 const UI_STATE_KEY = 'chess.uiState';
@@ -78,6 +80,8 @@ export class GameUI {
   private pieceSetSelect: HTMLSelectElement;
   private playForWinRow: HTMLDivElement;
   private playForWinToggle: HTMLInputElement;
+  private hintRow: HTMLDivElement;
+  private hintToggle: HTMLInputElement;
   private soundToggle: HTMLInputElement;
   private musicToggle: HTMLInputElement;
   private musicVolumeRow: HTMLDivElement;
@@ -188,6 +192,7 @@ export class GameUI {
     const initialMusicVolume = options.musicVolume ?? 0.2;
     const initialPieceSet = options.pieceSet ?? 'scifi';
     const initialPlayForWin = options.playForWin ?? true;
+    const initialHintMode = options.hintMode ?? false;
     this.aiToggle.checked = initialAiEnabled;
     this.aiToggle.addEventListener('change', () => {
       const enabled = this.aiToggle.checked;
@@ -300,6 +305,24 @@ export class GameUI {
     playForWinText.textContent = 'Play for Win';
     playForWinLabel.append(this.playForWinToggle, playForWinText);
     this.playForWinRow.append(playForWinLabel);
+
+    this.hintRow = document.createElement('div');
+    this.hintRow.className = 'control-row expand-only';
+
+    const hintLabel = document.createElement('label');
+    hintLabel.className = 'toggle';
+
+    this.hintToggle = document.createElement('input');
+    this.hintToggle.type = 'checkbox';
+    this.hintToggle.checked = initialHintMode;
+    this.hintToggle.addEventListener('change', () => {
+      this.handlers.onToggleHintMode(this.hintToggle.checked);
+    });
+
+    const hintText = document.createElement('span');
+    hintText.textContent = 'Hint Mode';
+    hintLabel.append(this.hintToggle, hintText);
+    this.hintRow.append(hintLabel);
 
     const soundRow = document.createElement('div');
     soundRow.className = 'control-row expand-only';
@@ -434,6 +457,7 @@ export class GameUI {
       this.delayRow,
       this.aiVsAiRow,
       this.playForWinRow,
+      this.hintRow,
       aiRow,
       buttonRow
     );
@@ -455,6 +479,7 @@ export class GameUI {
     this.setMode(initialMode);
     this.setPieceSet(initialPieceSet);
     this.setPlayForWin(initialPlayForWin);
+    this.setHintMode(initialHintMode);
     this.setMusicVolume(initialMusicVolume);
     this.setMusicEnabled(initialMusicEnabled);
     this.setMusicUnlockHint(false);
@@ -538,6 +563,10 @@ export class GameUI {
 
   setPlayForWin(enabled: boolean): void {
     this.playForWinToggle.checked = enabled;
+  }
+
+  setHintMode(enabled: boolean): void {
+    this.hintToggle.checked = enabled;
   }
 
   setMusicEnabled(enabled: boolean): void {
@@ -701,6 +730,8 @@ export class GameUI {
     this.aiToggle.checked = aiEnabled;
     this.difficultySelect.disabled = !aiEnabled;
     this.delayRow.classList.toggle('hidden', this.mode !== 'aivai');
+    this.hintRow.classList.toggle('hidden', this.mode !== 'hvai');
+    this.hintToggle.disabled = this.mode !== 'hvai';
     this.aiVsAiReady = this.mode === 'aivai' && !this.aiVsAiStarted;
     this.updateAiVsAiControls();
     this.renderAiStatus();

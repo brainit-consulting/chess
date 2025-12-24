@@ -16,6 +16,7 @@ type HighlightState = {
   legalMoves: Move[];
   lastMove: Move | null;
   checkSquare: Square | null;
+  hintMove: Move | null;
 };
 
 type SceneHandlers = {
@@ -59,6 +60,8 @@ export class SceneView {
   private pendingState: GameState | null = null;
   private readyPromise: Promise<void>;
   private checkHalo: THREE.Mesh | null = null;
+  private hintFrom: THREE.Mesh | null = null;
+  private hintTo: THREE.Mesh | null = null;
   private pieceSet: PieceSet;
   private pieceProvider: PieceSetProvider;
   private lastState: GameState | null = null;
@@ -223,6 +226,12 @@ export class SceneView {
       const isCapture = move.capturedId !== undefined || move.isEnPassant;
       this.markersGroup.add(this.createMarker(move.to, isCapture));
     }
+
+    this.updateHintMarkers(highlights.hintMove);
+  }
+
+  setHintMove(move: Move | null): void {
+    this.updateHintMarkers(move);
   }
 
   snapView(view: SnapView): void {
@@ -377,6 +386,53 @@ export class SceneView {
     }
   }
 
+  private updateHintMarkers(move: Move | null): void {
+    if (!move) {
+      this.clearHintMarkers();
+      return;
+    }
+
+    if (!this.hintFrom || !this.hintTo) {
+      const fromMaterial = new THREE.MeshBasicMaterial({
+        color: '#6fa6ff',
+        transparent: true,
+        opacity: 0.55
+      });
+      const toMaterial = new THREE.MeshBasicMaterial({
+        color: '#89d98a',
+        transparent: true,
+        opacity: 0.55
+      });
+      const geometry = new THREE.RingGeometry(0.34, 0.42, 24);
+      this.hintFrom = new THREE.Mesh(geometry, fromMaterial);
+      this.hintTo = new THREE.Mesh(geometry, toMaterial);
+      this.hintFrom.rotation.x = -Math.PI / 2;
+      this.hintTo.rotation.x = -Math.PI / 2;
+    }
+
+    this.hintFrom.position.copy(this.squareToWorld(move.from));
+    this.hintTo.position.copy(this.squareToWorld(move.to));
+    this.hintFrom.position.y += 0.02;
+    this.hintTo.position.y += 0.02;
+
+    this.markersGroup.add(this.hintFrom, this.hintTo);
+  }
+
+  private clearHintMarkers(): void {
+    if (this.hintFrom) {
+      this.markersGroup.remove(this.hintFrom);
+      this.hintFrom.geometry.dispose();
+      (this.hintFrom.material as THREE.Material).dispose();
+      this.hintFrom = null;
+    }
+    if (this.hintTo) {
+      this.markersGroup.remove(this.hintTo);
+      this.hintTo.geometry.dispose();
+      (this.hintTo.material as THREE.Material).dispose();
+      this.hintTo = null;
+    }
+  }
+
   private clearPieces(): void {
     for (const mesh of this.pieceMeshes.values()) {
       this.piecesGroup.remove(mesh);
@@ -430,6 +486,16 @@ export class SceneView {
       this.checkHalo.scale.set(pulse, pulse, pulse);
       const material = this.checkHalo.material as THREE.MeshBasicMaterial;
       material.opacity = 0.45 + Math.sin(t) * 0.15;
+    }
+    if (this.hintFrom || this.hintTo) {
+      const t = performance.now() * 0.003;
+      const pulse = 0.9 + Math.sin(t) * 0.1;
+      if (this.hintFrom) {
+        this.hintFrom.scale.set(pulse, pulse, pulse);
+      }
+      if (this.hintTo) {
+        this.hintTo.scale.set(pulse, pulse, pulse);
+      }
     }
     this.renderer.render(this.scene, this.camera);
   }

@@ -2,15 +2,31 @@ import { chooseMove } from './ai';
 import { AiWorkerRequest, AiWorkerResponse } from './aiWorkerTypes';
 
 export function computeAiMove(request: AiWorkerRequest): AiWorkerResponse {
+  if (request.kind === 'hint') {
+    const move = chooseMove(request.state, {
+      color: request.color,
+      difficulty: 'easy',
+      seed: request.seed,
+      depthOverride: request.depthOverride
+    });
+    return {
+      kind: 'hint',
+      requestId: request.requestId,
+      positionKey: request.positionKey,
+      move
+    };
+  }
+
   const move = chooseMove(request.state, {
     color: request.color,
     difficulty: request.difficulty,
     seed: request.seed,
     playForWin: request.playForWin,
-    recentPositions: request.recentPositions
+    recentPositions: request.recentPositions,
+    depthOverride: request.depthOverride
   });
 
-  return { requestId: request.requestId, move };
+  return { kind: 'move', requestId: request.requestId, move };
 }
 
 if (typeof self !== 'undefined') {
