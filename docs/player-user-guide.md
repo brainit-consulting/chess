@@ -107,6 +107,17 @@ Includes:
 
 ---
 
+## Analyze and Replay Your Games
+
+You can export your completed game as PGN and analyze it in any chess tool.
+
+Steps:
+- In the Game History panel or the game-over summary, click **Export PGN**.
+- Open https://chessanalysis.pro/
+- Paste or import the PGN to replay and analyze your game.
+
+---
+
 ## Sound
 
 - Toggle sound effects on or off.

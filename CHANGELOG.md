@@ -6,14 +6,17 @@ The format is based on Keep a Changelog, and this project adheres to
 Semantic Versioning.
 
 ## [Unreleased]
-### Changed
-- Improve responsiveness by running AI search in a Web Worker (no gameplay changes).
+### Added
+- Plain English game history HTML export.
+
+## [1.1.17] - 2025-12-24
 ### Added
 - Hint Mode for Human vs AI (best-move square highlight).
 - "Why this move?" explanations for AI moves (engine-facts-based).
 - Move history panel, game clock, and PGN export.
 - Plain English history view with copy/export at game end.
 ### Changed
+- Improve responsiveness by running AI search in a Web Worker (no gameplay changes).
 - History panel now shows from-to coordinates for each side.
 - History panel now prefixes moves with the moving piece.
 

@@ -7,6 +7,7 @@ import { GameMode, PieceSet, SnapView } from '../types';
 import { PieceType } from '../rules';
 
 const PLAYER_GUIDE_URL = `${import.meta.env.BASE_URL}player-user-guide.md`;
+const ANALYSIS_URL = 'https://chessanalysis.pro/';
 
 export type UiState = {
   visible: boolean;
@@ -33,6 +34,7 @@ type UIHandlers = {
   onShowAiExplanation: () => void;
   onExportPgn: () => void;
   onExportPlainHistory: () => void;
+  onExportPlainHistoryHtml: () => void;
   onCopyPlainHistory: () => void;
   onUiStateChange: (state: UiState) => void;
 };
@@ -68,6 +70,7 @@ export class GameUI {
   private historyTimerEl: HTMLDivElement;
   private historyExportButton: HTMLButtonElement;
   private historyPlainExportButton: HTMLButtonElement;
+  private historyPlainHtmlExportButton: HTMLButtonElement;
   private historyPlainCopyButton: HTMLButtonElement;
   private historyHideButton: HTMLButtonElement;
   private historyShowButton: HTMLButtonElement;
@@ -79,6 +82,7 @@ export class GameUI {
   private summaryMaterialEl: HTMLParagraphElement;
   private summaryDetailEl: HTMLParagraphElement;
   private summaryExportButton: HTMLButtonElement;
+  private summaryPlainHtmlExportButton: HTMLButtonElement;
   private summaryHistoryTabs: HTMLDivElement;
   private summaryHistoryPgnButton: HTMLButtonElement;
   private summaryHistoryPlainButton: HTMLButtonElement;
@@ -460,6 +464,22 @@ export class GameUI {
     this.expandButton = this.makeButton('Expand', () => this.setUiCollapsed(false));
     this.expandButton.classList.add('ghost', 'collapse-only');
 
+    const helpTitle = document.createElement('div');
+    helpTitle.className = 'section-title expand-only';
+    helpTitle.textContent = 'Help';
+
+    const helpNote = document.createElement('div');
+    helpNote.className = 'help-note expand-only';
+    helpNote.append(
+      document.createTextNode('Analyze games: export PGN and paste into ')
+    );
+    const helpLink = document.createElement('a');
+    helpLink.href = ANALYSIS_URL;
+    helpLink.textContent = 'chessanalysis.pro';
+    helpLink.target = '_blank';
+    helpLink.rel = 'noopener';
+    helpNote.append(helpLink, document.createTextNode('.'));
+
     const buttonRow = document.createElement('div');
     buttonRow.className = 'button-row expand-only';
 
@@ -495,6 +515,8 @@ export class GameUI {
       this.playForWinRow,
       this.hintRow,
       aiRow,
+      helpTitle,
+      helpNote,
       buttonRow
     );
     this.hud.append(this.panel);
@@ -755,8 +777,12 @@ export class GameUI {
   setPlainHistoryActionsAvailable(available: boolean): void {
     this.historyPlainExportButton.disabled = !available;
     this.historyPlainExportButton.classList.toggle('hidden', !available);
+    this.historyPlainHtmlExportButton.disabled = !available;
+    this.historyPlainHtmlExportButton.classList.toggle('hidden', !available);
     this.historyPlainCopyButton.disabled = !available;
     this.historyPlainCopyButton.classList.toggle('hidden', !available);
+    this.summaryPlainHtmlExportButton.disabled = !available;
+    this.summaryPlainHtmlExportButton.classList.toggle('hidden', !available);
   }
 
   setSummaryHistoryContent(pgnText: string, plainText: string, available: boolean): void {
@@ -834,7 +860,24 @@ export class GameUI {
     this.summaryDetailEl = document.createElement('p');
     this.summaryDetailEl.className = 'summary-detail';
 
-    body.append(this.summaryOutcomeEl, this.summaryMaterialEl, this.summaryDetailEl);
+    const summaryAnalysisEl = document.createElement('p');
+    summaryAnalysisEl.className = 'summary-note';
+    summaryAnalysisEl.append(
+      document.createTextNode('Analyze this game by exporting PGN and pasting it into ')
+    );
+    const summaryLink = document.createElement('a');
+    summaryLink.href = ANALYSIS_URL;
+    summaryLink.textContent = 'chessanalysis.pro';
+    summaryLink.target = '_blank';
+    summaryLink.rel = 'noopener';
+    summaryAnalysisEl.append(summaryLink, document.createTextNode('.'));
+
+    body.append(
+      this.summaryOutcomeEl,
+      this.summaryMaterialEl,
+      this.summaryDetailEl,
+      summaryAnalysisEl
+    );
 
     this.summaryHistoryTabs = document.createElement('div');
     this.summaryHistoryTabs.className = 'history-tabs hidden';
@@ -867,12 +910,22 @@ export class GameUI {
     );
     this.summaryExportButton.classList.add('ghost', 'hidden');
     this.summaryExportButton.disabled = true;
+    this.summaryPlainHtmlExportButton = this.makeButton('Export Plain HTML', () =>
+      this.handlers.onExportPlainHistoryHtml()
+    );
+    this.summaryPlainHtmlExportButton.classList.add('ghost', 'hidden');
+    this.summaryPlainHtmlExportButton.disabled = true;
     const restartBtn = this.makeButton('Restart', () => {
       this.hideSummary();
       this.handlers.onRestart();
     });
 
-    buttonRow.append(closeBtn, this.summaryExportButton, restartBtn);
+    buttonRow.append(
+      closeBtn,
+      this.summaryExportButton,
+      this.summaryPlainHtmlExportButton,
+      restartBtn
+    );
     card.append(
       this.summaryTitleEl,
       body,
@@ -934,6 +987,12 @@ export class GameUI {
     this.historyPlainExportButton.classList.add('ghost', 'hidden');
     this.historyPlainExportButton.disabled = true;
 
+    this.historyPlainHtmlExportButton = this.makeButton('Export Plain HTML', () =>
+      this.handlers.onExportPlainHistoryHtml()
+    );
+    this.historyPlainHtmlExportButton.classList.add('ghost', 'hidden');
+    this.historyPlainHtmlExportButton.disabled = true;
+
     this.historyPlainCopyButton = this.makeButton('Copy Plain English', () =>
       this.handlers.onCopyPlainHistory()
     );
@@ -945,6 +1004,7 @@ export class GameUI {
     exportRow.append(
       this.historyExportButton,
       this.historyPlainExportButton,
+      this.historyPlainHtmlExportButton,
       this.historyPlainCopyButton
     );
 

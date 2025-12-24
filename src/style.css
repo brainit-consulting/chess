@@ -447,6 +447,12 @@ button:active {
   color: var(--text);
 }
 
+.summary-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
 .modal-card h2 {
   margin: 0 0 12px;
   font-size: 16px;
@@ -462,6 +468,25 @@ button:active {
 .notice {
   margin-top: 6px;
   font-size: 13px;
+}
+
+.help-note {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.help-note a,
+.summary-note a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.help-note a:hover,
+.help-note a:focus-visible,
+.summary-note a:hover,
+.summary-note a:focus-visible {
+  text-decoration: underline;
 }
 
 .ai-status {

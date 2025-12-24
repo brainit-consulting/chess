@@ -47,6 +47,11 @@ npm run test:run
 - AI vs AI includes an AI move delay slider and shows a game-over summary modal.
 - Draws include stalemate and insufficient material (e.g., K vs K, K+N/B vs K).
 
+## Analyze Your Games
+
+- Export PGN from the Game History panel or the game-over summary.
+- Open https://chessanalysis.pro/ and paste or import the PGN to replay and analyze.
+
 ## Structure
 
 - `src/rules`: pure chess rules engine (no rendering dependencies)

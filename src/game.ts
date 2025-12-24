@@ -34,7 +34,11 @@ import { GameUI, UiState } from './ui/ui';
 import { GameStats } from './gameStats';
 import { GameHistory } from './history/gameHistory';
 import { GameClock } from './history/gameClock';
-import { buildPlainEnglishLines, buildPlainEnglishText } from './history/plainEnglish';
+import {
+  buildPlainEnglishHtml,
+  buildPlainEnglishLines,
+  buildPlainEnglishText
+} from './history/plainEnglish';
 import { SoundManager } from './sound/soundManager';
 import { initMusic, MusicManager } from './audio/musicManager';
 import { GameMode, PieceSet } from './types';
@@ -103,6 +107,7 @@ export class GameController {
   private lastStatus: GameStatus | null = null;
   private lastPgnText: string | null = null;
   private lastPlainText: string | null = null;
+  private lastPlainHtml: string | null = null;
   private lastPlainView: string | null = null;
   private aiVsAiStarted = false;
   private aiVsAiRunning = false;
@@ -162,6 +167,7 @@ export class GameController {
       onShowAiExplanation: () => this.showAiExplanation(),
       onExportPgn: () => this.exportPgn(),
       onExportPlainHistory: () => this.exportPlainHistory(),
+      onExportPlainHistoryHtml: () => this.exportPlainHistoryHtml(),
       onCopyPlainHistory: () => this.copyPlainHistory(),
       onUiStateChange: (state) => this.handleUiStateChange(state)
     }, {
@@ -227,6 +233,7 @@ export class GameController {
     this.history.reset();
     this.lastPgnText = null;
     this.lastPlainText = null;
+    this.lastPlainHtml = null;
     this.lastPlainView = null;
     this.ui.setHistoryRows(this.history.getRows());
     this.ui.setPgnExportAvailable(false);
@@ -1013,6 +1020,17 @@ export class GameController {
     downloadTextFile(text, filename, 'text/plain');
   }
 
+  private exportPlainHistoryHtml(): void {
+    const status = this.lastStatus ?? getGameStatus(this.state);
+    const html = this.getPlainHistoryHtml(status);
+    if (!html) {
+      return;
+    }
+    const timestamp = new Date();
+    const filename = `game-history-plain-english-${formatStamp(timestamp)}.html`;
+    downloadTextFile(html, filename, 'text/html');
+  }
+
   private copyPlainHistory(): void {
     const status = this.lastStatus ?? getGameStatus(this.state);
     const text = this.getPlainHistoryText(status);
@@ -1121,6 +1139,7 @@ export class GameController {
     if (!pgnText || !plainText) {
       this.lastPgnText = null;
       this.lastPlainText = null;
+      this.lastPlainHtml = null;
       this.lastPlainView = null;
       this.ui.setSummaryHistoryContent('', '', false);
       return;
@@ -1189,6 +1208,34 @@ export class GameController {
     });
     this.lastPlainText = text;
     return text;
+  }
+
+  private getPlainHistoryHtml(status: GameStatus): string | null {
+    if (!this.history.hasMoves()) {
+      return null;
+    }
+    if (
+      status.status !== 'checkmate' &&
+      status.status !== 'stalemate' &&
+      status.status !== 'draw'
+    ) {
+      return null;
+    }
+    if (this.lastPlainHtml) {
+      return this.lastPlainHtml;
+    }
+    const result = getPgnResult(status);
+    const sanLine = buildSanLine(this.toPgnMoves(), result);
+    const durationLabel = formatDuration(this.clock.getElapsedMs());
+    const dateLabel = new Date().toLocaleString();
+    const html = buildPlainEnglishHtml({
+      moves: this.history.getMoves(),
+      dateLabel,
+      durationLabel,
+      sanLine
+    });
+    this.lastPlainHtml = html;
+    return html;
   }
 
   private toPgnMoves(): PgnMove[] {
