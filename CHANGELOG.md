@@ -8,6 +8,7 @@ Semantic Versioning.
 ## [Unreleased]
 ### Added
 - Display the app version in the UI panel footer.
+- Add Stockfish backend resource notes for benchmarking setup.
 - Add benchmark plan document for BrainIT vs Stockfish comparisons.
 
 ## [1.1.23] - 2025-12-24
