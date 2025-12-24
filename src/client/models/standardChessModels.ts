@@ -72,6 +72,9 @@ export function createStandardPieceInstance(
 
   const clone = template.object.clone(true);
   clone.scale.copy(template.scale);
+  if (type === 'knight' && color === 'w') {
+    clone.rotation.y = Math.PI;
+  }
 
   const tag = { pickType: 'piece', pieceId: id, type };
   clone.userData = { ...tag };
