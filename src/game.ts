@@ -27,7 +27,9 @@ import {
   shouldApplyAiResponse,
   shouldApplyExplainResponse,
   shouldApplyHintResponse,
-  shouldRequestHint
+  shouldPauseForExplanation,
+  shouldRequestHint,
+  shouldResumeAfterExplanation
 } from './ai/aiWorkerClient';
 import { SceneView, PickResult } from './client/scene';
 import { GameUI, UiState } from './ui/ui';
@@ -126,6 +128,7 @@ export class GameController {
   private lastAiExplanation: AiExplainResult | null = null;
   private explainRequestId = 0;
   private explainLoading = false;
+  private explainPaused = false;
   private explainCache = new Map<string, AiExplainResult>();
   private aiWorker: Worker | null = null;
   private aiPendingApplyAt = 0;
@@ -165,6 +168,7 @@ export class GameController {
       onTogglePlayForWin: (enabled) => this.setPlayForWinAiVsAi(enabled),
       onToggleHintMode: (enabled) => this.setHintMode(enabled),
       onShowAiExplanation: () => this.showAiExplanation(),
+      onHideAiExplanation: () => this.hideAiExplanation(),
       onExportPgn: () => this.exportPgn(),
       onExportPlainHistory: () => this.exportPlainHistory(),
       onExportPlainHistoryHtml: () => this.exportPlainHistoryHtml(),
@@ -994,8 +998,36 @@ export class GameController {
     if (!this.lastAiMove) {
       return;
     }
+    if (
+      shouldPauseForExplanation({
+        mode: this.mode,
+        aiVsAiStarted: this.aiVsAiStarted,
+        aiVsAiRunning: this.aiVsAiRunning,
+        gameOver: this.gameOver
+      })
+    ) {
+      this.explainPaused = true;
+      this.setAiVsAiRunning(false);
+    }
     const loading = this.explainLoading && !this.lastAiExplanation;
     this.ui.showAiExplanation(this.lastAiExplanation, loading);
+  }
+
+  private hideAiExplanation(): void {
+    this.ui.hideAiExplanation();
+    if (!this.explainPaused) {
+      return;
+    }
+    this.explainPaused = false;
+    if (
+      shouldResumeAfterExplanation({
+        mode: this.mode,
+        aiVsAiStarted: this.aiVsAiStarted,
+        gameOver: this.gameOver
+      })
+    ) {
+      this.setAiVsAiRunning(true);
+    }
   }
 
   private exportPgn(): void {
@@ -1103,6 +1135,7 @@ export class GameController {
     this.lastAiMoveSignature = null;
     this.lastAiExplanation = null;
     this.explainLoading = false;
+    this.explainPaused = false;
     this.explainRequestId += 1;
     this.ui.setAiExplanationAvailable(false);
     this.ui.hideAiExplanation();

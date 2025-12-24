@@ -8,6 +8,7 @@ import { PieceType } from '../rules';
 
 const PLAYER_GUIDE_URL = `${import.meta.env.BASE_URL}player-user-guide.md`;
 const ANALYSIS_URL = 'https://chessanalysis.pro/';
+const LIVE_URL = 'https://brainit-consulting.github.io/chess/';
 
 export type UiState = {
   visible: boolean;
@@ -32,6 +33,7 @@ type UIHandlers = {
   onTogglePlayForWin: (enabled: boolean) => void;
   onToggleHintMode: (enabled: boolean) => void;
   onShowAiExplanation: () => void;
+  onHideAiExplanation: () => void;
   onExportPgn: () => void;
   onExportPlainHistory: () => void;
   onExportPlainHistoryHtml: () => void;
@@ -872,11 +874,22 @@ export class GameUI {
     summaryLink.rel = 'noopener';
     summaryAnalysisEl.append(summaryLink, document.createTextNode('.'));
 
+    const summaryLiveEl = document.createElement('p');
+    summaryLiveEl.className = 'summary-note';
+    summaryLiveEl.append(document.createTextNode('Play online: '));
+    const liveLink = document.createElement('a');
+    liveLink.href = LIVE_URL;
+    liveLink.textContent = 'brainit-consulting.github.io/chess';
+    liveLink.target = '_blank';
+    liveLink.rel = 'noopener';
+    summaryLiveEl.append(liveLink, document.createTextNode('.'));
+
     body.append(
       this.summaryOutcomeEl,
       this.summaryMaterialEl,
       this.summaryDetailEl,
-      summaryAnalysisEl
+      summaryAnalysisEl,
+      summaryLiveEl
     );
 
     this.summaryHistoryTabs = document.createElement('div');
@@ -1050,7 +1063,7 @@ export class GameUI {
     const buttonRow = document.createElement('div');
     buttonRow.className = 'button-row';
 
-    const closeBtn = this.makeButton('Close', () => this.hideAiExplanation());
+    const closeBtn = this.makeButton('Close', () => this.handlers.onHideAiExplanation());
     buttonRow.append(closeBtn);
 
     card.append(title, body, buttonRow);

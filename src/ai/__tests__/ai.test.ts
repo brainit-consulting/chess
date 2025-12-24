@@ -6,7 +6,9 @@ import {
   shouldApplyAiResponse,
   shouldApplyExplainResponse,
   shouldApplyHintResponse,
-  shouldRequestHint
+  shouldPauseForExplanation,
+  shouldRequestHint,
+  shouldResumeAfterExplanation
 } from '../aiWorkerClient';
 import { findBestMove } from '../search';
 import {
@@ -266,6 +268,40 @@ describe('AI move selection', () => {
     expect(wrongKey).toBe(false);
   });
 
+  it('pauses AI vs AI while an explanation modal is open', () => {
+    const shouldPause = shouldPauseForExplanation({
+      mode: 'aivai',
+      aiVsAiStarted: true,
+      aiVsAiRunning: true,
+      gameOver: false
+    });
+    expect(shouldPause).toBe(true);
+
+    const alreadyPaused = shouldPauseForExplanation({
+      mode: 'aivai',
+      aiVsAiStarted: true,
+      aiVsAiRunning: false,
+      gameOver: false
+    });
+    expect(alreadyPaused).toBe(false);
+  });
+
+  it('resumes AI vs AI after the explanation modal closes', () => {
+    const shouldResume = shouldResumeAfterExplanation({
+      mode: 'aivai',
+      aiVsAiStarted: true,
+      gameOver: false
+    });
+    expect(shouldResume).toBe(true);
+
+    const gameOver = shouldResumeAfterExplanation({
+      mode: 'aivai',
+      aiVsAiStarted: true,
+      gameOver: true
+    });
+    expect(gameOver).toBe(false);
+  });
+
   it('explains en passant captures', () => {
     const state = createEmptyState();
     addPiece(state, 'king', 'w', sq(4, 0));
@@ -304,6 +340,29 @@ describe('AI move selection', () => {
     expect(checkingMove).toBeTruthy();
     if (!checkingMove) {
       throw new Error('Expected a checking rook move.');
+    }
+
+    const explanation = explainMove(state, checkingMove);
+    const hasCheck = explanation.bullets.some((bullet) =>
+      bullet.toLowerCase().includes('gives check')
+    );
+    expect(hasCheck).toBe(true);
+  });
+
+  it('explains checking moves for black', () => {
+    const state = createEmptyState();
+    addPiece(state, 'king', 'w', sq(4, 0));
+    addPiece(state, 'king', 'b', sq(7, 7));
+    addPiece(state, 'rook', 'b', sq(4, 6));
+    state.activeColor = 'b';
+
+    const moves = getLegalMovesForSquare(state, sq(4, 6));
+    const checkingMove = moves.find(
+      (move) => move.to.file === 4 && move.to.rank === 1
+    );
+    expect(checkingMove).toBeTruthy();
+    if (!checkingMove) {
+      throw new Error('Expected a checking rook move for black.');
     }
 
     const explanation = explainMove(state, checkingMove);

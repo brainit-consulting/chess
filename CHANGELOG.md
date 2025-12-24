@@ -7,6 +7,11 @@ Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.1.20] - 2025-12-24
+### Added
+- Pause AI vs AI while the "Why this move?" modal is open.
+- Play-online reminders in the game-over summary and docs.
+
 ## [1.1.18] - 2025-12-24
 ### Added
 - Plain English game history HTML export.

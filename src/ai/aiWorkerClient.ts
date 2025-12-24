@@ -41,6 +41,19 @@ export type ExplainResponseGate = {
   gameOver: boolean;
 };
 
+export type ExplainPauseGate = {
+  mode: GameMode;
+  aiVsAiStarted: boolean;
+  aiVsAiRunning: boolean;
+  gameOver: boolean;
+};
+
+export type ExplainResumeGate = {
+  mode: GameMode;
+  aiVsAiStarted: boolean;
+  gameOver: boolean;
+};
+
 export function shouldApplyAiResponse(state: AiResponseGate): boolean {
   if (state.requestId !== state.currentRequestId) {
     return false;
@@ -100,4 +113,17 @@ export function shouldApplyExplainResponse(state: ExplainResponseGate): boolean 
     return false;
   }
   return true;
+}
+
+export function shouldPauseForExplanation(state: ExplainPauseGate): boolean {
+  return (
+    state.mode === 'aivai' &&
+    state.aiVsAiStarted &&
+    state.aiVsAiRunning &&
+    !state.gameOver
+  );
+}
+
+export function shouldResumeAfterExplanation(state: ExplainResumeGate): boolean {
+  return state.mode === 'aivai' && state.aiVsAiStarted && !state.gameOver;
 }

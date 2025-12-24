@@ -6,6 +6,14 @@ Welcome to **3D Chess**! This guide explains all available game modes, controls,
 
 ---
 
+## Play Online
+
+Share this link so others can play:
+
+https://brainit-consulting.github.io/chess/
+
+---
+
 ## Game Modes
 
 ### Human vs Human
