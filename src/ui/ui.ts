@@ -1,5 +1,6 @@
 import type { AiDifficulty } from '../ai/ai';
 import type { AiExplainResult } from '../ai/aiWorkerTypes';
+import type { HistoryRow } from '../history/gameHistory';
 import { GameStatus, Color } from '../rules';
 import { GameSummary } from '../gameSummary';
 import { GameMode, PieceSet, SnapView } from '../types';
@@ -10,6 +11,7 @@ const PLAYER_GUIDE_URL = `${import.meta.env.BASE_URL}player-user-guide.md`;
 export type UiState = {
   visible: boolean;
   collapsed: boolean;
+  historyVisible: boolean;
 };
 
 type UIHandlers = {
@@ -29,6 +31,7 @@ type UIHandlers = {
   onTogglePlayForWin: (enabled: boolean) => void;
   onToggleHintMode: (enabled: boolean) => void;
   onShowAiExplanation: () => void;
+  onExportPgn: () => void;
   onUiStateChange: (state: UiState) => void;
 };
 
@@ -58,12 +61,20 @@ export class GameUI {
   private aiStatusText: HTMLSpanElement;
   private aiStatusDots: HTMLSpanElement;
   private explainButton: HTMLButtonElement;
+  private historyPanel: HTMLDivElement;
+  private historyListEl: HTMLDivElement;
+  private historyTimerEl: HTMLDivElement;
+  private historyExportButton: HTMLButtonElement;
+  private historyHideButton: HTMLButtonElement;
+  private historyShowButton: HTMLButtonElement;
+  private historyAutoScroll = true;
   private modal: HTMLDivElement;
   private summaryModal: HTMLDivElement;
   private summaryTitleEl: HTMLHeadingElement;
   private summaryOutcomeEl: HTMLParagraphElement;
   private summaryMaterialEl: HTMLParagraphElement;
   private summaryDetailEl: HTMLParagraphElement;
+  private summaryExportButton: HTMLButtonElement;
   private explainModal: HTMLDivElement;
   private explainMoveEl: HTMLParagraphElement;
   private explainSummaryEl: HTMLParagraphElement;
@@ -478,6 +489,13 @@ export class GameUI {
     this.hud.append(this.panel);
     root.append(this.hud);
 
+    this.historyPanel = this.buildHistoryPanel();
+    root.append(this.historyPanel);
+
+    this.historyShowButton = this.makeButton('Show History', () => this.setHistoryVisible(true));
+    this.historyShowButton.classList.add('history-show-button', 'ghost');
+    root.append(this.historyShowButton);
+
     this.showButton = this.makeButton('Show UI', () => this.setUiVisible(true));
     this.showButton.classList.add('ui-show-button');
     root.append(this.showButton);
@@ -674,6 +692,39 @@ export class GameUI {
     this.summaryModal.classList.remove('open');
   }
 
+  setHistoryRows(rows: HistoryRow[]): void {
+    const shouldScroll = this.historyAutoScroll;
+    this.historyListEl.innerHTML = '';
+
+    for (const row of rows) {
+      const line = document.createElement('div');
+      line.className = 'history-row';
+      const whiteMove = row.white ?? '';
+      const blackMove = row.black ?? '';
+      line.textContent = `${row.moveNumber}. ${whiteMove}${blackMove ? ` ${blackMove}` : ''}`;
+      this.historyListEl.append(line);
+    }
+
+    if (shouldScroll) {
+      this.historyListEl.scrollTop = this.historyListEl.scrollHeight;
+    }
+  }
+
+  setGameTime(elapsedMs: number): void {
+    const totalSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    const label = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    this.historyTimerEl.textContent = `Game Time: ${label}`;
+  }
+
+  setPgnExportAvailable(available: boolean): void {
+    this.historyExportButton.disabled = !available;
+    this.historyExportButton.classList.toggle('hidden', !available);
+    this.summaryExportButton.disabled = !available;
+    this.summaryExportButton.classList.toggle('hidden', !available);
+  }
+
   showPromotion(): void {
     this.modal.classList.add('open');
   }
@@ -742,15 +793,60 @@ export class GameUI {
     buttonRow.className = 'button-row';
 
     const closeBtn = this.makeButton('Close', () => this.hideSummary());
+    this.summaryExportButton = this.makeButton('Export PGN', () =>
+      this.handlers.onExportPgn()
+    );
+    this.summaryExportButton.classList.add('ghost', 'hidden');
+    this.summaryExportButton.disabled = true;
     const restartBtn = this.makeButton('Restart', () => {
       this.hideSummary();
       this.handlers.onRestart();
     });
 
-    buttonRow.append(closeBtn, restartBtn);
+    buttonRow.append(closeBtn, this.summaryExportButton, restartBtn);
     card.append(this.summaryTitleEl, body, buttonRow);
     modal.append(card);
     return modal;
+  }
+
+  private buildHistoryPanel(): HTMLDivElement {
+    const panel = document.createElement('div');
+    panel.className = 'panel history-panel';
+
+    const header = document.createElement('div');
+    header.className = 'panel-header';
+
+    const title = document.createElement('h2');
+    title.className = 'panel-title';
+    title.textContent = 'Game History';
+
+    this.historyHideButton = this.makeButton('Hide History', () =>
+      this.setHistoryVisible(false)
+    );
+    this.historyHideButton.classList.add('ghost');
+
+    header.append(title, this.historyHideButton);
+
+    this.historyTimerEl = document.createElement('div');
+    this.historyTimerEl.className = 'history-timer';
+    this.historyTimerEl.textContent = 'Game Time: 00:00';
+
+    this.historyListEl = document.createElement('div');
+    this.historyListEl.className = 'history-list';
+    this.historyListEl.addEventListener('scroll', () => {
+      const threshold = 24;
+      const { scrollTop, scrollHeight, clientHeight } = this.historyListEl;
+      this.historyAutoScroll = scrollTop + clientHeight >= scrollHeight - threshold;
+    });
+
+    this.historyExportButton = this.makeButton('Export PGN', () =>
+      this.handlers.onExportPgn()
+    );
+    this.historyExportButton.classList.add('ghost', 'hidden');
+    this.historyExportButton.disabled = true;
+
+    panel.append(header, this.historyTimerEl, this.historyListEl, this.historyExportButton);
+    return panel;
   }
 
   private buildExplainModal(): HTMLDivElement {
@@ -907,6 +1003,16 @@ export class GameUI {
     this.handlers.onUiStateChange({ ...this.uiState });
   }
 
+  private setHistoryVisible(visible: boolean): void {
+    if (this.uiState.historyVisible === visible) {
+      return;
+    }
+    this.uiState.historyVisible = visible;
+    this.persistUiState();
+    this.applyUiState();
+    this.handlers.onUiStateChange({ ...this.uiState });
+  }
+
   private applyUiState(): void {
     if (this.uiState.visible) {
       this.root.classList.remove('ui-hidden');
@@ -919,10 +1025,16 @@ export class GameUI {
     } else {
       this.root.classList.remove('ui-collapsed');
     }
+
+    if (this.uiState.historyVisible) {
+      this.root.classList.remove('history-hidden');
+    } else {
+      this.root.classList.add('history-hidden');
+    }
   }
 
   private loadUiState(): UiState {
-    const fallback: UiState = { visible: true, collapsed: false };
+    const fallback: UiState = { visible: true, collapsed: false, historyVisible: true };
     const storage = this.getStorage();
     if (!storage) {
       return fallback;
@@ -934,8 +1046,16 @@ export class GameUI {
     }
     try {
       const parsed = JSON.parse(raw) as UiState;
-      if (typeof parsed.visible === 'boolean' && typeof parsed.collapsed === 'boolean') {
-        return parsed;
+      if (
+        typeof parsed.visible === 'boolean' &&
+        typeof parsed.collapsed === 'boolean'
+      ) {
+        return {
+          visible: parsed.visible,
+          collapsed: parsed.collapsed,
+          historyVisible:
+            typeof parsed.historyVisible === 'boolean' ? parsed.historyVisible : true
+        };
       }
     } catch {
       // ignore malformed values

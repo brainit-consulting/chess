@@ -32,10 +32,13 @@ import {
 import { SceneView, PickResult } from './client/scene';
 import { GameUI, UiState } from './ui/ui';
 import { GameStats } from './gameStats';
+import { GameHistory } from './history/gameHistory';
+import { GameClock } from './history/gameClock';
 import { SoundManager } from './sound/soundManager';
 import { initMusic, MusicManager } from './audio/musicManager';
 import { GameMode, PieceSet } from './types';
 import { createGameSummary } from './gameSummary';
+import { buildPgn } from './pgn/pgn';
 
 type PlayerNames = {
   white: string;
@@ -80,6 +83,9 @@ export class GameController {
   private scene: SceneView;
   private ui: GameUI;
   private stats: GameStats;
+  private history = new GameHistory();
+  private clock = new GameClock();
+  private timerInterval: number | null = null;
   private sound: SoundManager;
   private music: MusicManager;
   private selected: Square | null = null;
@@ -93,6 +99,7 @@ export class GameController {
   private aiTimeout: number | null = null;
   private aiRequestId = 0;
   private summaryShown = false;
+  private lastStatus: GameStatus | null = null;
   private aiVsAiStarted = false;
   private aiVsAiRunning = false;
   private aiVsAiPaused = false;
@@ -149,6 +156,7 @@ export class GameController {
       onTogglePlayForWin: (enabled) => this.setPlayForWinAiVsAi(enabled),
       onToggleHintMode: (enabled) => this.setHintMode(enabled),
       onShowAiExplanation: () => this.showAiExplanation(),
+      onExportPgn: () => this.exportPgn(),
       onUiStateChange: (state) => this.handleUiStateChange(state)
     }, {
       mode: this.mode,
@@ -165,6 +173,9 @@ export class GameController {
     this.stats = new GameStats();
     this.stats.reset(this.state);
     this.ui.setScores(this.stats.getScores());
+    this.ui.setHistoryRows(this.history.getRows());
+    this.ui.setGameTime(this.clock.getElapsedMs());
+    this.ui.setPgnExportAvailable(false);
     this.updatePlayerNames();
     this.scene.setUiState(this.ui.getUiState());
     this.syncAiVsAiState();
@@ -176,6 +187,7 @@ export class GameController {
     this.resetPositionHistory();
     this.clearHint();
     this.clearAiExplanation();
+    this.startTimerUpdates();
 
     window.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') {
@@ -204,10 +216,15 @@ export class GameController {
     this.aiVsAiPaused = false;
     this.clearHint();
     this.clearAiExplanation();
+    this.history.reset();
+    this.ui.setHistoryRows(this.history.getRows());
+    this.ui.setPgnExportAvailable(false);
     this.syncAiVsAiState();
     this.ui.hideSummary();
     this.stats.reset(this.state);
     this.ui.setScores(this.stats.getScores());
+    this.clock.reset();
+    this.ui.setGameTime(this.clock.getElapsedMs());
     this.resetPositionHistory();
     this.sync();
     this.maybeScheduleAiMove();
@@ -219,6 +236,8 @@ export class GameController {
     const status = statusOverride ?? getGameStatus(this.state);
     this.gameOver =
       status.status === 'checkmate' || status.status === 'stalemate' || status.status === 'draw';
+    this.lastStatus = status;
+    this.ui.setPgnExportAvailable(this.gameOver && this.history.hasMoves());
     this.ui.setTurn(this.state.activeColor);
     this.ui.setStatus(status);
     this.maybeShowSummary(status);
@@ -317,11 +336,14 @@ export class GameController {
     this.cancelAiMove();
     this.clearHint();
     this.clearAiExplanation();
+    this.startClockIfNeeded();
+    this.history.addMove(this.state, move);
     const moverColor = this.state.activeColor;
     applyMove(this.state, move);
     this.recordPositionKey();
     this.stats.updateAfterMove(this.state, moverColor);
     this.ui.setScores(this.stats.getScores());
+    this.ui.setHistoryRows(this.history.getRows());
     this.selected = null;
     this.legalMoves = [];
     const status = getGameStatus(this.state);
@@ -507,6 +529,8 @@ export class GameController {
     this.aiVsAiStarted = true;
     this.aiVsAiRunning = true;
     this.aiVsAiPaused = false;
+    this.clock.start();
+    this.ui.setGameTime(this.clock.getElapsedMs());
     this.syncAiVsAiState();
     this.maybeScheduleAiMove();
   }
@@ -526,8 +550,12 @@ export class GameController {
     this.syncAiVsAiState();
     if (!running) {
       this.cancelAiMove();
+      this.clock.pause();
+      this.ui.setGameTime(this.clock.getElapsedMs());
       return;
     }
+    this.clock.resume();
+    this.ui.setGameTime(this.clock.getElapsedMs());
     this.maybeScheduleAiMove();
   }
 
@@ -555,6 +583,8 @@ export class GameController {
     }
     this.clearHint();
     this.clearAiExplanation();
+    this.clock.stop();
+    this.ui.setGameTime(this.clock.getElapsedMs());
     if (this.mode === 'aivai') {
       this.aiVsAiStarted = false;
       this.aiVsAiRunning = false;
@@ -917,12 +947,62 @@ export class GameController {
     this.scene.setHintMove(null);
   }
 
+  private startClockIfNeeded(): void {
+    if (this.clock.hasStarted()) {
+      return;
+    }
+    if (this.mode === 'aivai' && !this.aiVsAiStarted) {
+      return;
+    }
+    this.clock.start();
+    this.ui.setGameTime(this.clock.getElapsedMs());
+  }
+
+  private startTimerUpdates(): void {
+    if (this.timerInterval !== null) {
+      return;
+    }
+    this.timerInterval = window.setInterval(() => {
+      this.ui.setGameTime(this.clock.getElapsedMs());
+    }, 1000);
+  }
+
   private showAiExplanation(): void {
     if (!this.lastAiMove) {
       return;
     }
     const loading = this.explainLoading && !this.lastAiExplanation;
     this.ui.showAiExplanation(this.lastAiExplanation, loading);
+  }
+
+  private exportPgn(): void {
+    if (!this.history.hasMoves()) {
+      return;
+    }
+    const status = this.lastStatus ?? getGameStatus(this.state);
+    if (
+      status.status !== 'checkmate' &&
+      status.status !== 'stalemate' &&
+      status.status !== 'draw'
+    ) {
+      return;
+    }
+    const result = getPgnResult(status);
+    const names = this.getDisplayNames();
+    const site =
+      typeof window !== 'undefined' && window.location
+        ? window.location.href
+        : 'Local';
+    const pgn = buildPgn({
+      moves: this.history.getMoves(),
+      white: names.white,
+      black: names.black,
+      result,
+      site
+    });
+    const timestamp = new Date();
+    const filename = `chess-game-${formatStamp(timestamp)}.pgn`;
+    downloadTextFile(pgn, filename);
   }
 
   private setLastAiMove(
@@ -993,6 +1073,20 @@ export class GameController {
     return `${move.from.file}${move.from.rank}-${move.to.file}${move.to.rank}${promo}${castle}${ep}`;
   }
 
+  private getDisplayNames(): { white: string; black: string } {
+    if (this.mode === 'hvh') {
+      return { ...this.baseNames };
+    }
+    if (this.mode === 'hvai') {
+      return {
+        white: 'You',
+        black: `AI (${AI_LABELS[this.aiDifficulty]})`
+      };
+    }
+    const label = `AI (${AI_LABELS[this.aiDifficulty]})`;
+    return { white: label, black: label };
+  }
+
   private cloneState(state: GameState): GameState {
     const board = state.board.map((row) => row.slice());
     const pieces = new Map<number, Piece>();
@@ -1021,4 +1115,37 @@ export class GameController {
       return null;
     }
   }
+}
+
+function getPgnResult(status: GameStatus): string {
+  if (status.status === 'checkmate') {
+    return status.winner === 'w' ? '1-0' : '0-1';
+  }
+  if (status.status === 'stalemate' || status.status === 'draw') {
+    return '1/2-1/2';
+  }
+  return '*';
+}
+
+function formatStamp(date: Date): string {
+  const pad = (value: number) => value.toString().padStart(2, '0');
+  const year = date.getFullYear();
+  const month = pad(date.getMonth() + 1);
+  const day = pad(date.getDate());
+  const hours = pad(date.getHours());
+  const minutes = pad(date.getMinutes());
+  const seconds = pad(date.getSeconds());
+  return `${year}${month}${day}-${hours}${minutes}${seconds}`;
+}
+
+function downloadTextFile(content: string, filename: string): void {
+  const blob = new Blob([content], { type: 'application/x-chess-pgn' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }

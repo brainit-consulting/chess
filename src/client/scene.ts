@@ -238,8 +238,10 @@ export class SceneView {
     this.cameraController.snap(view);
   }
 
-  setUiState(state: { visible: boolean; collapsed: boolean }): void {
-    this.cameraController.setUiZoomedOut(!state.visible || state.collapsed);
+  setUiState(state: { visible: boolean; collapsed: boolean; historyVisible: boolean }): void {
+    this.cameraController.setUiZoomedOut(
+      !state.visible || state.collapsed || !state.historyVisible
+    );
   }
 
   nudgeTurnChange(): void {

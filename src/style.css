@@ -51,6 +51,41 @@ body {
   pointer-events: auto;
 }
 
+.history-panel {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: 260px;
+  max-height: calc(100% - 36px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: auto;
+  transition: transform 0.25s ease, opacity 0.25s ease;
+}
+
+.history-hidden .history-panel {
+  transform: translateX(120%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.history-show-button {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  pointer-events: auto;
+  opacity: 0;
+  transform: translateX(8px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 10;
+}
+
+.history-hidden .history-show-button {
+  opacity: 1;
+  transform: translateX(0);
+}
+
 .panel {
   background: var(--panel);
   border: 1px solid var(--panel-border);
@@ -146,6 +181,14 @@ body {
   color: var(--accent);
 }
 
+.panel-title {
+  margin: 0;
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
 .status {
   font-size: 14px;
   color: var(--muted);
@@ -199,6 +242,26 @@ body {
   margin-top: 8px;
   color: var(--muted);
   font-size: 13px;
+}
+
+.history-timer {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.history-list {
+  display: grid;
+  gap: 6px;
+  overflow-y: auto;
+  padding-right: 4px;
+  max-height: 360px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.history-row {
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
 }
 
 .segmented {
