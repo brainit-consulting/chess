@@ -34,11 +34,12 @@ import { GameUI, UiState } from './ui/ui';
 import { GameStats } from './gameStats';
 import { GameHistory } from './history/gameHistory';
 import { GameClock } from './history/gameClock';
+import { buildPlainEnglishLines, buildPlainEnglishText } from './history/plainEnglish';
 import { SoundManager } from './sound/soundManager';
 import { initMusic, MusicManager } from './audio/musicManager';
 import { GameMode, PieceSet } from './types';
 import { createGameSummary } from './gameSummary';
-import { buildPgn } from './pgn/pgn';
+import { buildPgn, buildSanLine, PgnMove } from './pgn/pgn';
 
 type PlayerNames = {
   white: string;
@@ -100,6 +101,9 @@ export class GameController {
   private aiRequestId = 0;
   private summaryShown = false;
   private lastStatus: GameStatus | null = null;
+  private lastPgnText: string | null = null;
+  private lastPlainText: string | null = null;
+  private lastPlainView: string | null = null;
   private aiVsAiStarted = false;
   private aiVsAiRunning = false;
   private aiVsAiPaused = false;
@@ -157,6 +161,8 @@ export class GameController {
       onToggleHintMode: (enabled) => this.setHintMode(enabled),
       onShowAiExplanation: () => this.showAiExplanation(),
       onExportPgn: () => this.exportPgn(),
+      onExportPlainHistory: () => this.exportPlainHistory(),
+      onCopyPlainHistory: () => this.copyPlainHistory(),
       onUiStateChange: (state) => this.handleUiStateChange(state)
     }, {
       mode: this.mode,
@@ -176,6 +182,8 @@ export class GameController {
     this.ui.setHistoryRows(this.history.getRows());
     this.ui.setGameTime(this.clock.getElapsedMs());
     this.ui.setPgnExportAvailable(false);
+    this.ui.setPlainHistoryActionsAvailable(false);
+    this.ui.setSummaryHistoryContent('', '', false);
     this.updatePlayerNames();
     this.scene.setUiState(this.ui.getUiState());
     this.syncAiVsAiState();
@@ -217,8 +225,13 @@ export class GameController {
     this.clearHint();
     this.clearAiExplanation();
     this.history.reset();
+    this.lastPgnText = null;
+    this.lastPlainText = null;
+    this.lastPlainView = null;
     this.ui.setHistoryRows(this.history.getRows());
     this.ui.setPgnExportAvailable(false);
+    this.ui.setPlainHistoryActionsAvailable(false);
+    this.ui.setSummaryHistoryContent('', '', false);
     this.syncAiVsAiState();
     this.ui.hideSummary();
     this.stats.reset(this.state);
@@ -237,7 +250,9 @@ export class GameController {
     this.gameOver =
       status.status === 'checkmate' || status.status === 'stalemate' || status.status === 'draw';
     this.lastStatus = status;
-    this.ui.setPgnExportAvailable(this.gameOver && this.history.hasMoves());
+    const hasHistory = this.history.hasMoves();
+    this.ui.setPgnExportAvailable(this.gameOver && hasHistory);
+    this.ui.setPlainHistoryActionsAvailable(this.gameOver && hasHistory);
     this.ui.setTurn(this.state.activeColor);
     this.ui.setStatus(status);
     this.maybeShowSummary(status);
@@ -585,6 +600,7 @@ export class GameController {
     this.clearAiExplanation();
     this.clock.stop();
     this.ui.setGameTime(this.clock.getElapsedMs());
+    this.prepareHistoryExports(status);
     if (this.mode === 'aivai') {
       this.aiVsAiStarted = false;
       this.aiVsAiRunning = false;
@@ -976,33 +992,45 @@ export class GameController {
   }
 
   private exportPgn(): void {
-    if (!this.history.hasMoves()) {
-      return;
-    }
     const status = this.lastStatus ?? getGameStatus(this.state);
-    if (
-      status.status !== 'checkmate' &&
-      status.status !== 'stalemate' &&
-      status.status !== 'draw'
-    ) {
+    const pgnText = this.getPgnText(status);
+    if (!pgnText) {
       return;
     }
-    const result = getPgnResult(status);
-    const names = this.getDisplayNames();
-    const site =
-      typeof window !== 'undefined' && window.location
-        ? window.location.href
-        : 'Local';
-    const pgn = buildPgn({
-      moves: this.history.getMoves(),
-      white: names.white,
-      black: names.black,
-      result,
-      site
-    });
     const timestamp = new Date();
     const filename = `chess-game-${formatStamp(timestamp)}.pgn`;
-    downloadTextFile(pgn, filename);
+    downloadTextFile(pgnText, filename, 'application/x-chess-pgn');
+  }
+
+  private exportPlainHistory(): void {
+    const status = this.lastStatus ?? getGameStatus(this.state);
+    const text = this.getPlainHistoryText(status);
+    if (!text) {
+      return;
+    }
+    const timestamp = new Date();
+    const filename = `game-history-plain-english-${formatStamp(timestamp)}.txt`;
+    downloadTextFile(text, filename, 'text/plain');
+  }
+
+  private copyPlainHistory(): void {
+    const status = this.lastStatus ?? getGameStatus(this.state);
+    const text = this.getPlainHistoryText(status);
+    if (!text) {
+      return;
+    }
+    if (navigator?.clipboard?.writeText) {
+      void navigator.clipboard.writeText(text);
+      return;
+    }
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.append(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    textarea.remove();
   }
 
   private setLastAiMove(
@@ -1087,6 +1115,90 @@ export class GameController {
     return { white: label, black: label };
   }
 
+  private prepareHistoryExports(status: GameStatus): void {
+    const pgnText = this.getPgnText(status);
+    const plainText = this.getPlainHistoryText(status);
+    if (!pgnText || !plainText) {
+      this.lastPgnText = null;
+      this.lastPlainText = null;
+      this.lastPlainView = null;
+      this.ui.setSummaryHistoryContent('', '', false);
+      return;
+    }
+    const plainView = buildPlainEnglishLines(this.history.getMoves()).join('\n');
+    this.lastPlainView = plainView;
+    this.ui.setSummaryHistoryContent(pgnText, plainView, true);
+  }
+
+  private getPgnText(status: GameStatus): string | null {
+    if (!this.history.hasMoves()) {
+      return null;
+    }
+    if (
+      status.status !== 'checkmate' &&
+      status.status !== 'stalemate' &&
+      status.status !== 'draw'
+    ) {
+      return null;
+    }
+    if (this.lastPgnText) {
+      return this.lastPgnText;
+    }
+    const result = getPgnResult(status);
+    const names = this.getDisplayNames();
+    const site =
+      typeof window !== 'undefined' && window.location
+        ? window.location.href
+        : 'Local';
+    const moves = this.toPgnMoves();
+    const pgn = buildPgn({
+      moves,
+      white: names.white,
+      black: names.black,
+      result,
+      site,
+      date: new Date()
+    });
+    this.lastPgnText = pgn;
+    return pgn;
+  }
+
+  private getPlainHistoryText(status: GameStatus): string | null {
+    if (!this.history.hasMoves()) {
+      return null;
+    }
+    if (
+      status.status !== 'checkmate' &&
+      status.status !== 'stalemate' &&
+      status.status !== 'draw'
+    ) {
+      return null;
+    }
+    if (this.lastPlainText) {
+      return this.lastPlainText;
+    }
+    const result = getPgnResult(status);
+    const sanLine = buildSanLine(this.toPgnMoves(), result);
+    const durationLabel = formatDuration(this.clock.getElapsedMs());
+    const dateLabel = new Date().toLocaleString();
+    const text = buildPlainEnglishText({
+      moves: this.history.getMoves(),
+      dateLabel,
+      durationLabel,
+      sanLine
+    });
+    this.lastPlainText = text;
+    return text;
+  }
+
+  private toPgnMoves(): PgnMove[] {
+    return this.history.getMoves().map((move) => ({
+      moveNumber: move.moveNumber,
+      color: move.color,
+      san: move.san
+    }));
+  }
+
   private cloneState(state: GameState): GameState {
     const board = state.board.map((row) => row.slice());
     const pieces = new Map<number, Piece>();
@@ -1138,8 +1250,15 @@ function formatStamp(date: Date): string {
   return `${year}${month}${day}-${hours}${minutes}${seconds}`;
 }
 
-function downloadTextFile(content: string, filename: string): void {
-  const blob = new Blob([content], { type: 'application/x-chess-pgn' });
+function formatDuration(ms: number): string {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
+
+function downloadTextFile(content: string, filename: string, mimeType: string): void {
+  const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;

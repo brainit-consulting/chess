@@ -101,6 +101,10 @@ export function buildPgn(options: {
   return `${headerLines.join('\n')}\n\n${movesText}\n`;
 }
 
+export function buildSanLine(moves: PgnMove[], result: string): string {
+  return formatMoves(moves, result);
+}
+
 function formatMoves(moves: PgnMove[], result: string): string {
   const tokens: string[] = [];
   let lastMoveNumber = 0;

@@ -12,6 +12,10 @@ Semantic Versioning.
 - Hint Mode for Human vs AI (best-move square highlight).
 - "Why this move?" explanations for AI moves (engine-facts-based).
 - Move history panel, game clock, and PGN export.
+- Plain English history view with copy/export at game end.
+### Changed
+- History panel now shows from-to coordinates for each side.
+- History panel now prefixes moves with the moving piece.
 
 ## [1.1.5] - 2025-12-24
 ### Changed

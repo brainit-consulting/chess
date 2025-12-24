@@ -249,6 +249,20 @@ body {
   color: var(--muted);
 }
 
+.history-header {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.history-export-row {
+  margin-top: 6px;
+}
+
 .history-list {
   display: grid;
   gap: 6px;
@@ -257,11 +271,21 @@ body {
   max-height: 360px;
   font-size: 12px;
   color: var(--text);
+  flex: 1;
 }
 
 .history-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
   font-variant-numeric: tabular-nums;
   color: var(--text);
+}
+
+.history-cell {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .segmented {
@@ -375,6 +399,33 @@ button:active {
 
 .summary-card {
   max-width: 360px;
+}
+
+.history-tabs {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  margin-top: 8px;
+}
+
+.history-tabs .active {
+  border-color: rgba(255, 255, 255, 0.32);
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text);
+}
+
+.summary-history {
+  margin: 8px 0;
+  padding: 8px;
+  background: rgba(10, 13, 18, 0.7);
+  border-radius: 10px;
+  border: 1px solid var(--panel-border);
+  max-height: 200px;
+  overflow: auto;
+  font-size: 11px;
+  text-align: left;
+  color: var(--text);
+  white-space: pre-wrap;
 }
 
 .summary-body {

@@ -27,7 +27,7 @@ describe('GameHistory', () => {
     const rows = history.getRows();
     expect(rows.length).toBe(1);
     expect(rows[0].moveNumber).toBe(1);
-    expect(rows[0].white).toBe('e4');
-    expect(rows[0].black).toBe('e5');
+    expect(rows[0].white).toBe('P e2-e4');
+    expect(rows[0].black).toBe('P e7-e5');
   });
 });

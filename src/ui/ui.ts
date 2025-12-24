@@ -32,6 +32,8 @@ type UIHandlers = {
   onToggleHintMode: (enabled: boolean) => void;
   onShowAiExplanation: () => void;
   onExportPgn: () => void;
+  onExportPlainHistory: () => void;
+  onCopyPlainHistory: () => void;
   onUiStateChange: (state: UiState) => void;
 };
 
@@ -65,6 +67,8 @@ export class GameUI {
   private historyListEl: HTMLDivElement;
   private historyTimerEl: HTMLDivElement;
   private historyExportButton: HTMLButtonElement;
+  private historyPlainExportButton: HTMLButtonElement;
+  private historyPlainCopyButton: HTMLButtonElement;
   private historyHideButton: HTMLButtonElement;
   private historyShowButton: HTMLButtonElement;
   private historyAutoScroll = true;
@@ -75,6 +79,13 @@ export class GameUI {
   private summaryMaterialEl: HTMLParagraphElement;
   private summaryDetailEl: HTMLParagraphElement;
   private summaryExportButton: HTMLButtonElement;
+  private summaryHistoryTabs: HTMLDivElement;
+  private summaryHistoryPgnButton: HTMLButtonElement;
+  private summaryHistoryPlainButton: HTMLButtonElement;
+  private summaryHistoryText: HTMLPreElement;
+  private summaryHistoryPgn = '';
+  private summaryHistoryPlain = '';
+  private summaryHistoryView: 'pgn' | 'plain' = 'pgn';
   private explainModal: HTMLDivElement;
   private explainMoveEl: HTMLParagraphElement;
   private explainSummaryEl: HTMLParagraphElement;
@@ -635,6 +646,16 @@ export class GameUI {
     this.explainModal.classList.remove('open');
   }
 
+  private setSummaryHistoryView(view: 'pgn' | 'plain'): void {
+    this.summaryHistoryView = view;
+    const isPgn = view === 'pgn';
+    this.summaryHistoryPgnButton.classList.toggle('active', isPgn);
+    this.summaryHistoryPlainButton.classList.toggle('active', !isPgn);
+    this.summaryHistoryText.textContent = isPgn
+      ? this.summaryHistoryPgn
+      : this.summaryHistoryPlain;
+  }
+
   setMode(mode: GameMode): void {
     this.mode = mode;
     this.syncModeControls();
@@ -699,9 +720,15 @@ export class GameUI {
     for (const row of rows) {
       const line = document.createElement('div');
       line.className = 'history-row';
-      const whiteMove = row.white ?? '';
-      const blackMove = row.black ?? '';
-      line.textContent = `${row.moveNumber}. ${whiteMove}${blackMove ? ` ${blackMove}` : ''}`;
+      const white = document.createElement('span');
+      white.className = 'history-cell history-white';
+      white.textContent = row.white ? `${row.moveNumber}. ${row.white}` : `${row.moveNumber}.`;
+
+      const black = document.createElement('span');
+      black.className = 'history-cell history-black';
+      black.textContent = row.black ?? '';
+
+      line.append(white, black);
       this.historyListEl.append(line);
     }
 
@@ -723,6 +750,26 @@ export class GameUI {
     this.historyExportButton.classList.toggle('hidden', !available);
     this.summaryExportButton.disabled = !available;
     this.summaryExportButton.classList.toggle('hidden', !available);
+  }
+
+  setPlainHistoryActionsAvailable(available: boolean): void {
+    this.historyPlainExportButton.disabled = !available;
+    this.historyPlainExportButton.classList.toggle('hidden', !available);
+    this.historyPlainCopyButton.disabled = !available;
+    this.historyPlainCopyButton.classList.toggle('hidden', !available);
+  }
+
+  setSummaryHistoryContent(pgnText: string, plainText: string, available: boolean): void {
+    this.summaryHistoryPgn = pgnText;
+    this.summaryHistoryPlain = plainText;
+    this.summaryHistoryView = 'pgn';
+    this.summaryHistoryTabs.classList.toggle('hidden', !available);
+    this.summaryHistoryText.classList.toggle('hidden', !available);
+    if (available) {
+      this.setSummaryHistoryView('pgn');
+    } else {
+      this.summaryHistoryText.textContent = '';
+    }
   }
 
   showPromotion(): void {
@@ -789,6 +836,28 @@ export class GameUI {
 
     body.append(this.summaryOutcomeEl, this.summaryMaterialEl, this.summaryDetailEl);
 
+    this.summaryHistoryTabs = document.createElement('div');
+    this.summaryHistoryTabs.className = 'history-tabs hidden';
+
+    this.summaryHistoryPgnButton = this.makeButton('PGN / SAN', () => {
+      this.setSummaryHistoryView('pgn');
+    });
+    this.summaryHistoryPgnButton.classList.add('ghost', 'active');
+
+    this.summaryHistoryPlainButton = this.makeButton('Plain English', () => {
+      this.setSummaryHistoryView('plain');
+    });
+    this.summaryHistoryPlainButton.classList.add('ghost');
+
+    this.summaryHistoryTabs.append(
+      this.summaryHistoryPgnButton,
+      this.summaryHistoryPlainButton
+    );
+
+    this.summaryHistoryText = document.createElement('pre');
+    this.summaryHistoryText.className = 'summary-history hidden';
+    this.summaryHistoryText.textContent = '';
+
     const buttonRow = document.createElement('div');
     buttonRow.className = 'button-row';
 
@@ -804,7 +873,13 @@ export class GameUI {
     });
 
     buttonRow.append(closeBtn, this.summaryExportButton, restartBtn);
-    card.append(this.summaryTitleEl, body, buttonRow);
+    card.append(
+      this.summaryTitleEl,
+      body,
+      this.summaryHistoryTabs,
+      this.summaryHistoryText,
+      buttonRow
+    );
     modal.append(card);
     return modal;
   }
@@ -831,6 +906,14 @@ export class GameUI {
     this.historyTimerEl.className = 'history-timer';
     this.historyTimerEl.textContent = 'Game Time: 00:00';
 
+    const historyHeader = document.createElement('div');
+    historyHeader.className = 'history-header';
+    const whiteLabel = document.createElement('span');
+    whiteLabel.textContent = 'White';
+    const blackLabel = document.createElement('span');
+    blackLabel.textContent = 'Black';
+    historyHeader.append(whiteLabel, blackLabel);
+
     this.historyListEl = document.createElement('div');
     this.historyListEl.className = 'history-list';
     this.historyListEl.addEventListener('scroll', () => {
@@ -845,7 +928,27 @@ export class GameUI {
     this.historyExportButton.classList.add('ghost', 'hidden');
     this.historyExportButton.disabled = true;
 
-    panel.append(header, this.historyTimerEl, this.historyListEl, this.historyExportButton);
+    this.historyPlainExportButton = this.makeButton('Export Plain English', () =>
+      this.handlers.onExportPlainHistory()
+    );
+    this.historyPlainExportButton.classList.add('ghost', 'hidden');
+    this.historyPlainExportButton.disabled = true;
+
+    this.historyPlainCopyButton = this.makeButton('Copy Plain English', () =>
+      this.handlers.onCopyPlainHistory()
+    );
+    this.historyPlainCopyButton.classList.add('ghost', 'hidden');
+    this.historyPlainCopyButton.disabled = true;
+
+    const exportRow = document.createElement('div');
+    exportRow.className = 'button-row history-export-row';
+    exportRow.append(
+      this.historyExportButton,
+      this.historyPlainExportButton,
+      this.historyPlainCopyButton
+    );
+
+    panel.append(header, this.historyTimerEl, historyHeader, this.historyListEl, exportRow);
     return panel;
   }
 
