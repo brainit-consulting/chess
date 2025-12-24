@@ -7,6 +7,10 @@ Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.1.21] - 2025-12-24
+### Added
+- Documented full camera and input controls (mouse wheel zoom, right-drag rotate, Q/E, R/F) in both player guide copies.
+
 ## [1.1.20] - 2025-12-24
 ### Added
 - Pause AI vs AI while the "Why this move?" modal is open.

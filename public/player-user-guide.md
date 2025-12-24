@@ -4,6 +4,18 @@ Welcome to **3D Chess**! This guide explains all available game modes, controls,
 
 ---
 
+## Controls
+
+- Left click: select piece / move
+- Right click or Escape: cancel selection
+- Right click + drag: rotate camera
+- Scroll wheel: zoom in/out
+- Q/E: rotate yaw
+- R/F: rotate pitch
+- View buttons: White / Black / Isometric / Top-Down
+
+---
+
 ## Game Modes
 
 ### Human vs Human
