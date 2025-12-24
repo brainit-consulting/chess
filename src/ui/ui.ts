@@ -1,4 +1,5 @@
 import type { AiDifficulty } from '../ai/ai';
+import type { AiExplainResult } from '../ai/aiWorkerTypes';
 import { GameStatus, Color } from '../rules';
 import { GameSummary } from '../gameSummary';
 import { GameMode, PieceSet, SnapView } from '../types';
@@ -27,6 +28,7 @@ type UIHandlers = {
   onPieceSetChange: (pieceSet: PieceSet) => void;
   onTogglePlayForWin: (enabled: boolean) => void;
   onToggleHintMode: (enabled: boolean) => void;
+  onShowAiExplanation: () => void;
   onUiStateChange: (state: UiState) => void;
 };
 
@@ -55,12 +57,18 @@ export class GameUI {
   private aiStatusEl: HTMLDivElement;
   private aiStatusText: HTMLSpanElement;
   private aiStatusDots: HTMLSpanElement;
+  private explainButton: HTMLButtonElement;
   private modal: HTMLDivElement;
   private summaryModal: HTMLDivElement;
   private summaryTitleEl: HTMLHeadingElement;
   private summaryOutcomeEl: HTMLParagraphElement;
   private summaryMaterialEl: HTMLParagraphElement;
   private summaryDetailEl: HTMLParagraphElement;
+  private explainModal: HTMLDivElement;
+  private explainMoveEl: HTMLParagraphElement;
+  private explainSummaryEl: HTMLParagraphElement;
+  private explainListEl: HTMLUListElement;
+  private explainLoadingEl: HTMLParagraphElement;
   private aiVsAiRow: HTMLDivElement;
   private aiVsAiStartButton: HTMLButtonElement;
   private aiVsAiPauseButton: HTMLButtonElement;
@@ -154,7 +162,13 @@ export class GameUI {
     this.aiStatusText = document.createElement('span');
     this.aiStatusDots = document.createElement('span');
     this.aiStatusDots.className = 'ai-thinking-dots';
-    this.aiStatusEl.append(this.aiStatusText, this.aiStatusDots);
+    this.explainButton = this.makeButton('Why this move?', () =>
+      this.handlers.onShowAiExplanation()
+    );
+    this.explainButton.classList.add('ghost', 'ai-explain-button');
+    this.explainButton.disabled = true;
+    this.explainButton.title = 'Why this move?';
+    this.aiStatusEl.append(this.aiStatusText, this.aiStatusDots, this.explainButton);
 
     const modeTitle = document.createElement('div');
     modeTitle.className = 'section-title expand-only';
@@ -474,6 +488,9 @@ export class GameUI {
     this.summaryModal = this.buildSummaryModal();
     root.append(this.summaryModal);
 
+    this.explainModal = this.buildExplainModal();
+    root.append(this.explainModal);
+
     this.mode = initialMode;
     this.setAiDelay(initialDelay);
     this.setMode(initialMode);
@@ -545,6 +562,59 @@ export class GameUI {
     this.aiThinking = thinking;
     this.aiThinkingColor = color;
     this.renderAiStatus();
+  }
+
+  setAiExplanationAvailable(available: boolean): void {
+    this.explainButton.disabled = !available;
+    this.explainButton.classList.toggle('hidden', !available);
+  }
+
+  showAiExplanation(explanation: AiExplainResult | null, loading: boolean): void {
+    this.updateAiExplanation(explanation, loading);
+    this.explainModal.classList.add('open');
+  }
+
+  updateAiExplanation(explanation: AiExplainResult | null, loading: boolean): void {
+    if (loading) {
+      this.explainLoadingEl.textContent = 'Analyzing...';
+      this.explainLoadingEl.classList.remove('hidden');
+      this.explainMoveEl.textContent = ' ';
+      this.explainSummaryEl.textContent = ' ';
+      this.explainSummaryEl.classList.add('hidden');
+      this.explainListEl.innerHTML = '';
+      return;
+    }
+
+    if (!explanation) {
+      this.explainLoadingEl.textContent = 'No explanation available.';
+      this.explainLoadingEl.classList.remove('hidden');
+      this.explainMoveEl.textContent = ' ';
+      this.explainSummaryEl.textContent = ' ';
+      this.explainSummaryEl.classList.add('hidden');
+      this.explainListEl.innerHTML = '';
+      return;
+    }
+
+    this.explainLoadingEl.classList.add('hidden');
+    this.explainMoveEl.textContent = explanation.moveLabel;
+    if (explanation.summary) {
+      this.explainSummaryEl.textContent = explanation.summary;
+      this.explainSummaryEl.classList.remove('hidden');
+    } else {
+      this.explainSummaryEl.textContent = ' ';
+      this.explainSummaryEl.classList.add('hidden');
+    }
+
+    this.explainListEl.innerHTML = '';
+    for (const bullet of explanation.bullets) {
+      const item = document.createElement('li');
+      item.textContent = bullet;
+      this.explainListEl.append(item);
+    }
+  }
+
+  hideAiExplanation(): void {
+    this.explainModal.classList.remove('open');
   }
 
   setMode(mode: GameMode): void {
@@ -679,6 +749,52 @@ export class GameUI {
 
     buttonRow.append(closeBtn, restartBtn);
     card.append(this.summaryTitleEl, body, buttonRow);
+    modal.append(card);
+    return modal;
+  }
+
+  private buildExplainModal(): HTMLDivElement {
+    const modal = document.createElement('div');
+    modal.className = 'modal explain-modal';
+
+    const card = document.createElement('div');
+    card.className = 'modal-card explain-card';
+
+    const title = document.createElement('h2');
+    title.textContent = 'Why this move?';
+
+    const body = document.createElement('div');
+    body.className = 'summary-body';
+
+    this.explainMoveEl = document.createElement('p');
+    this.explainMoveEl.className = 'explain-move';
+    this.explainMoveEl.textContent = ' ';
+
+    this.explainSummaryEl = document.createElement('p');
+    this.explainSummaryEl.className = 'explain-summary';
+    this.explainSummaryEl.classList.add('hidden');
+
+    this.explainLoadingEl = document.createElement('p');
+    this.explainLoadingEl.className = 'explain-loading hidden';
+    this.explainLoadingEl.textContent = 'Analyzing...';
+
+    this.explainListEl = document.createElement('ul');
+    this.explainListEl.className = 'explain-list';
+
+    body.append(
+      this.explainMoveEl,
+      this.explainSummaryEl,
+      this.explainLoadingEl,
+      this.explainListEl
+    );
+
+    const buttonRow = document.createElement('div');
+    buttonRow.className = 'button-row';
+
+    const closeBtn = this.makeButton('Close', () => this.hideAiExplanation());
+    buttonRow.append(closeBtn);
+
+    card.append(title, body, buttonRow);
     modal.append(card);
     return modal;
   }

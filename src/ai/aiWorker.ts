@@ -1,4 +1,5 @@
 import { chooseMove } from './ai';
+import { explainMove } from './aiExplain';
 import { AiWorkerRequest, AiWorkerResponse } from './aiWorkerTypes';
 
 export function computeAiMove(request: AiWorkerRequest): AiWorkerResponse {
@@ -14,6 +15,17 @@ export function computeAiMove(request: AiWorkerRequest): AiWorkerResponse {
       requestId: request.requestId,
       positionKey: request.positionKey,
       move
+    };
+  }
+
+  if (request.kind === 'explain') {
+    const explanation = explainMove(request.state, request.move, request.options);
+    return {
+      kind: 'explain',
+      requestId: request.requestId,
+      positionKey: request.positionKey,
+      moveSignature: request.moveSignature,
+      explanation
     };
   }
 

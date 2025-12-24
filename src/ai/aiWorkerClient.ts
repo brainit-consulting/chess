@@ -31,6 +31,16 @@ export type HintResponseGate = {
   gameOver: boolean;
 };
 
+export type ExplainResponseGate = {
+  requestId: number;
+  currentRequestId: number;
+  positionKey: string;
+  currentPositionKey: string;
+  moveSignature: string;
+  currentMoveSignature: string;
+  gameOver: boolean;
+};
+
 export function shouldApplyAiResponse(state: AiResponseGate): boolean {
   if (state.requestId !== state.currentRequestId) {
     return false;
@@ -71,6 +81,22 @@ export function shouldApplyHintResponse(state: HintResponseGate): boolean {
     return false;
   }
   if (state.positionKey !== state.currentPositionKey) {
+    return false;
+  }
+  return true;
+}
+
+export function shouldApplyExplainResponse(state: ExplainResponseGate): boolean {
+  if (state.requestId !== state.currentRequestId) {
+    return false;
+  }
+  if (state.gameOver) {
+    return false;
+  }
+  if (state.positionKey !== state.currentPositionKey) {
+    return false;
+  }
+  if (state.moveSignature !== state.currentMoveSignature) {
     return false;
   }
   return true;

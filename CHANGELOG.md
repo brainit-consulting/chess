@@ -10,6 +10,7 @@ Semantic Versioning.
 - Improve responsiveness by running AI search in a Web Worker (no gameplay changes).
 ### Added
 - Hint Mode for Human vs AI (best-move square highlight).
+- "Why this move?" explanations for AI moves (engine-facts-based).
 
 ## [1.1.3] - 2025-12-23
 

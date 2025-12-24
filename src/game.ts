@@ -3,6 +3,7 @@ import {
   GameStatus,
   Color,
   Move,
+  Piece,
   PieceType,
   Square,
   applyMove,
@@ -15,8 +16,19 @@ import {
   sameSquare
 } from './rules';
 import { AiDifficulty, chooseMove } from './ai/ai';
-import { AiWorkerRequest, AiWorkerResponse } from './ai/aiWorkerTypes';
-import { shouldApplyAiResponse, shouldApplyHintResponse, shouldRequestHint } from './ai/aiWorkerClient';
+import { explainMove } from './ai/aiExplain';
+import {
+  AiExplainOptions,
+  AiExplainResult,
+  AiWorkerRequest,
+  AiWorkerResponse
+} from './ai/aiWorkerTypes';
+import {
+  shouldApplyAiResponse,
+  shouldApplyExplainResponse,
+  shouldApplyHintResponse,
+  shouldRequestHint
+} from './ai/aiWorkerClient';
 import { SceneView, PickResult } from './client/scene';
 import { GameUI, UiState } from './ui/ui';
 import { GameStats } from './gameStats';
@@ -92,6 +104,13 @@ export class GameController {
   private hintMove: Move | null = null;
   private hintRequestId = 0;
   private hintPositionKey: string | null = null;
+  private lastAiMove: Move | null = null;
+  private lastAiPositionKey: string | null = null;
+  private lastAiMoveSignature: string | null = null;
+  private lastAiExplanation: AiExplainResult | null = null;
+  private explainRequestId = 0;
+  private explainLoading = false;
+  private explainCache = new Map<string, AiExplainResult>();
   private aiWorker: Worker | null = null;
   private aiPendingApplyAt = 0;
 
@@ -129,6 +148,7 @@ export class GameController {
       onPieceSetChange: (pieceSet) => this.setPieceSet(pieceSet),
       onTogglePlayForWin: (enabled) => this.setPlayForWinAiVsAi(enabled),
       onToggleHintMode: (enabled) => this.setHintMode(enabled),
+      onShowAiExplanation: () => this.showAiExplanation(),
       onUiStateChange: (state) => this.handleUiStateChange(state)
     }, {
       mode: this.mode,
@@ -155,6 +175,7 @@ export class GameController {
     }
     this.resetPositionHistory();
     this.clearHint();
+    this.clearAiExplanation();
 
     window.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') {
@@ -182,6 +203,7 @@ export class GameController {
     this.aiVsAiRunning = false;
     this.aiVsAiPaused = false;
     this.clearHint();
+    this.clearAiExplanation();
     this.syncAiVsAiState();
     this.ui.hideSummary();
     this.stats.reset(this.state);
@@ -294,6 +316,7 @@ export class GameController {
   private applyAndAdvance(move: Move): void {
     this.cancelAiMove();
     this.clearHint();
+    this.clearAiExplanation();
     const moverColor = this.state.activeColor;
     applyMove(this.state, move);
     this.recordPositionKey();
@@ -384,6 +407,7 @@ export class GameController {
     this.updatePlayerNames();
     this.syncAiVsAiState();
     this.clearHint();
+    this.clearAiExplanation();
     this.cancelAiMove();
     this.maybeScheduleAiMove();
   }
@@ -530,6 +554,7 @@ export class GameController {
       return;
     }
     this.clearHint();
+    this.clearAiExplanation();
     if (this.mode === 'aivai') {
       this.aiVsAiStarted = false;
       this.aiVsAiRunning = false;
@@ -686,37 +711,51 @@ export class GameController {
       this.aiWorker.postMessage(request);
       return;
     }
-    const response: AiWorkerResponse =
-      request.kind === 'hint'
-        ? {
-            kind: 'hint',
-            requestId: request.requestId,
-            positionKey: request.positionKey,
-            move: chooseMove(request.state, {
-              color: request.color,
-              difficulty: 'easy',
-              depthOverride: request.depthOverride,
-              seed: request.seed
-            })
-          }
-        : {
-            kind: 'move',
-            requestId: request.requestId,
-            move: chooseMove(request.state, {
-              color: request.color,
-              difficulty: request.difficulty,
-              seed: request.seed,
-              playForWin: request.playForWin,
-              recentPositions: request.recentPositions,
-              depthOverride: request.depthOverride
-            })
-          };
+    let response: AiWorkerResponse;
+    if (request.kind === 'hint') {
+      response = {
+        kind: 'hint',
+        requestId: request.requestId,
+        positionKey: request.positionKey,
+        move: chooseMove(request.state, {
+          color: request.color,
+          difficulty: 'easy',
+          depthOverride: request.depthOverride,
+          seed: request.seed
+        })
+      };
+    } else if (request.kind === 'explain') {
+      response = {
+        kind: 'explain',
+        requestId: request.requestId,
+        positionKey: request.positionKey,
+        moveSignature: request.moveSignature,
+        explanation: explainMove(request.state, request.move, request.options)
+      };
+    } else {
+      response = {
+        kind: 'move',
+        requestId: request.requestId,
+        move: chooseMove(request.state, {
+          color: request.color,
+          difficulty: request.difficulty,
+          seed: request.seed,
+          playForWin: request.playForWin,
+          recentPositions: request.recentPositions,
+          depthOverride: request.depthOverride
+        })
+      };
+    }
     this.handleAiWorkerMessage(response);
   }
 
   private handleAiWorkerMessage(response: AiWorkerResponse): void {
     if (response.kind === 'hint') {
       this.handleHintWorkerResponse(response);
+      return;
+    }
+    if (response.kind === 'explain') {
+      this.handleExplainWorkerResponse(response);
       return;
     }
 
@@ -756,8 +795,15 @@ export class GameController {
       ) {
         return;
       }
+      const preMoveState = this.cloneState(this.state);
+      const recentPositions = this.getRecentPositionKeys();
+      const playForWin = this.mode === 'aivai' && this.playForWinAiVsAi;
       this.ui.setAiThinking(false);
       this.applyAndAdvance(response.move);
+      this.setLastAiMove(preMoveState, response.move, {
+        playForWin,
+        recentPositions: playForWin ? recentPositions : undefined
+      });
     };
 
     const remaining = this.aiPendingApplyAt - performance.now();
@@ -795,6 +841,37 @@ export class GameController {
     this.hintMove = response.move;
     this.hintPositionKey = response.positionKey;
     this.sync();
+  }
+
+  private handleExplainWorkerResponse(response: AiWorkerResponse): void {
+    if (response.kind !== 'explain') {
+      return;
+    }
+    if (!this.lastAiPositionKey || !this.lastAiMoveSignature) {
+      return;
+    }
+    if (
+      !shouldApplyExplainResponse({
+        requestId: response.requestId,
+        currentRequestId: this.explainRequestId,
+        positionKey: response.positionKey,
+        currentPositionKey: this.lastAiPositionKey,
+        moveSignature: response.moveSignature,
+        currentMoveSignature: this.lastAiMoveSignature,
+        gameOver: this.gameOver
+      })
+    ) {
+      return;
+    }
+
+    this.explainLoading = false;
+    this.lastAiExplanation = response.explanation;
+    const cacheKey = this.getExplainCacheKey(
+      response.positionKey,
+      response.moveSignature
+    );
+    this.explainCache.set(cacheKey, response.explanation);
+    this.ui.updateAiExplanation(response.explanation, false);
   }
 
   private maybeRequestHint(): void {
@@ -838,6 +915,100 @@ export class GameController {
     this.hintPositionKey = null;
     this.hintRequestId += 1;
     this.scene.setHintMove(null);
+  }
+
+  private showAiExplanation(): void {
+    if (!this.lastAiMove) {
+      return;
+    }
+    const loading = this.explainLoading && !this.lastAiExplanation;
+    this.ui.showAiExplanation(this.lastAiExplanation, loading);
+  }
+
+  private setLastAiMove(
+    state: GameState,
+    move: Move,
+    options: AiExplainOptions
+  ): void {
+    this.lastAiMove = move;
+    const positionKey = getPositionKey(state);
+    const moveSignature = this.getMoveSignature(move);
+    this.lastAiPositionKey = positionKey;
+    this.lastAiMoveSignature = moveSignature;
+    this.ui.setAiExplanationAvailable(true);
+
+    const cacheKey = this.getExplainCacheKey(positionKey, moveSignature);
+    const cached = this.explainCache.get(cacheKey);
+    if (cached) {
+      this.lastAiExplanation = cached;
+      this.explainLoading = false;
+      this.ui.updateAiExplanation(cached, false);
+      return;
+    }
+
+    this.lastAiExplanation = null;
+    this.explainLoading = true;
+    this.requestAiExplanation(state, move, positionKey, moveSignature, options);
+  }
+
+  private requestAiExplanation(
+    state: GameState,
+    move: Move,
+    positionKey: string,
+    moveSignature: string,
+    options: AiExplainOptions
+  ): void {
+    this.explainRequestId += 1;
+    const request: AiWorkerRequest = {
+      kind: 'explain',
+      requestId: this.explainRequestId,
+      positionKey,
+      moveSignature,
+      state,
+      move,
+      options
+    };
+    this.postAiRequest(request);
+  }
+
+  private clearAiExplanation(): void {
+    this.lastAiMove = null;
+    this.lastAiPositionKey = null;
+    this.lastAiMoveSignature = null;
+    this.lastAiExplanation = null;
+    this.explainLoading = false;
+    this.explainRequestId += 1;
+    this.ui.setAiExplanationAvailable(false);
+    this.ui.hideAiExplanation();
+  }
+
+  private getExplainCacheKey(positionKey: string, moveSignature: string): string {
+    return `${positionKey}|${moveSignature}`;
+  }
+
+  private getMoveSignature(move: Move): string {
+    const promo = move.promotion ? `=${move.promotion}` : '';
+    const castle = move.isCastle ? 'c' : '';
+    const ep = move.isEnPassant ? 'e' : '';
+    return `${move.from.file}${move.from.rank}-${move.to.file}${move.to.rank}${promo}${castle}${ep}`;
+  }
+
+  private cloneState(state: GameState): GameState {
+    const board = state.board.map((row) => row.slice());
+    const pieces = new Map<number, Piece>();
+    for (const [id, piece] of state.pieces) {
+      pieces.set(id, { ...piece });
+    }
+    return {
+      board,
+      pieces,
+      activeColor: state.activeColor,
+      castlingRights: { ...state.castlingRights },
+      enPassantTarget: state.enPassantTarget ? { ...state.enPassantTarget } : null,
+      halfmoveClock: state.halfmoveClock,
+      fullmoveNumber: state.fullmoveNumber,
+      lastMove: state.lastMove ? { ...state.lastMove } : null
+    };
   }
 
   private getStorage(): Storage | null {

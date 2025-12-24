@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { chooseMove } from '../ai';
+import { explainMove } from '../aiExplain';
 import { computeAiMove } from '../aiWorker';
-import { shouldApplyAiResponse, shouldApplyHintResponse, shouldRequestHint } from '../aiWorkerClient';
+import {
+  shouldApplyAiResponse,
+  shouldApplyExplainResponse,
+  shouldApplyHintResponse,
+  shouldRequestHint
+} from '../aiWorkerClient';
 import { findBestMove } from '../search';
 import {
   addPiece,
@@ -9,6 +15,7 @@ import {
   createEmptyState,
   createInitialState,
   getAllLegalMoves,
+  getLegalMovesForSquare,
   getPositionKey,
   GameState,
   Piece,
@@ -233,5 +240,97 @@ describe('AI move selection', () => {
 
     expect(chosen).not.toBeNull();
     expect(sameMove(chosen as Move, moveA)).toBe(false);
+  });
+
+  it('ignores stale explain responses by request or position', () => {
+    const apply = shouldApplyExplainResponse({
+      requestId: 2,
+      currentRequestId: 3,
+      positionKey: 'a',
+      currentPositionKey: 'a',
+      moveSignature: 'm1',
+      currentMoveSignature: 'm1',
+      gameOver: false
+    });
+    expect(apply).toBe(false);
+
+    const wrongKey = shouldApplyExplainResponse({
+      requestId: 4,
+      currentRequestId: 4,
+      positionKey: 'a',
+      currentPositionKey: 'b',
+      moveSignature: 'm1',
+      currentMoveSignature: 'm1',
+      gameOver: false
+    });
+    expect(wrongKey).toBe(false);
+  });
+
+  it('explains en passant captures', () => {
+    const state = createEmptyState();
+    addPiece(state, 'king', 'w', sq(4, 0));
+    addPiece(state, 'king', 'b', sq(4, 7));
+    addPiece(state, 'pawn', 'w', sq(4, 4));
+    addPiece(state, 'pawn', 'b', sq(3, 6));
+
+    state.activeColor = 'b';
+    applyMove(state, { from: sq(3, 6), to: sq(3, 4) });
+
+    const moves = getLegalMovesForSquare(state, sq(4, 4));
+    const enPassant = moves.find((move) => move.isEnPassant);
+    expect(enPassant).toBeTruthy();
+    if (!enPassant) {
+      throw new Error('Expected en passant move to be available.');
+    }
+
+    const explanation = explainMove(state, enPassant);
+    const hasEnPassant = explanation.bullets.some((bullet) =>
+      bullet.toLowerCase().includes('en passant')
+    );
+    expect(hasEnPassant).toBe(true);
+  });
+
+  it('explains checking moves', () => {
+    const state = createEmptyState();
+    addPiece(state, 'king', 'w', sq(0, 0));
+    addPiece(state, 'king', 'b', sq(4, 7));
+    addPiece(state, 'rook', 'w', sq(4, 0));
+    state.activeColor = 'w';
+
+    const moves = getLegalMovesForSquare(state, sq(4, 0));
+    const checkingMove = moves.find(
+      (move) => move.to.file === 4 && move.to.rank === 6
+    );
+    expect(checkingMove).toBeTruthy();
+    if (!checkingMove) {
+      throw new Error('Expected a checking rook move.');
+    }
+
+    const explanation = explainMove(state, checkingMove);
+    const hasCheck = explanation.bullets.some((bullet) =>
+      bullet.toLowerCase().includes('gives check')
+    );
+    expect(hasCheck).toBe(true);
+  });
+
+  it('explains castling moves', () => {
+    const state = createEmptyState();
+    addPiece(state, 'king', 'w', sq(4, 0));
+    addPiece(state, 'rook', 'w', sq(7, 0));
+    addPiece(state, 'king', 'b', sq(4, 7));
+    state.castlingRights = { wK: true, wQ: false, bK: false, bQ: false };
+
+    const moves = getLegalMovesForSquare(state, sq(4, 0));
+    const castle = moves.find((move) => move.isCastle);
+    expect(castle).toBeTruthy();
+    if (!castle) {
+      throw new Error('Expected castling move to be available.');
+    }
+
+    const explanation = explainMove(state, castle);
+    const hasCastle = explanation.bullets.some((bullet) =>
+      bullet.toLowerCase().includes('castles')
+    );
+    expect(hasCastle).toBe(true);
   });
 });

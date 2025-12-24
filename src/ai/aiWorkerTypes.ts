@@ -23,8 +23,6 @@ export type AiHintRequest = {
   seed?: number;
 };
 
-export type AiWorkerRequest = AiMoveRequest | AiHintRequest;
-
 export type AiMoveResponse = {
   kind: 'move';
   requestId: number;
@@ -38,4 +36,36 @@ export type AiHintResponse = {
   move: Move | null;
 };
 
-export type AiWorkerResponse = AiMoveResponse | AiHintResponse;
+export type AiExplainOptions = {
+  playForWin?: boolean;
+  recentPositions?: string[];
+};
+
+export type AiExplainResult = {
+  title: string;
+  moveLabel: string;
+  bullets: string[];
+  summary?: string;
+  tags?: string[];
+};
+
+export type AiExplainRequest = {
+  kind: 'explain';
+  requestId: number;
+  positionKey: string;
+  moveSignature: string;
+  state: GameState;
+  move: Move;
+  options?: AiExplainOptions;
+};
+
+export type AiExplainResponse = {
+  kind: 'explain';
+  requestId: number;
+  positionKey: string;
+  moveSignature: string;
+  explanation: AiExplainResult;
+};
+
+export type AiWorkerResponse = AiMoveResponse | AiHintResponse | AiExplainResponse;
+export type AiWorkerRequest = AiMoveRequest | AiHintRequest | AiExplainRequest;
