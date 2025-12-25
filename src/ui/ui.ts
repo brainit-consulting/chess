@@ -11,7 +11,7 @@ import engineLogoUrl from '../../graphics/BrainITChessGameEngineLogo.png';
 
 const PLAYER_GUIDE_URL = `${import.meta.env.BASE_URL}player-user-guide.md`;
 const LIVE_URL = 'https://brainit-consulting.github.io/chess/';
-const APP_VERSION = 'v1.1.31';
+const APP_VERSION = 'v1.1.32';
 
 export type UiState = {
   visible: boolean;
@@ -36,6 +36,7 @@ type UIHandlers = {
   onTogglePlayForWin: (enabled: boolean) => void;
   onToggleHintMode: (enabled: boolean) => void;
   onHumanColorChange: (color: Color) => void;
+  onToggleAutoSnap: (enabled: boolean) => void;
   onShowAiExplanation: () => void;
   onHideAiExplanation: () => void;
   onExportPgn: () => void;
@@ -63,6 +64,7 @@ type UIOptions = {
   analyzerChoice?: AnalyzerChoice;
   showCoordinates?: boolean;
   humanColor?: Color;
+  autoSnapHumanView?: boolean;
 };
 
 const UI_STATE_KEY = 'chess.uiState';
@@ -114,6 +116,8 @@ export class GameUI {
   private explainListEl: HTMLUListElement;
   private explainLoadingEl: HTMLParagraphElement;
   private explainLoadingMessage = 'Analyzing...';
+  private noticeLockUntil = 0;
+  private noticeTimer: number | null = null;
   private aiVsAiRow: HTMLDivElement;
   private aiVsAiStartButton: HTMLButtonElement;
   private aiVsAiPauseButton: HTMLButtonElement;
@@ -126,6 +130,8 @@ export class GameUI {
   private modeButtons: Record<GameMode, HTMLButtonElement>;
   private humanColorRow: HTMLDivElement;
   private humanColorSelect: HTMLSelectElement;
+  private autoSnapRow: HTMLDivElement;
+  private autoSnapToggle: HTMLInputElement;
   private delayRow: HTMLDivElement;
   private delayValueEl: HTMLSpanElement;
   private delayInput: HTMLInputElement;
@@ -280,6 +286,7 @@ export class GameUI {
     const initialAnalyzerChoice = options.analyzerChoice ?? DEFAULT_ANALYZER;
     const initialShowCoordinates = options.showCoordinates ?? true;
     const initialHumanColor = options.humanColor ?? 'w';
+    const initialAutoSnap = options.autoSnapHumanView ?? true;
     this.aiToggle.checked = initialAiEnabled;
     this.aiToggle.addEventListener('change', () => {
       const enabled = this.aiToggle.checked;
@@ -364,6 +371,24 @@ export class GameUI {
     coordinatesText.textContent = 'Show Coordinates';
     coordinatesLabel.append(this.coordinatesToggle, coordinatesText);
     boardRow.append(coordinatesLabel);
+
+    this.autoSnapRow = document.createElement('div');
+    this.autoSnapRow.className = 'control-row expand-only';
+
+    const autoSnapLabel = document.createElement('label');
+    autoSnapLabel.className = 'toggle';
+
+    this.autoSnapToggle = document.createElement('input');
+    this.autoSnapToggle.type = 'checkbox';
+    this.autoSnapToggle.checked = initialAutoSnap;
+    this.autoSnapToggle.addEventListener('change', () => {
+      this.handlers.onToggleAutoSnap(this.autoSnapToggle.checked);
+    });
+
+    const autoSnapText = document.createElement('span');
+    autoSnapText.textContent = 'Auto-snap to your side';
+    autoSnapLabel.append(this.autoSnapToggle, autoSnapText);
+    this.autoSnapRow.append(autoSnapLabel);
 
     this.delayRow = document.createElement('div');
     this.delayRow.className = 'control-row expand-only ai-delay-row';
@@ -634,6 +659,7 @@ export class GameUI {
       pieceSetRow,
       boardTitle,
       boardRow,
+      this.autoSnapRow,
       playerTitle,
       playerGrid,
       this.expandButton,
@@ -681,6 +707,7 @@ export class GameUI {
     this.setPlayForWin(initialPlayForWin);
     this.setHintMode(initialHintMode);
     this.setHumanColor(initialHumanColor);
+    this.setAutoSnapEnabled(initialAutoSnap);
     this.setMusicVolume(initialMusicVolume);
     this.setMusicEnabled(initialMusicEnabled);
     this.setAnalyzerChoice(initialAnalyzerChoice);
@@ -707,12 +734,20 @@ export class GameUI {
     this.humanColorSelect.value = color;
   }
 
+  setAutoSnapEnabled(enabled: boolean): void {
+    this.autoSnapToggle.checked = enabled;
+  }
+
   setScores(scores: { w: number; b: number }): void {
     this.scoreWhiteEl.textContent = scores.w.toString();
     this.scoreBlackEl.textContent = scores.b.toString();
   }
 
   setStatus(status: GameStatus): void {
+    const noticeLocked =
+      Date.now() < this.noticeLockUntil &&
+      status.status !== 'check' &&
+      status.status !== 'checkmate';
     if (status.status === 'checkmate') {
       this.statusEl.textContent =
         status.winner === 'w' ? 'Checkmate - White wins' : 'Checkmate - Black wins';
@@ -744,8 +779,25 @@ export class GameUI {
     }
 
     this.statusEl.textContent = ' ';
-    this.noticeEl.textContent = ' ';
+    if (!noticeLocked) {
+      this.noticeEl.textContent = ' ';
+      this.noticeEl.className = 'notice';
+    }
+  }
+
+  showTemporaryNotice(message: string, durationMs = 1800): void {
+    this.noticeEl.textContent = message;
     this.noticeEl.className = 'notice';
+    this.noticeLockUntil = Date.now() + durationMs;
+    if (this.noticeTimer !== null) {
+      window.clearTimeout(this.noticeTimer);
+    }
+    this.noticeTimer = window.setTimeout(() => {
+      this.noticeTimer = null;
+      this.noticeLockUntil = 0;
+      this.noticeEl.textContent = ' ';
+      this.noticeEl.className = 'notice';
+    }, durationMs);
   }
 
   setAiThinking(thinking: boolean, color?: Color): void {
@@ -1351,6 +1403,7 @@ export class GameUI {
     this.aiToggle.checked = aiEnabled;
     this.difficultySelect.disabled = !aiEnabled;
     this.humanColorRow.classList.toggle('hidden', this.mode !== 'hvai');
+    this.autoSnapRow.classList.toggle('hidden', this.mode !== 'hvai');
     this.delayRow.classList.toggle('hidden', this.mode !== 'aivai');
     this.hintRow.classList.toggle('hidden', this.mode !== 'hvai');
     this.hintToggle.disabled = this.mode !== 'hvai';

@@ -7,6 +7,12 @@ Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.1.32] - 2025-12-25
+### Added
+- Auto-snap toggle to keep the camera on the human side in Human vs AI.
+### Changed
+- Show a short "You are now White/Black" notice when swapping sides in Human vs AI.
+
 ## [1.1.31] - 2025-12-24
 ### Added
 - "Max Thinking" difficulty with time-based iterative deepening (capped depth).

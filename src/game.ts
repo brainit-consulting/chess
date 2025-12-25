@@ -77,6 +77,7 @@ type Preferences = {
   analyzerChoice: AnalyzerChoice;
   showCoordinates: boolean;
   humanColor: Color;
+  autoSnapHumanView: boolean;
 };
 
 const DEFAULT_NAMES: PlayerNames = { white: 'White', black: 'Black' };
@@ -93,7 +94,8 @@ const STORAGE_KEYS = {
   hintMode: 'chess.hintMode',
   analyzerChoice: 'chess.analyzerChoice',
   showCoordinates: 'chess.showCoordinates',
-  humanColor: 'chess.humanColor'
+  humanColor: 'chess.humanColor',
+  autoSnapHumanView: 'chess.autoSnapHumanView'
 };
 const AI_LABELS: Record<AiDifficulty, string> = {
   easy: 'Easy',
@@ -139,6 +141,7 @@ export class GameController {
   private analyzerChoice: AnalyzerChoice = DEFAULT_ANALYZER;
   private showCoordinates = true;
   private humanColor: Color = 'w';
+  private autoSnapHumanView = true;
   private hintMove: Move | null = null;
   private hintRequestId = 0;
   private hintPositionKey: string | null = null;
@@ -168,6 +171,7 @@ export class GameController {
     this.analyzerChoice = preferences.analyzerChoice;
     this.showCoordinates = preferences.showCoordinates;
     this.humanColor = preferences.humanColor;
+    this.autoSnapHumanView = preferences.autoSnapHumanView;
     const soundEnabled = SoundManager.loadEnabled();
     this.sound = new SoundManager(soundEnabled);
     this.music = initMusic();
@@ -194,6 +198,7 @@ export class GameController {
       onTogglePlayForWin: (enabled) => this.setPlayForWinAiVsAi(enabled),
       onToggleHintMode: (enabled) => this.setHintMode(enabled),
       onHumanColorChange: (color) => this.setHumanColor(color),
+      onToggleAutoSnap: (enabled) => this.setAutoSnapHumanView(enabled),
       onShowAiExplanation: () => this.showAiExplanation(),
       onHideAiExplanation: () => this.hideAiExplanation(),
       onExportPgn: () => this.exportPgn(),
@@ -218,7 +223,8 @@ export class GameController {
       hintMode: this.hintMode,
       analyzerChoice: this.analyzerChoice,
       showCoordinates: this.showCoordinates,
-      humanColor: this.humanColor
+      humanColor: this.humanColor,
+      autoSnapHumanView: this.autoSnapHumanView
     });
     this.stats = new GameStats();
     this.stats.reset(this.state);
@@ -418,6 +424,7 @@ export class GameController {
     }
     this.scene.nudgeTurnChange();
     this.sync(status);
+    this.maybeAutoSnapView();
     this.maybeScheduleAiMove();
   }
 
@@ -501,9 +508,7 @@ export class GameController {
     this.clearHint();
     this.clearAiExplanation();
     this.cancelAiMove();
-    if (this.mode === 'hvai') {
-      this.scene.snapView(this.getDefaultView());
-    }
+    this.maybeAutoSnapView();
     this.maybeScheduleAiMove();
   }
 
@@ -554,9 +559,19 @@ export class GameController {
     this.clearHint();
     this.clearAiExplanation();
     if (this.mode === 'hvai') {
-      this.scene.snapView(this.getDefaultView());
+      this.maybeAutoSnapView();
+      this.ui.showTemporaryNotice(`You are now ${color === 'w' ? 'White' : 'Black'}.`);
     }
     this.maybeScheduleAiMove();
+  }
+
+  private setAutoSnapHumanView(enabled: boolean): void {
+    this.autoSnapHumanView = enabled;
+    this.persistPreferences();
+    this.ui.setAutoSnapEnabled(enabled);
+    if (enabled) {
+      this.maybeAutoSnapView();
+    }
   }
 
   private setSoundEnabled(enabled: boolean): void {
@@ -639,6 +654,13 @@ export class GameController {
 
   private getDefaultView(): 'white' | 'black' {
     return this.mode === 'hvai' && this.humanColor === 'b' ? 'black' : 'white';
+  }
+
+  private maybeAutoSnapView(): void {
+    if (this.mode !== 'hvai' || !this.autoSnapHumanView) {
+      return;
+    }
+    this.scene.snapView(this.getDefaultView());
   }
 
   private startAiVsAi(): void {
@@ -745,6 +767,7 @@ export class GameController {
     let analyzerChoice: AnalyzerChoice = DEFAULT_ANALYZER;
     let showCoordinates = true;
     let humanColor: Color = 'w';
+    let autoSnapHumanView = true;
 
     if (storage) {
       const rawNames = storage.getItem(STORAGE_KEYS.names);
@@ -819,6 +842,11 @@ export class GameController {
         humanColor = rawHumanColor;
       }
 
+      const rawAutoSnap = storage.getItem(STORAGE_KEYS.autoSnapHumanView);
+      if (rawAutoSnap !== null) {
+        autoSnapHumanView = rawAutoSnap === 'true';
+      }
+
       storage.setItem(STORAGE_KEYS.names, JSON.stringify(names));
       storage.setItem(STORAGE_KEYS.ai, JSON.stringify(ai));
       storage.setItem(STORAGE_KEYS.mode, mode);
@@ -829,6 +857,7 @@ export class GameController {
       storage.setItem(STORAGE_KEYS.analyzerChoice, analyzerChoice);
       storage.setItem(STORAGE_KEYS.showCoordinates, showCoordinates.toString());
       storage.setItem(STORAGE_KEYS.humanColor, humanColor);
+      storage.setItem(STORAGE_KEYS.autoSnapHumanView, autoSnapHumanView.toString());
     }
 
     return {
@@ -841,7 +870,8 @@ export class GameController {
       hintMode,
       analyzerChoice,
       showCoordinates,
-      humanColor
+      humanColor,
+      autoSnapHumanView
     };
   }
 
@@ -864,6 +894,7 @@ export class GameController {
     storage.setItem(STORAGE_KEYS.analyzerChoice, this.analyzerChoice);
     storage.setItem(STORAGE_KEYS.showCoordinates, this.showCoordinates.toString());
     storage.setItem(STORAGE_KEYS.humanColor, this.humanColor);
+    storage.setItem(STORAGE_KEYS.autoSnapHumanView, this.autoSnapHumanView.toString());
   }
 
   private resetPositionHistory(): void {
