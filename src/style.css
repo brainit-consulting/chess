@@ -106,6 +106,41 @@ body {
   gap: 12px;
 }
 
+.panel-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.panel-brand a {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.ui-logo {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  opacity: 0.88;
+  filter: saturate(0.95);
+}
+
+.ui-logo-engine {
+  height: 38px;
+}
+
+.ui-logo-analyzer {
+  height: 60px;
+}
+
+.analyzer-branding {
+  display: flex;
+  justify-content: center;
+  margin: 8px 0 4px;
+}
+
 .panel-actions {
   display: flex;
   gap: 6px;

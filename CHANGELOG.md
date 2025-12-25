@@ -5,7 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog, and this project adheres to
 Semantic Versioning.
 
-## [Unreleased]
+## [1.1.28] - 2025-12-24
+### Added
+- Show the BrainIT Chess Game Engine logo in the left panel header.
+- Show the BrainIT Chess Game Analyzer logo in the game-over modal near the Analyze Game button.
+- Link the header engine logo to brainitconsulting.com.
+### Changed
+- Update the in-UI version label to v1.1.28.
 
 ## [1.1.27] - 2025-12-24
 ### Fixed

@@ -5,11 +5,13 @@ import { GameStatus, Color } from '../rules';
 import { GameSummary } from '../gameSummary';
 import { GameMode, PieceSet, SnapView } from '../types';
 import { PieceType } from '../rules';
+import analyzerLogoUrl from '../../graphics/BrainITChessAnalyzerLogo.png';
+import engineLogoUrl from '../../graphics/BrainITChessGameEngineLogo.png';
 
 const PLAYER_GUIDE_URL = `${import.meta.env.BASE_URL}player-user-guide.md`;
 const ANALYSIS_URL = 'https://chessanalysis.pro/';
 const LIVE_URL = 'https://brainit-consulting.github.io/chess/';
-const APP_VERSION = 'v1.1.27';
+const APP_VERSION = 'v1.1.28';
 
 export type UiState = {
   visible: boolean;
@@ -163,6 +165,23 @@ export class GameUI {
     const header = document.createElement('div');
     header.className = 'panel-header';
 
+    const brand = document.createElement('div');
+    brand.className = 'panel-brand';
+
+    const engineLogo = document.createElement('img');
+    engineLogo.className = 'ui-logo ui-logo-engine expand-only';
+    engineLogo.src = engineLogoUrl;
+    engineLogo.alt = 'BrainIT Chess Game Engine';
+    engineLogo.loading = 'lazy';
+
+    const engineLink = document.createElement('a');
+    engineLink.href = 'https://brainitconsulting.com/';
+    engineLink.target = '_blank';
+    engineLink.rel = 'noopener noreferrer';
+    engineLink.title = 'What can we build for you?';
+    engineLink.setAttribute('aria-label', 'What can we build for you?');
+    engineLink.append(engineLogo);
+
     const title = document.createElement('h1');
     title.className = 'expand-only';
     title.textContent = '3D Chess';
@@ -184,7 +203,8 @@ export class GameUI {
     this.collapseButton.classList.add('ghost');
 
     headerActions.append(this.helpButton, this.collapseButton, this.hideButton);
-    header.append(title, headerActions);
+    brand.append(engineLink, title);
+    header.append(brand, headerActions);
 
     this.turnEl = document.createElement('div');
     this.turnEl.className = 'turn';
@@ -955,6 +975,15 @@ export class GameUI {
     this.summaryHistoryText.className = 'summary-history hidden';
     this.summaryHistoryText.textContent = '';
 
+    const analyzerBrand = document.createElement('div');
+    analyzerBrand.className = 'analyzer-branding';
+    const analyzerLogo = document.createElement('img');
+    analyzerLogo.className = 'ui-logo ui-logo-analyzer';
+    analyzerLogo.src = analyzerLogoUrl;
+    analyzerLogo.alt = 'BrainIT Chess Game Analyzer';
+    analyzerLogo.loading = 'lazy';
+    analyzerBrand.append(analyzerLogo);
+
     const buttonRow = document.createElement('div');
     buttonRow.className = 'button-row';
 
@@ -1000,6 +1029,7 @@ export class GameUI {
       body,
       this.summaryHistoryTabs,
       this.summaryHistoryText,
+      analyzerBrand,
       buttonRow,
       this.summaryCopyStatusEl
     );
