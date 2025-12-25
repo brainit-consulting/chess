@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { CameraController } from './camera';
 import { Color, GameState, Move, PieceType, Square, getPieceSquares } from '../rules';
-import { PieceSet, SnapView } from '../types';
+import { CoordinateMode, PieceSet, SnapView } from '../types';
 import { createSciFiPieceInstance, preloadSciFiModels } from './models/scifiChessModels';
 import { createStandardPieceInstance, preloadStandardModels } from './models/standardChessModels';
 import { createCoordinateGroup, setCoordinateOrientation } from './coordinates';
@@ -67,6 +67,8 @@ export class SceneView {
   private pieceProvider: PieceSetProvider;
   private lastState: GameState | null = null;
   private coordinateGroup: THREE.Group;
+  private coordinateMode: CoordinateMode = 'pgn';
+  private currentView: SnapView = 'white';
 
   constructor(container: HTMLElement, handlers: SceneHandlers, pieceSet: PieceSet = 'scifi') {
     this.handlers = handlers;
@@ -88,7 +90,7 @@ export class SceneView {
     this.scene.add(this.piecesGroup);
     this.scene.add(this.markersGroup);
     this.coordinateGroup = createCoordinateGroup(TILE_SIZE);
-    setCoordinateOrientation(this.coordinateGroup, 'white');
+    this.applyCoordinateOrientation();
     this.scene.add(this.coordinateGroup);
 
     this.addLights();
@@ -241,7 +243,8 @@ export class SceneView {
 
   snapView(view: SnapView): void {
     this.cameraController.snap(view);
-    setCoordinateOrientation(this.coordinateGroup, view === 'black' ? 'black' : 'white');
+    this.currentView = view;
+    this.applyCoordinateOrientation();
   }
 
   setUiState(state: { visible: boolean; collapsed: boolean; historyVisible: boolean }): void {
@@ -252,6 +255,11 @@ export class SceneView {
 
   setCoordinatesVisible(visible: boolean): void {
     this.coordinateGroup.visible = visible;
+  }
+
+  setCoordinateMode(mode: CoordinateMode): void {
+    this.coordinateMode = mode;
+    this.applyCoordinateOrientation();
   }
 
   nudgeTurnChange(): void {
@@ -510,5 +518,11 @@ export class SceneView {
       }
     }
     this.renderer.render(this.scene, this.camera);
+  }
+
+  private applyCoordinateOrientation(): void {
+    const orientation =
+      this.coordinateMode === 'view' && this.currentView === 'black' ? 'black' : 'white';
+    setCoordinateOrientation(this.coordinateGroup, orientation);
   }
 }

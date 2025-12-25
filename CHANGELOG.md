@@ -7,6 +7,13 @@ Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.1.34] - 2025-12-25
+### Added
+- Coordinate mode selector to switch between PGN-fixed labels and view-relative labels.
+### Fixed
+- Keep board coordinates fixed to the PGN (White) orientation regardless of camera view.
+- Reapply auto-snap to the human side after restart when enabled.
+
 ## [1.1.33] - 2025-12-25
 ### Fixed
 - Show the "Play as" selector correctly inline with Play vs AI.

@@ -3,7 +3,7 @@ import type { AiExplainResult } from '../ai/aiWorkerTypes';
 import type { HistoryRow } from '../history/gameHistory';
 import { GameStatus, Color } from '../rules';
 import { GameSummary } from '../gameSummary';
-import { GameMode, PieceSet, SnapView } from '../types';
+import { CoordinateMode, GameMode, PieceSet, SnapView } from '../types';
 import { PieceType } from '../rules';
 import { ANALYZER_OPTIONS, AnalyzerChoice, DEFAULT_ANALYZER } from '../analyzer';
 import analyzerLogoUrl from '../../graphics/BrainITChessAnalyzerLogo.png';
@@ -11,7 +11,7 @@ import engineLogoUrl from '../../graphics/BrainITChessGameEngineLogo.png';
 
 const PLAYER_GUIDE_URL = `${import.meta.env.BASE_URL}player-user-guide.md`;
 const LIVE_URL = 'https://brainit-consulting.github.io/chess/';
-const APP_VERSION = 'v1.1.33';
+const APP_VERSION = 'v1.1.34';
 
 export type UiState = {
   visible: boolean;
@@ -44,6 +44,7 @@ type UIHandlers = {
   onAnalyzerChange: (choice: AnalyzerChoice) => void;
   onAnalyzeGame: () => void;
   onToggleCoordinates: (enabled: boolean) => void;
+  onCoordinateModeChange: (mode: CoordinateMode) => void;
   onExportPlainHistory: () => void;
   onExportPlainHistoryHtml: () => void;
   onCopyPlainHistory: () => void;
@@ -65,6 +66,7 @@ type UIOptions = {
   showCoordinates?: boolean;
   humanColor?: Color;
   autoSnapHumanView?: boolean;
+  coordinateMode?: CoordinateMode;
 };
 
 const UI_STATE_KEY = 'chess.uiState';
@@ -149,6 +151,8 @@ export class GameUI {
   private musicVolumeInput: HTMLInputElement;
   private musicHintEl: HTMLDivElement;
   private coordinatesToggle: HTMLInputElement;
+  private coordinateModeRow: HTMLDivElement;
+  private coordinateModeSelect: HTMLSelectElement;
   private analyzerSelect: HTMLSelectElement;
   private analyzerButton: HTMLButtonElement;
   private helpAnalyzerLink: HTMLAnchorElement;
@@ -287,6 +291,7 @@ export class GameUI {
     const initialShowCoordinates = options.showCoordinates ?? true;
     const initialHumanColor = options.humanColor ?? 'w';
     const initialAutoSnap = options.autoSnapHumanView ?? true;
+    const initialCoordinateMode = options.coordinateMode ?? 'pgn';
     this.aiToggle.checked = initialAiEnabled;
     this.aiToggle.addEventListener('change', () => {
       const enabled = this.aiToggle.checked;
@@ -364,6 +369,7 @@ export class GameUI {
     this.coordinatesToggle.type = 'checkbox';
     this.coordinatesToggle.checked = initialShowCoordinates;
     this.coordinatesToggle.addEventListener('change', () => {
+      this.coordinateModeSelect.disabled = !this.coordinatesToggle.checked;
       this.handlers.onToggleCoordinates(this.coordinatesToggle.checked);
     });
 
@@ -371,6 +377,28 @@ export class GameUI {
     coordinatesText.textContent = 'Show Coordinates';
     coordinatesLabel.append(this.coordinatesToggle, coordinatesText);
     boardRow.append(coordinatesLabel);
+
+    this.coordinateModeRow = document.createElement('div');
+    this.coordinateModeRow.className = 'control-row expand-only';
+
+    const coordinateModeLabel = document.createElement('span');
+    coordinateModeLabel.className = 'stat-label';
+    coordinateModeLabel.textContent = 'Coordinate Mode';
+
+    this.coordinateModeSelect = document.createElement('select');
+    this.coordinateModeSelect.innerHTML = `
+      <option value="pgn">PGN (fixed)</option>
+      <option value="view">View (rotate)</option>
+    `;
+    this.coordinateModeSelect.value = initialCoordinateMode;
+    this.coordinateModeSelect.disabled = !initialShowCoordinates;
+    this.coordinateModeSelect.addEventListener('change', () => {
+      this.handlers.onCoordinateModeChange(
+        this.coordinateModeSelect.value as CoordinateMode
+      );
+    });
+
+    this.coordinateModeRow.append(coordinateModeLabel, this.coordinateModeSelect);
 
     this.autoSnapRow = document.createElement('div');
     this.autoSnapRow.className = 'control-row expand-only';
@@ -659,6 +687,7 @@ export class GameUI {
       pieceSetRow,
       boardTitle,
       boardRow,
+      this.coordinateModeRow,
       this.autoSnapRow,
       playerTitle,
       playerGrid,
@@ -711,6 +740,7 @@ export class GameUI {
     this.setMusicEnabled(initialMusicEnabled);
     this.setAnalyzerChoice(initialAnalyzerChoice);
     this.setCoordinatesEnabled(initialShowCoordinates);
+    this.setCoordinateMode(initialCoordinateMode);
     this.setMusicUnlockHint(false);
     this.setAiVsAiState({ started: false, running: false });
     this.applyUiState();
@@ -735,6 +765,10 @@ export class GameUI {
 
   setAutoSnapEnabled(enabled: boolean): void {
     this.autoSnapToggle.checked = enabled;
+  }
+
+  setCoordinateMode(mode: CoordinateMode): void {
+    this.coordinateModeSelect.value = mode;
   }
 
   setScores(scores: { w: number; b: number }): void {
@@ -888,6 +922,7 @@ export class GameUI {
 
   setCoordinatesEnabled(enabled: boolean): void {
     this.coordinatesToggle.checked = enabled;
+    this.coordinateModeSelect.disabled = !enabled;
   }
 
   setAnalyzerChoice(choice: AnalyzerChoice): void {

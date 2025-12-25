@@ -51,7 +51,7 @@ import {
 } from './history/plainEnglish';
 import { SoundManager } from './sound/soundManager';
 import { initMusic, MusicManager } from './audio/musicManager';
-import { GameMode, PieceSet } from './types';
+import { CoordinateMode, GameMode, PieceSet } from './types';
 import { createGameSummary } from './gameSummary';
 import { buildPgn, buildSanLine, PgnMove } from './pgn/pgn';
 import { ANALYZER_OPTIONS, AnalyzerChoice, DEFAULT_ANALYZER } from './analyzer';
@@ -78,6 +78,7 @@ type Preferences = {
   showCoordinates: boolean;
   humanColor: Color;
   autoSnapHumanView: boolean;
+  coordinateMode: CoordinateMode;
 };
 
 const DEFAULT_NAMES: PlayerNames = { white: 'White', black: 'Black' };
@@ -95,7 +96,8 @@ const STORAGE_KEYS = {
   analyzerChoice: 'chess.analyzerChoice',
   showCoordinates: 'chess.showCoordinates',
   humanColor: 'chess.humanColor',
-  autoSnapHumanView: 'chess.autoSnapHumanView'
+  autoSnapHumanView: 'chess.autoSnapHumanView',
+  coordinateMode: 'chess.coordinateMode'
 };
 const AI_LABELS: Record<AiDifficulty, string> = {
   easy: 'Easy',
@@ -142,6 +144,7 @@ export class GameController {
   private showCoordinates = true;
   private humanColor: Color = 'w';
   private autoSnapHumanView = true;
+  private coordinateMode: CoordinateMode = 'pgn';
   private hintMove: Move | null = null;
   private hintRequestId = 0;
   private hintPositionKey: string | null = null;
@@ -172,6 +175,7 @@ export class GameController {
     this.showCoordinates = preferences.showCoordinates;
     this.humanColor = preferences.humanColor;
     this.autoSnapHumanView = preferences.autoSnapHumanView;
+    this.coordinateMode = preferences.coordinateMode;
     const soundEnabled = SoundManager.loadEnabled();
     this.sound = new SoundManager(soundEnabled);
     this.music = initMusic();
@@ -180,6 +184,7 @@ export class GameController {
       onCancel: () => this.clearSelection()
     }, this.pieceSet);
     this.scene.setCoordinatesVisible(this.showCoordinates);
+    this.scene.setCoordinateMode(this.coordinateMode);
     this.initAiWorker();
     this.ui = new GameUI(uiRoot, {
       onRestart: () => this.reset(),
@@ -209,6 +214,7 @@ export class GameController {
       onAnalyzerChange: (choice) => this.setAnalyzerChoice(choice),
       onAnalyzeGame: () => this.openAnalyzer(),
       onToggleCoordinates: (enabled) => this.setShowCoordinates(enabled),
+      onCoordinateModeChange: (mode) => this.setCoordinateMode(mode),
       onUiStateChange: (state) => this.handleUiStateChange(state)
     }, {
       mode: this.mode,
@@ -224,7 +230,8 @@ export class GameController {
       analyzerChoice: this.analyzerChoice,
       showCoordinates: this.showCoordinates,
       humanColor: this.humanColor,
-      autoSnapHumanView: this.autoSnapHumanView
+      autoSnapHumanView: this.autoSnapHumanView,
+      coordinateMode: this.coordinateMode
     });
     this.stats = new GameStats();
     this.stats.reset(this.state);
@@ -575,6 +582,13 @@ export class GameController {
     }
   }
 
+  private setCoordinateMode(mode: CoordinateMode): void {
+    this.coordinateMode = mode;
+    this.persistPreferences();
+    this.ui.setCoordinateMode(mode);
+    this.scene.setCoordinateMode(mode);
+  }
+
   private setSoundEnabled(enabled: boolean): void {
     this.sound.setEnabled(enabled);
   }
@@ -769,6 +783,7 @@ export class GameController {
     let showCoordinates = true;
     let humanColor: Color = 'w';
     let autoSnapHumanView = true;
+    let coordinateMode: CoordinateMode = 'pgn';
 
     if (storage) {
       const rawNames = storage.getItem(STORAGE_KEYS.names);
@@ -848,6 +863,11 @@ export class GameController {
         autoSnapHumanView = rawAutoSnap === 'true';
       }
 
+      const rawCoordinateMode = storage.getItem(STORAGE_KEYS.coordinateMode);
+      if (rawCoordinateMode === 'pgn' || rawCoordinateMode === 'view') {
+        coordinateMode = rawCoordinateMode;
+      }
+
       storage.setItem(STORAGE_KEYS.names, JSON.stringify(names));
       storage.setItem(STORAGE_KEYS.ai, JSON.stringify(ai));
       storage.setItem(STORAGE_KEYS.mode, mode);
@@ -859,6 +879,7 @@ export class GameController {
       storage.setItem(STORAGE_KEYS.showCoordinates, showCoordinates.toString());
       storage.setItem(STORAGE_KEYS.humanColor, humanColor);
       storage.setItem(STORAGE_KEYS.autoSnapHumanView, autoSnapHumanView.toString());
+      storage.setItem(STORAGE_KEYS.coordinateMode, coordinateMode);
     }
 
     return {
@@ -872,7 +893,8 @@ export class GameController {
       analyzerChoice,
       showCoordinates,
       humanColor,
-      autoSnapHumanView
+      autoSnapHumanView,
+      coordinateMode
     };
   }
 
@@ -896,6 +918,7 @@ export class GameController {
     storage.setItem(STORAGE_KEYS.showCoordinates, this.showCoordinates.toString());
     storage.setItem(STORAGE_KEYS.humanColor, this.humanColor);
     storage.setItem(STORAGE_KEYS.autoSnapHumanView, this.autoSnapHumanView.toString());
+    storage.setItem(STORAGE_KEYS.coordinateMode, this.coordinateMode);
   }
 
   private resetPositionHistory(): void {
