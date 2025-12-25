@@ -8,6 +8,10 @@ Semantic Versioning.
 ## [Unreleased]
 ### Added
 - Display the app version in the UI panel footer.
+
+## [1.1.24] - 2025-12-24
+### Added
+- Copy PGN button with clipboard support in the game-over export UI.
 - Add Stockfish backend resource notes for benchmarking setup.
 - Add benchmark plan document for BrainIT vs Stockfish comparisons.
 

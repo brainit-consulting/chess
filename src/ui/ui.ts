@@ -36,6 +36,7 @@ type UIHandlers = {
   onShowAiExplanation: () => void;
   onHideAiExplanation: () => void;
   onExportPgn: () => void;
+  onCopyPgn: () => void;
   onExportPlainHistory: () => void;
   onExportPlainHistoryHtml: () => void;
   onCopyPlainHistory: () => void;
@@ -72,11 +73,13 @@ export class GameUI {
   private historyListEl: HTMLDivElement;
   private historyTimerEl: HTMLDivElement;
   private historyExportButton: HTMLButtonElement;
+  private historyCopyButton: HTMLButtonElement;
   private historyPlainExportButton: HTMLButtonElement;
   private historyPlainHtmlExportButton: HTMLButtonElement;
   private historyPlainCopyButton: HTMLButtonElement;
   private historyHideButton: HTMLButtonElement;
   private historyShowButton: HTMLButtonElement;
+  private historyCopyStatusEl: HTMLDivElement;
   private historyAutoScroll = true;
   private modal: HTMLDivElement;
   private summaryModal: HTMLDivElement;
@@ -85,7 +88,9 @@ export class GameUI {
   private summaryMaterialEl: HTMLParagraphElement;
   private summaryDetailEl: HTMLParagraphElement;
   private summaryExportButton: HTMLButtonElement;
+  private summaryCopyButton: HTMLButtonElement;
   private summaryPlainHtmlExportButton: HTMLButtonElement;
+  private summaryCopyStatusEl: HTMLDivElement;
   private summaryHistoryTabs: HTMLDivElement;
   private summaryHistoryPgnButton: HTMLButtonElement;
   private summaryHistoryPlainButton: HTMLButtonElement;
@@ -137,6 +142,7 @@ export class GameUI {
   private expandButton: HTMLButtonElement;
   private handlers: UIHandlers;
   private uiState: UiState;
+  private pgnCopyTimer: number | null = null;
 
   constructor(root: HTMLElement, handlers: UIHandlers, options: UIOptions = {}) {
     this.root = root;
@@ -783,8 +789,12 @@ export class GameUI {
   setPgnExportAvailable(available: boolean): void {
     this.historyExportButton.disabled = !available;
     this.historyExportButton.classList.toggle('hidden', !available);
+    this.historyCopyButton.disabled = !available;
+    this.historyCopyButton.classList.toggle('hidden', !available);
     this.summaryExportButton.disabled = !available;
     this.summaryExportButton.classList.toggle('hidden', !available);
+    this.summaryCopyButton.disabled = !available;
+    this.summaryCopyButton.classList.toggle('hidden', !available);
   }
 
   setPlainHistoryActionsAvailable(available: boolean): void {
@@ -809,6 +819,24 @@ export class GameUI {
     } else {
       this.summaryHistoryText.textContent = '';
     }
+  }
+
+  showPgnCopyStatus(message: string, isError = false): void {
+    if (this.pgnCopyTimer !== null) {
+      window.clearTimeout(this.pgnCopyTimer);
+      this.pgnCopyTimer = null;
+    }
+    this.summaryCopyStatusEl.textContent = message;
+    this.historyCopyStatusEl.textContent = message;
+    this.summaryCopyStatusEl.classList.toggle('error', isError);
+    this.historyCopyStatusEl.classList.toggle('error', isError);
+    this.summaryCopyStatusEl.classList.add('active');
+    this.historyCopyStatusEl.classList.add('active');
+    this.pgnCopyTimer = window.setTimeout(() => {
+      this.summaryCopyStatusEl.classList.remove('active');
+      this.historyCopyStatusEl.classList.remove('active');
+      this.pgnCopyTimer = null;
+    }, 1600);
   }
 
   showPromotion(): void {
@@ -934,6 +962,11 @@ export class GameUI {
     );
     this.summaryExportButton.classList.add('ghost', 'hidden');
     this.summaryExportButton.disabled = true;
+    this.summaryCopyButton = this.makeButton('Copy PGN', () =>
+      this.handlers.onCopyPgn()
+    );
+    this.summaryCopyButton.classList.add('ghost', 'hidden');
+    this.summaryCopyButton.disabled = true;
     this.summaryPlainHtmlExportButton = this.makeButton('Export Plain HTML', () =>
       this.handlers.onExportPlainHistoryHtml()
     );
@@ -947,15 +980,19 @@ export class GameUI {
     buttonRow.append(
       closeBtn,
       this.summaryExportButton,
+      this.summaryCopyButton,
       this.summaryPlainHtmlExportButton,
       restartBtn
     );
+    this.summaryCopyStatusEl = document.createElement('div');
+    this.summaryCopyStatusEl.className = 'copy-status';
     card.append(
       this.summaryTitleEl,
       body,
       this.summaryHistoryTabs,
       this.summaryHistoryText,
-      buttonRow
+      buttonRow,
+      this.summaryCopyStatusEl
     );
     modal.append(card);
     return modal;
@@ -1005,6 +1042,12 @@ export class GameUI {
     this.historyExportButton.classList.add('ghost', 'hidden');
     this.historyExportButton.disabled = true;
 
+    this.historyCopyButton = this.makeButton('Copy PGN', () =>
+      this.handlers.onCopyPgn()
+    );
+    this.historyCopyButton.classList.add('ghost', 'hidden');
+    this.historyCopyButton.disabled = true;
+
     this.historyPlainExportButton = this.makeButton('Export Plain English', () =>
       this.handlers.onExportPlainHistory()
     );
@@ -1027,12 +1070,23 @@ export class GameUI {
     exportRow.className = 'button-row history-export-row';
     exportRow.append(
       this.historyExportButton,
+      this.historyCopyButton,
       this.historyPlainExportButton,
       this.historyPlainHtmlExportButton,
       this.historyPlainCopyButton
     );
 
-    panel.append(header, this.historyTimerEl, historyHeader, this.historyListEl, exportRow);
+    this.historyCopyStatusEl = document.createElement('div');
+    this.historyCopyStatusEl.className = 'copy-status';
+
+    panel.append(
+      header,
+      this.historyTimerEl,
+      historyHeader,
+      this.historyListEl,
+      exportRow,
+      this.historyCopyStatusEl
+    );
     return panel;
   }
 

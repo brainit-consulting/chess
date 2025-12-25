@@ -453,6 +453,25 @@ button:active {
   color: var(--muted);
 }
 
+.copy-status {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--accent);
+  opacity: 0;
+  height: 0;
+  transition: opacity 0.2s ease;
+  text-align: center;
+}
+
+.copy-status.active {
+  opacity: 1;
+  height: auto;
+}
+
+.copy-status.error {
+  color: var(--danger);
+}
+
 .modal-card h2 {
   margin: 0 0 12px;
   font-size: 16px;

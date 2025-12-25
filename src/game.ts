@@ -37,6 +37,7 @@ import { GameUI, UiState } from './ui/ui';
 import { GameStats } from './gameStats';
 import { GameHistory } from './history/gameHistory';
 import { GameClock } from './history/gameClock';
+import { copyToClipboard } from './ui/clipboard';
 import {
   buildPlainEnglishHtml,
   buildPlainEnglishLines,
@@ -174,6 +175,7 @@ export class GameController {
       onShowAiExplanation: () => this.showAiExplanation(),
       onHideAiExplanation: () => this.hideAiExplanation(),
       onExportPgn: () => this.exportPgn(),
+      onCopyPgn: () => void this.copyPgn(),
       onExportPlainHistory: () => this.exportPlainHistory(),
       onExportPlainHistoryHtml: () => this.exportPlainHistoryHtml(),
       onCopyPlainHistory: () => this.copyPlainHistory(),
@@ -1059,6 +1061,20 @@ export class GameController {
     const timestamp = new Date();
     const filename = `chess-game-${formatStamp(timestamp)}.pgn`;
     downloadTextFile(pgnText, filename, 'application/x-chess-pgn');
+  }
+
+  private async copyPgn(): Promise<void> {
+    const status = this.lastStatus ?? getGameStatus(this.state);
+    const pgnText = this.getPgnText(status);
+    if (!pgnText) {
+      return;
+    }
+    const success = await copyToClipboard(pgnText);
+    if (success) {
+      this.ui.showPgnCopyStatus('Copied!');
+      return;
+    }
+    this.ui.showPgnCopyStatus('Copy failed - select and copy manually.', true);
   }
 
   private exportPlainHistory(): void {
