@@ -4,6 +4,7 @@ import { Color, GameState, Move, PieceType, Square, getPieceSquares } from '../r
 import { PieceSet, SnapView } from '../types';
 import { createSciFiPieceInstance, preloadSciFiModels } from './models/scifiChessModels';
 import { createStandardPieceInstance, preloadStandardModels } from './models/standardChessModels';
+import { createCoordinateGroup } from './coordinates';
 
 export type PickResult = {
   type: 'square' | 'piece';
@@ -65,6 +66,7 @@ export class SceneView {
   private pieceSet: PieceSet;
   private pieceProvider: PieceSetProvider;
   private lastState: GameState | null = null;
+  private coordinateGroup: THREE.Group;
 
   constructor(container: HTMLElement, handlers: SceneHandlers, pieceSet: PieceSet = 'scifi') {
     this.handlers = handlers;
@@ -85,6 +87,8 @@ export class SceneView {
     this.scene.add(this.boardGroup);
     this.scene.add(this.piecesGroup);
     this.scene.add(this.markersGroup);
+    this.coordinateGroup = createCoordinateGroup(TILE_SIZE);
+    this.scene.add(this.coordinateGroup);
 
     this.addLights();
     this.buildBoard();
@@ -242,6 +246,10 @@ export class SceneView {
     this.cameraController.setUiZoomedOut(
       !state.visible || state.collapsed || !state.historyVisible
     );
+  }
+
+  setCoordinatesVisible(visible: boolean): void {
+    this.coordinateGroup.visible = visible;
   }
 
   nudgeTurnChange(): void {

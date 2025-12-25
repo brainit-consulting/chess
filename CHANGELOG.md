@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog, and this project adheres to
 Semantic Versioning.
 
+## [1.1.30] - 2025-12-24
+### Added
+- Subtle board coordinates (a–h, 1–8) with a “Show Coordinates” toggle.
+### Changed
+- Analyzer selection persists and updates help/game-over text labels.
+- Game-over analyzer logo links to Chess Game Buddy by default.
+- Compact left panel layout (centered title, merged player/score block, inline audio/AI controls).
+- Update the in-UI version label to v1.1.30.
+
 ## [1.1.29] - 2025-12-24
 ### Added
 - Allow selecting an analyzer (BrainIT Chess Buddy Analyzer or Chess Analysis Pro) from the main UI.

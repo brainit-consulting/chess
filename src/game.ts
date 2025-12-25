@@ -69,6 +69,7 @@ type Preferences = {
   playForWinAiVsAi: boolean;
   hintMode: boolean;
   analyzerChoice: AnalyzerChoice;
+  showCoordinates: boolean;
 };
 
 const DEFAULT_NAMES: PlayerNames = { white: 'White', black: 'Black' };
@@ -83,7 +84,8 @@ const STORAGE_KEYS = {
   pieceSet: 'chess.pieceSet',
   playForWinAiVsAi: 'chess.playForWinAiVsAi',
   hintMode: 'chess.hintMode',
-  analyzerChoice: 'chess.analyzerChoice'
+  analyzerChoice: 'chess.analyzerChoice',
+  showCoordinates: 'chess.showCoordinates'
 };
 const AI_LABELS: Record<AiDifficulty, string> = {
   easy: 'Easy',
@@ -126,6 +128,7 @@ export class GameController {
   private recentPositions: string[] = [];
   private hintMode = false;
   private analyzerChoice: AnalyzerChoice = DEFAULT_ANALYZER;
+  private showCoordinates = true;
   private hintMove: Move | null = null;
   private hintRequestId = 0;
   private hintPositionKey: string | null = null;
@@ -153,6 +156,7 @@ export class GameController {
     this.playForWinAiVsAi = preferences.playForWinAiVsAi;
     this.hintMode = preferences.hintMode;
     this.analyzerChoice = preferences.analyzerChoice;
+    this.showCoordinates = preferences.showCoordinates;
     const soundEnabled = SoundManager.loadEnabled();
     this.sound = new SoundManager(soundEnabled);
     this.music = initMusic();
@@ -160,6 +164,7 @@ export class GameController {
       onPick: (pick) => this.handlePick(pick),
       onCancel: () => this.clearSelection()
     }, this.pieceSet);
+    this.scene.setCoordinatesVisible(this.showCoordinates);
     this.initAiWorker();
     this.ui = new GameUI(uiRoot, {
       onRestart: () => this.reset(),
@@ -186,6 +191,7 @@ export class GameController {
       onCopyPlainHistory: () => this.copyPlainHistory(),
       onAnalyzerChange: (choice) => this.setAnalyzerChoice(choice),
       onAnalyzeGame: () => this.openAnalyzer(),
+      onToggleCoordinates: (enabled) => this.setShowCoordinates(enabled),
       onUiStateChange: (state) => this.handleUiStateChange(state)
     }, {
       mode: this.mode,
@@ -198,7 +204,8 @@ export class GameController {
       pieceSet: this.pieceSet,
       playForWin: this.playForWinAiVsAi,
       hintMode: this.hintMode,
-      analyzerChoice: this.analyzerChoice
+      analyzerChoice: this.analyzerChoice,
+      showCoordinates: this.showCoordinates
     });
     this.stats = new GameStats();
     this.stats.reset(this.state);
@@ -528,6 +535,13 @@ export class GameController {
     this.ui.setAnalyzerChoice(choice);
   }
 
+  private setShowCoordinates(enabled: boolean): void {
+    this.showCoordinates = enabled;
+    this.persistPreferences();
+    this.ui.setCoordinatesEnabled(enabled);
+    this.scene.setCoordinatesVisible(enabled);
+  }
+
   private openAnalyzer(): void {
     if (typeof window === 'undefined') {
       return;
@@ -675,6 +689,7 @@ export class GameController {
     let playForWinAiVsAi = true;
     let hintMode = false;
     let analyzerChoice: AnalyzerChoice = DEFAULT_ANALYZER;
+    let showCoordinates = true;
 
     if (storage) {
       const rawNames = storage.getItem(STORAGE_KEYS.names);
@@ -739,6 +754,11 @@ export class GameController {
         analyzerChoice = rawAnalyzer as AnalyzerChoice;
       }
 
+      const rawCoords = storage.getItem(STORAGE_KEYS.showCoordinates);
+      if (rawCoords !== null) {
+        showCoordinates = rawCoords === 'true';
+      }
+
       storage.setItem(STORAGE_KEYS.names, JSON.stringify(names));
       storage.setItem(STORAGE_KEYS.ai, JSON.stringify(ai));
       storage.setItem(STORAGE_KEYS.mode, mode);
@@ -747,6 +767,7 @@ export class GameController {
       storage.setItem(STORAGE_KEYS.playForWinAiVsAi, playForWinAiVsAi.toString());
       storage.setItem(STORAGE_KEYS.hintMode, hintMode.toString());
       storage.setItem(STORAGE_KEYS.analyzerChoice, analyzerChoice);
+      storage.setItem(STORAGE_KEYS.showCoordinates, showCoordinates.toString());
     }
 
     return {
@@ -757,7 +778,8 @@ export class GameController {
       pieceSet,
       playForWinAiVsAi,
       hintMode,
-      analyzerChoice
+      analyzerChoice,
+      showCoordinates
     };
   }
 
@@ -778,6 +800,7 @@ export class GameController {
     storage.setItem(STORAGE_KEYS.playForWinAiVsAi, this.playForWinAiVsAi.toString());
     storage.setItem(STORAGE_KEYS.hintMode, this.hintMode.toString());
     storage.setItem(STORAGE_KEYS.analyzerChoice, this.analyzerChoice);
+    storage.setItem(STORAGE_KEYS.showCoordinates, this.showCoordinates.toString());
   }
 
   private resetPositionHistory(): void {

@@ -11,7 +11,7 @@ import engineLogoUrl from '../../graphics/BrainITChessGameEngineLogo.png';
 
 const PLAYER_GUIDE_URL = `${import.meta.env.BASE_URL}player-user-guide.md`;
 const LIVE_URL = 'https://brainit-consulting.github.io/chess/';
-const APP_VERSION = 'v1.1.29';
+const APP_VERSION = 'v1.1.30';
 
 export type UiState = {
   visible: boolean;
@@ -41,6 +41,7 @@ type UIHandlers = {
   onCopyPgn: () => void;
   onAnalyzerChange: (choice: AnalyzerChoice) => void;
   onAnalyzeGame: () => void;
+  onToggleCoordinates: (enabled: boolean) => void;
   onExportPlainHistory: () => void;
   onExportPlainHistoryHtml: () => void;
   onCopyPlainHistory: () => void;
@@ -59,6 +60,7 @@ type UIOptions = {
   playForWin?: boolean;
   hintMode?: boolean;
   analyzerChoice?: AnalyzerChoice;
+  showCoordinates?: boolean;
 };
 
 const UI_STATE_KEY = 'chess.uiState';
@@ -136,6 +138,7 @@ export class GameUI {
   private musicVolumeValueEl: HTMLSpanElement;
   private musicVolumeInput: HTMLInputElement;
   private musicHintEl: HTMLDivElement;
+  private coordinatesToggle: HTMLInputElement;
   private analyzerSelect: HTMLSelectElement;
   private analyzerButton: HTMLButtonElement;
   private helpAnalyzerLink: HTMLAnchorElement;
@@ -271,6 +274,7 @@ export class GameUI {
     const initialPlayForWin = options.playForWin ?? true;
     const initialHintMode = options.hintMode ?? false;
     const initialAnalyzerChoice = options.analyzerChoice ?? DEFAULT_ANALYZER;
+    const initialShowCoordinates = options.showCoordinates ?? true;
     this.aiToggle.checked = initialAiEnabled;
     this.aiToggle.addEventListener('change', () => {
       const enabled = this.aiToggle.checked;
@@ -313,6 +317,28 @@ export class GameUI {
       this.handlers.onPieceSetChange(this.pieceSetSelect.value as PieceSet);
     });
     pieceSetRow.append(this.pieceSetSelect);
+
+    const boardTitle = document.createElement('div');
+    boardTitle.className = 'section-title expand-only';
+    boardTitle.textContent = 'Board';
+
+    const boardRow = document.createElement('div');
+    boardRow.className = 'control-row expand-only';
+
+    const coordinatesLabel = document.createElement('label');
+    coordinatesLabel.className = 'toggle';
+
+    this.coordinatesToggle = document.createElement('input');
+    this.coordinatesToggle.type = 'checkbox';
+    this.coordinatesToggle.checked = initialShowCoordinates;
+    this.coordinatesToggle.addEventListener('change', () => {
+      this.handlers.onToggleCoordinates(this.coordinatesToggle.checked);
+    });
+
+    const coordinatesText = document.createElement('span');
+    coordinatesText.textContent = 'Show Coordinates';
+    coordinatesLabel.append(this.coordinatesToggle, coordinatesText);
+    boardRow.append(coordinatesLabel);
 
     this.delayRow = document.createElement('div');
     this.delayRow.className = 'control-row expand-only ai-delay-row';
@@ -581,6 +607,8 @@ export class GameUI {
       modeRow,
       pieceSetTitle,
       pieceSetRow,
+      boardTitle,
+      boardRow,
       playerTitle,
       playerGrid,
       this.expandButton,
@@ -629,6 +657,7 @@ export class GameUI {
     this.setMusicVolume(initialMusicVolume);
     this.setMusicEnabled(initialMusicEnabled);
     this.setAnalyzerChoice(initialAnalyzerChoice);
+    this.setCoordinatesEnabled(initialShowCoordinates);
     this.setMusicUnlockHint(false);
     this.setAiVsAiState({ started: false, running: false });
     this.applyUiState();
@@ -773,6 +802,10 @@ export class GameUI {
 
   setPieceSet(pieceSet: PieceSet): void {
     this.pieceSetSelect.value = pieceSet;
+  }
+
+  setCoordinatesEnabled(enabled: boolean): void {
+    this.coordinatesToggle.checked = enabled;
   }
 
   setAnalyzerChoice(choice: AnalyzerChoice): void {
