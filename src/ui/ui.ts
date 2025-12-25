@@ -9,7 +9,7 @@ import { PieceType } from '../rules';
 const PLAYER_GUIDE_URL = `${import.meta.env.BASE_URL}player-user-guide.md`;
 const ANALYSIS_URL = 'https://chessanalysis.pro/';
 const LIVE_URL = 'https://brainit-consulting.github.io/chess/';
-const APP_VERSION = 'v1.1.24';
+const APP_VERSION = 'v1.1.25';
 
 export type UiState = {
   visible: boolean;
