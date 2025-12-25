@@ -5,13 +5,13 @@ import { GameStatus, Color } from '../rules';
 import { GameSummary } from '../gameSummary';
 import { GameMode, PieceSet, SnapView } from '../types';
 import { PieceType } from '../rules';
+import { ANALYZER_OPTIONS, AnalyzerChoice, DEFAULT_ANALYZER } from '../analyzer';
 import analyzerLogoUrl from '../../graphics/BrainITChessAnalyzerLogo.png';
 import engineLogoUrl from '../../graphics/BrainITChessGameEngineLogo.png';
 
 const PLAYER_GUIDE_URL = `${import.meta.env.BASE_URL}player-user-guide.md`;
-const ANALYSIS_URL = 'https://chessanalysis.pro/';
 const LIVE_URL = 'https://brainit-consulting.github.io/chess/';
-const APP_VERSION = 'v1.1.28';
+const APP_VERSION = 'v1.1.29';
 
 export type UiState = {
   visible: boolean;
@@ -39,6 +39,7 @@ type UIHandlers = {
   onHideAiExplanation: () => void;
   onExportPgn: () => void;
   onCopyPgn: () => void;
+  onAnalyzerChange: (choice: AnalyzerChoice) => void;
   onAnalyzeGame: () => void;
   onExportPlainHistory: () => void;
   onExportPlainHistoryHtml: () => void;
@@ -57,6 +58,7 @@ type UIOptions = {
   pieceSet?: PieceSet;
   playForWin?: boolean;
   hintMode?: boolean;
+  analyzerChoice?: AnalyzerChoice;
 };
 
 const UI_STATE_KEY = 'chess.uiState';
@@ -125,7 +127,6 @@ export class GameUI {
   private aiToggle: HTMLInputElement;
   private difficultySelect: HTMLSelectElement;
   private pieceSetSelect: HTMLSelectElement;
-  private playForWinRow: HTMLDivElement;
   private playForWinToggle: HTMLInputElement;
   private hintRow: HTMLDivElement;
   private hintToggle: HTMLInputElement;
@@ -135,6 +136,10 @@ export class GameUI {
   private musicVolumeValueEl: HTMLSpanElement;
   private musicVolumeInput: HTMLInputElement;
   private musicHintEl: HTMLDivElement;
+  private analyzerSelect: HTMLSelectElement;
+  private analyzerButton: HTMLButtonElement;
+  private helpAnalyzerLink: HTMLAnchorElement;
+  private summaryAnalyzerLink: HTMLAnchorElement;
   private nameWhiteEl: HTMLSpanElement;
   private nameBlackEl: HTMLSpanElement;
   private scoreWhiteEl: HTMLSpanElement;
@@ -166,10 +171,10 @@ export class GameUI {
     header.className = 'panel-header';
 
     const brand = document.createElement('div');
-    brand.className = 'panel-brand';
+    brand.className = 'panel-brand expand-only';
 
     const engineLogo = document.createElement('img');
-    engineLogo.className = 'ui-logo ui-logo-engine expand-only';
+    engineLogo.className = 'ui-logo ui-logo-engine';
     engineLogo.src = engineLogoUrl;
     engineLogo.alt = 'BrainIT Chess Game Engine';
     engineLogo.loading = 'lazy';
@@ -183,7 +188,7 @@ export class GameUI {
     engineLink.append(engineLogo);
 
     const title = document.createElement('h1');
-    title.className = 'expand-only';
+    title.className = 'panel-title expand-only';
     title.textContent = '3D Chess';
 
     const headerActions = document.createElement('div');
@@ -203,8 +208,8 @@ export class GameUI {
     this.collapseButton.classList.add('ghost');
 
     headerActions.append(this.helpButton, this.collapseButton, this.hideButton);
-    brand.append(engineLink, title);
-    header.append(brand, headerActions);
+    brand.append(engineLink);
+    header.append(brand, title, headerActions);
 
     this.turnEl = document.createElement('div');
     this.turnEl.className = 'turn';
@@ -265,6 +270,7 @@ export class GameUI {
     const initialPieceSet = options.pieceSet ?? 'scifi';
     const initialPlayForWin = options.playForWin ?? true;
     const initialHintMode = options.hintMode ?? false;
+    const initialAnalyzerChoice = options.analyzerChoice ?? DEFAULT_ANALYZER;
     this.aiToggle.checked = initialAiEnabled;
     this.aiToggle.addEventListener('change', () => {
       const enabled = this.aiToggle.checked;
@@ -309,11 +315,11 @@ export class GameUI {
     pieceSetRow.append(this.pieceSetSelect);
 
     this.delayRow = document.createElement('div');
-    this.delayRow.className = 'control-row expand-only';
+    this.delayRow.className = 'control-row expand-only ai-delay-row';
 
     const delayLabel = document.createElement('span');
     delayLabel.className = 'stat-label';
-    delayLabel.textContent = 'AI Move Delay';
+    delayLabel.textContent = 'AI Delay';
 
     this.delayValueEl = document.createElement('span');
     this.delayValueEl.className = 'stat-value';
@@ -324,20 +330,32 @@ export class GameUI {
     this.delayInput.max = '1200';
     this.delayInput.step = '50';
     this.delayInput.value = initialDelay.toString();
+    this.delayInput.classList.add('inline-slider');
     this.delayInput.addEventListener('input', () => {
       const value = Number(this.delayInput.value);
       this.setAiDelay(value);
       this.handlers.onAiDelayChange(value);
     });
 
-    const delayRowMeta = document.createElement('div');
-    delayRowMeta.className = 'stat-row';
-    delayRowMeta.append(delayLabel, this.delayValueEl);
+    const delayGroup = document.createElement('div');
+    delayGroup.className = 'inline-slider-group';
+    delayGroup.append(delayLabel, this.delayInput, this.delayValueEl);
 
-    const delayStack = document.createElement('div');
-    delayStack.className = 'delay-stack';
-    delayStack.append(delayRowMeta, this.delayInput);
-    this.delayRow.append(delayStack);
+    const playForWinLabel = document.createElement('label');
+    playForWinLabel.className = 'toggle';
+
+    this.playForWinToggle = document.createElement('input');
+    this.playForWinToggle.type = 'checkbox';
+    this.playForWinToggle.checked = initialPlayForWin;
+    this.playForWinToggle.addEventListener('change', () => {
+      this.handlers.onTogglePlayForWin(this.playForWinToggle.checked);
+    });
+
+    const playForWinText = document.createElement('span');
+    playForWinText.textContent = 'Play for Win';
+    playForWinLabel.append(this.playForWinToggle, playForWinText);
+
+    this.delayRow.append(delayGroup, playForWinLabel);
 
     this.aiVsAiRow = document.createElement('div');
     this.aiVsAiRow.className = 'control-row expand-only';
@@ -360,24 +378,6 @@ export class GameUI {
       this.aiVsAiResumeButton
     );
 
-    this.playForWinRow = document.createElement('div');
-    this.playForWinRow.className = 'control-row expand-only';
-
-    const playForWinLabel = document.createElement('label');
-    playForWinLabel.className = 'toggle';
-
-    this.playForWinToggle = document.createElement('input');
-    this.playForWinToggle.type = 'checkbox';
-    this.playForWinToggle.checked = initialPlayForWin;
-    this.playForWinToggle.addEventListener('change', () => {
-      this.handlers.onTogglePlayForWin(this.playForWinToggle.checked);
-    });
-
-    const playForWinText = document.createElement('span');
-    playForWinText.textContent = 'Play for Win';
-    playForWinLabel.append(this.playForWinToggle, playForWinText);
-    this.playForWinRow.append(playForWinLabel);
-
     this.hintRow = document.createElement('div');
     this.hintRow.className = 'control-row expand-only';
 
@@ -396,8 +396,55 @@ export class GameUI {
     hintLabel.append(this.hintToggle, hintText);
     this.hintRow.append(hintLabel);
 
-    const soundRow = document.createElement('div');
-    soundRow.className = 'control-row expand-only';
+    const playerTitle = document.createElement('div');
+    playerTitle.className = 'section-title expand-only';
+    playerTitle.textContent = 'Players';
+
+    const playerGrid = document.createElement('div');
+    playerGrid.className = 'player-score-grid expand-only';
+
+    const playerHeader = document.createElement('div');
+    playerHeader.className = 'player-score-row player-score-head';
+    const headerLabel = document.createElement('span');
+    headerLabel.className = 'player-score-label';
+    headerLabel.textContent = '';
+    const headerWhite = document.createElement('span');
+    headerWhite.className = 'player-score-value';
+    headerWhite.textContent = 'White';
+    const headerBlack = document.createElement('span');
+    headerBlack.className = 'player-score-value';
+    headerBlack.textContent = 'Black';
+    playerHeader.append(headerLabel, headerWhite, headerBlack);
+
+    const nameRow = document.createElement('div');
+    nameRow.className = 'player-score-row';
+    const nameLabel = document.createElement('span');
+    nameLabel.className = 'player-score-label';
+    nameLabel.textContent = 'Name';
+    this.nameWhiteEl = document.createElement('span');
+    this.nameWhiteEl.className = 'player-score-value';
+    this.nameBlackEl = document.createElement('span');
+    this.nameBlackEl.className = 'player-score-value';
+    nameRow.append(nameLabel, this.nameWhiteEl, this.nameBlackEl);
+
+    const scoreRow = document.createElement('div');
+    scoreRow.className = 'player-score-row';
+    const scoreLabel = document.createElement('span');
+    scoreLabel.className = 'player-score-label';
+    scoreLabel.textContent = 'Score';
+    this.scoreWhiteEl = document.createElement('span');
+    this.scoreWhiteEl.className = 'player-score-value';
+    this.scoreBlackEl = document.createElement('span');
+    this.scoreBlackEl.className = 'player-score-value';
+    scoreRow.append(scoreLabel, this.scoreWhiteEl, this.scoreBlackEl);
+
+    playerGrid.append(playerHeader, nameRow, scoreRow);
+
+    this.expandButton = this.makeButton('Expand', () => this.setUiCollapsed(false));
+    this.expandButton.classList.add('ghost', 'collapse-only');
+
+    const audioRow = document.createElement('div');
+    audioRow.className = 'control-row expand-only audio-row';
 
     const soundLabel = document.createElement('label');
     soundLabel.className = 'toggle';
@@ -412,10 +459,6 @@ export class GameUI {
     const soundText = document.createElement('span');
     soundText.textContent = 'Sound';
     soundLabel.append(this.soundToggle, soundText);
-    soundRow.append(soundLabel);
-
-    const musicRow = document.createElement('div');
-    musicRow.className = 'control-row expand-only';
 
     const musicLabel = document.createElement('label');
     musicLabel.className = 'toggle';
@@ -432,14 +475,13 @@ export class GameUI {
     const musicText = document.createElement('span');
     musicText.textContent = 'Music';
     musicLabel.append(this.musicToggle, musicText);
-    musicRow.append(musicLabel);
 
     this.musicVolumeRow = document.createElement('div');
-    this.musicVolumeRow.className = 'control-row expand-only';
+    this.musicVolumeRow.className = 'inline-volume';
 
     const volumeLabel = document.createElement('span');
     volumeLabel.className = 'stat-label';
-    volumeLabel.textContent = 'Music Volume';
+    volumeLabel.textContent = 'Vol';
 
     this.musicVolumeValueEl = document.createElement('span');
     this.musicVolumeValueEl.className = 'stat-value';
@@ -450,51 +492,55 @@ export class GameUI {
     this.musicVolumeInput.max = '100';
     this.musicVolumeInput.step = '1';
     this.musicVolumeInput.value = Math.round(initialMusicVolume * 100).toString();
+    this.musicVolumeInput.classList.add('inline-slider');
     this.musicVolumeInput.addEventListener('input', () => {
       const value = Number(this.musicVolumeInput.value) / 100;
       this.setMusicVolume(value);
       this.handlers.onMusicVolumeChange(value);
     });
 
-    const musicVolumeMeta = document.createElement('div');
-    musicVolumeMeta.className = 'stat-row';
-    musicVolumeMeta.append(volumeLabel, this.musicVolumeValueEl);
+    this.musicVolumeRow.append(
+      volumeLabel,
+      this.musicVolumeInput,
+      this.musicVolumeValueEl
+    );
 
-    const musicVolumeStack = document.createElement('div');
-    musicVolumeStack.className = 'delay-stack';
-    musicVolumeStack.append(musicVolumeMeta, this.musicVolumeInput);
-    this.musicVolumeRow.append(musicVolumeStack);
+    audioRow.append(soundLabel, musicLabel, this.musicVolumeRow);
 
     this.musicHintEl = document.createElement('div');
     this.musicHintEl.className = 'music-hint expand-only';
     this.musicHintEl.textContent = 'Click anywhere to enable music';
 
-    const namesTitle = document.createElement('div');
-    namesTitle.className = 'section-title expand-only';
-    namesTitle.textContent = 'Player names';
+    const analyzerTitle = document.createElement('div');
+    analyzerTitle.className = 'section-title expand-only';
+    analyzerTitle.textContent = 'Analyzer';
 
-    const namesBlock = document.createElement('div');
-    namesBlock.className = 'stat-block expand-only';
-    const nameWhiteRow = this.makeStatRow('White');
-    const nameBlackRow = this.makeStatRow('Black');
-    this.nameWhiteEl = nameWhiteRow.value;
-    this.nameBlackEl = nameBlackRow.value;
-    namesBlock.append(nameWhiteRow.row, nameBlackRow.row);
+    const analyzerRow = document.createElement('div');
+    analyzerRow.className = 'control-row expand-only';
 
-    const scoreTitle = document.createElement('div');
-    scoreTitle.className = 'section-title';
-    scoreTitle.textContent = 'Score';
+    this.analyzerSelect = document.createElement('select');
+    for (const [value, option] of Object.entries(ANALYZER_OPTIONS) as [
+      AnalyzerChoice,
+      { label: string; url: string }
+    ][]) {
+      const opt = document.createElement('option');
+      opt.value = value;
+      opt.textContent = option.label;
+      this.analyzerSelect.append(opt);
+    }
+    this.analyzerSelect.value = initialAnalyzerChoice;
+    this.analyzerSelect.addEventListener('change', () => {
+      const choice = this.analyzerSelect.value as AnalyzerChoice;
+      this.applyAnalyzerChoice(choice);
+      this.handlers.onAnalyzerChange(choice);
+    });
 
-    const scoreBlock = document.createElement('div');
-    scoreBlock.className = 'stat-block';
-    const scoreWhiteRow = this.makeStatRow('White');
-    const scoreBlackRow = this.makeStatRow('Black');
-    this.scoreWhiteEl = scoreWhiteRow.value;
-    this.scoreBlackEl = scoreBlackRow.value;
-    scoreBlock.append(scoreWhiteRow.row, scoreBlackRow.row);
+    this.analyzerButton = this.makeButton('Open Analyzer', () =>
+      this.handlers.onAnalyzeGame()
+    );
+    this.analyzerButton.classList.add('ghost');
 
-    this.expandButton = this.makeButton('Expand', () => this.setUiCollapsed(false));
-    this.expandButton.classList.add('ghost', 'collapse-only');
+    analyzerRow.append(this.analyzerSelect, this.analyzerButton);
 
     const helpTitle = document.createElement('div');
     helpTitle.className = 'section-title expand-only';
@@ -505,12 +551,10 @@ export class GameUI {
     helpNote.append(
       document.createTextNode('Analyze games: export PGN and paste into ')
     );
-    const helpLink = document.createElement('a');
-    helpLink.href = ANALYSIS_URL;
-    helpLink.textContent = 'chessanalysis.pro';
-    helpLink.target = '_blank';
-    helpLink.rel = 'noopener';
-    helpNote.append(helpLink, document.createTextNode('.'));
+    this.helpAnalyzerLink = document.createElement('a');
+    this.helpAnalyzerLink.target = '_blank';
+    this.helpAnalyzerLink.rel = 'noopener';
+    helpNote.append(this.helpAnalyzerLink, document.createTextNode('.'));
 
     const buttonRow = document.createElement('div');
     buttonRow.className = 'button-row expand-only';
@@ -537,20 +581,17 @@ export class GameUI {
       modeRow,
       pieceSetTitle,
       pieceSetRow,
-      namesTitle,
-      namesBlock,
-      scoreTitle,
-      scoreBlock,
+      playerTitle,
+      playerGrid,
       this.expandButton,
-      soundRow,
-      musicRow,
-      this.musicVolumeRow,
+      audioRow,
       this.musicHintEl,
+      aiRow,
       this.delayRow,
       this.aiVsAiRow,
-      this.playForWinRow,
       this.hintRow,
-      aiRow,
+      analyzerTitle,
+      analyzerRow,
       helpTitle,
       helpNote,
       buttonRow,
@@ -587,6 +628,7 @@ export class GameUI {
     this.setHintMode(initialHintMode);
     this.setMusicVolume(initialMusicVolume);
     this.setMusicEnabled(initialMusicEnabled);
+    this.setAnalyzerChoice(initialAnalyzerChoice);
     this.setMusicUnlockHint(false);
     this.setAiVsAiState({ started: false, running: false });
     this.applyUiState();
@@ -733,6 +775,11 @@ export class GameUI {
     this.pieceSetSelect.value = pieceSet;
   }
 
+  setAnalyzerChoice(choice: AnalyzerChoice): void {
+    this.analyzerSelect.value = choice;
+    this.applyAnalyzerChoice(choice);
+  }
+
   setPlayForWin(enabled: boolean): void {
     this.playForWinToggle.checked = enabled;
   }
@@ -754,6 +801,19 @@ export class GameUI {
 
   setMusicUnlockHint(visible: boolean): void {
     this.musicHintEl.classList.toggle('hidden', !visible);
+  }
+
+  private applyAnalyzerChoice(choice: AnalyzerChoice): void {
+    const option = ANALYZER_OPTIONS[choice] ?? ANALYZER_OPTIONS.buddy;
+    this.helpAnalyzerLink.href = option.url;
+    this.helpAnalyzerLink.textContent = option.label;
+    this.summaryAnalyzerLink.href = option.url;
+    this.summaryAnalyzerLink.textContent = option.label;
+    const tooltip = `Analyze in ${option.label}`;
+    this.summaryAnalyzeButton.title = tooltip;
+    this.summaryAnalyzeButton.setAttribute('aria-label', tooltip);
+    this.analyzerButton.title = tooltip;
+    this.analyzerButton.setAttribute('aria-label', tooltip);
   }
 
   setAiVsAiState(state: { started: boolean; running: boolean }): void {
@@ -928,12 +988,10 @@ export class GameUI {
     summaryAnalysisEl.append(
       document.createTextNode('Analyze this game by exporting PGN and pasting it into ')
     );
-    const summaryLink = document.createElement('a');
-    summaryLink.href = ANALYSIS_URL;
-    summaryLink.textContent = 'chessanalysis.pro';
-    summaryLink.target = '_blank';
-    summaryLink.rel = 'noopener';
-    summaryAnalysisEl.append(summaryLink, document.createTextNode('.'));
+    this.summaryAnalyzerLink = document.createElement('a');
+    this.summaryAnalyzerLink.target = '_blank';
+    this.summaryAnalyzerLink.rel = 'noopener';
+    summaryAnalysisEl.append(this.summaryAnalyzerLink, document.createTextNode('.'));
 
     const summaryLiveEl = document.createElement('p');
     summaryLiveEl.className = 'summary-note';
@@ -977,12 +1035,19 @@ export class GameUI {
 
     const analyzerBrand = document.createElement('div');
     analyzerBrand.className = 'analyzer-branding';
+    const analyzerLink = document.createElement('a');
+    analyzerLink.href = ANALYZER_OPTIONS.buddy.url;
+    analyzerLink.target = '_blank';
+    analyzerLink.rel = 'noopener noreferrer';
+    analyzerLink.title = 'Open Chess Game Buddy';
+    analyzerLink.setAttribute('aria-label', 'Open Chess Game Buddy');
     const analyzerLogo = document.createElement('img');
     analyzerLogo.className = 'ui-logo ui-logo-analyzer';
     analyzerLogo.src = analyzerLogoUrl;
     analyzerLogo.alt = 'BrainIT Chess Game Analyzer';
     analyzerLogo.loading = 'lazy';
-    analyzerBrand.append(analyzerLogo);
+    analyzerLink.append(analyzerLogo);
+    analyzerBrand.append(analyzerLink);
 
     const buttonRow = document.createElement('div');
     buttonRow.className = 'button-row';
@@ -1255,7 +1320,6 @@ export class GameUI {
   private updateAiVsAiControls(): void {
     const show = this.mode === 'aivai';
     this.aiVsAiRow.classList.toggle('hidden', !show);
-    this.playForWinRow.classList.toggle('hidden', !show);
     this.aiVsAiStartButton.classList.toggle('hidden', !show || this.aiVsAiStarted);
     const showPause = show && this.aiVsAiStarted && this.aiVsAiRunning;
     const showResume = show && this.aiVsAiStarted && !this.aiVsAiRunning;

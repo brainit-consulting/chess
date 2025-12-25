@@ -100,17 +100,22 @@ body {
 }
 
 .panel-header {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
 }
 
 .panel-brand {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
   gap: 6px;
+  justify-self: start;
+}
+
+.panel-title {
+  margin: 0;
+  text-align: center;
 }
 
 .panel-brand a {
@@ -141,9 +146,38 @@ body {
   margin: 8px 0 4px;
 }
 
+.player-score-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.player-score-row {
+  display: grid;
+  grid-template-columns: 58px 1fr 1fr;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.player-score-head {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.player-score-label {
+  color: var(--muted);
+}
+
+.player-score-value {
+  font-weight: 600;
+}
+
 .panel-actions {
   display: flex;
   gap: 6px;
+  justify-self: end;
 }
 
 .ghost {
@@ -277,6 +311,26 @@ body {
   margin-top: 8px;
   color: var(--muted);
   font-size: 13px;
+  flex-wrap: wrap;
+}
+
+.audio-row {
+  align-items: center;
+}
+
+.inline-volume,
+.inline-slider-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.inline-slider {
+  width: 140px;
+}
+
+.audio-row .inline-slider {
+  width: 110px;
 }
 
 .history-timer {

@@ -48,6 +48,7 @@ import { initMusic, MusicManager } from './audio/musicManager';
 import { GameMode, PieceSet } from './types';
 import { createGameSummary } from './gameSummary';
 import { buildPgn, buildSanLine, PgnMove } from './pgn/pgn';
+import { ANALYZER_OPTIONS, AnalyzerChoice, DEFAULT_ANALYZER } from './analyzer';
 
 type PlayerNames = {
   white: string;
@@ -67,13 +68,13 @@ type Preferences = {
   pieceSet: PieceSet;
   playForWinAiVsAi: boolean;
   hintMode: boolean;
+  analyzerChoice: AnalyzerChoice;
 };
 
 const DEFAULT_NAMES: PlayerNames = { white: 'White', black: 'Black' };
 const DEFAULT_AI_DELAY_MS = 700;
 const HUMAN_VS_AI_DELAY_MS = 380;
 const EXPLAIN_TIMEOUT_MS = 10000;
-const ANALYZER_URL = 'https://chessgamebuddy.base44.app/';
 const STORAGE_KEYS = {
   names: 'chess.playerNames',
   ai: 'chess.aiSettings',
@@ -81,7 +82,8 @@ const STORAGE_KEYS = {
   aiDelay: 'chess.aiDelayMs',
   pieceSet: 'chess.pieceSet',
   playForWinAiVsAi: 'chess.playForWinAiVsAi',
-  hintMode: 'chess.hintMode'
+  hintMode: 'chess.hintMode',
+  analyzerChoice: 'chess.analyzerChoice'
 };
 const AI_LABELS: Record<AiDifficulty, string> = {
   easy: 'Easy',
@@ -123,6 +125,7 @@ export class GameController {
   private playForWinAiVsAi = true;
   private recentPositions: string[] = [];
   private hintMode = false;
+  private analyzerChoice: AnalyzerChoice = DEFAULT_ANALYZER;
   private hintMove: Move | null = null;
   private hintRequestId = 0;
   private hintPositionKey: string | null = null;
@@ -149,6 +152,7 @@ export class GameController {
     this.pieceSet = preferences.pieceSet;
     this.playForWinAiVsAi = preferences.playForWinAiVsAi;
     this.hintMode = preferences.hintMode;
+    this.analyzerChoice = preferences.analyzerChoice;
     const soundEnabled = SoundManager.loadEnabled();
     this.sound = new SoundManager(soundEnabled);
     this.music = initMusic();
@@ -180,6 +184,7 @@ export class GameController {
       onExportPlainHistory: () => this.exportPlainHistory(),
       onExportPlainHistoryHtml: () => this.exportPlainHistoryHtml(),
       onCopyPlainHistory: () => this.copyPlainHistory(),
+      onAnalyzerChange: (choice) => this.setAnalyzerChoice(choice),
       onAnalyzeGame: () => this.openAnalyzer(),
       onUiStateChange: (state) => this.handleUiStateChange(state)
     }, {
@@ -192,7 +197,8 @@ export class GameController {
       musicVolume: this.music.getMusicVolume(),
       pieceSet: this.pieceSet,
       playForWin: this.playForWinAiVsAi,
-      hintMode: this.hintMode
+      hintMode: this.hintMode,
+      analyzerChoice: this.analyzerChoice
     });
     this.stats = new GameStats();
     this.stats.reset(this.state);
@@ -516,11 +522,18 @@ export class GameController {
     this.music.setMusicVolume(volume);
   }
 
+  private setAnalyzerChoice(choice: AnalyzerChoice): void {
+    this.analyzerChoice = choice;
+    this.persistPreferences();
+    this.ui.setAnalyzerChoice(choice);
+  }
+
   private openAnalyzer(): void {
     if (typeof window === 'undefined') {
       return;
     }
-    window.open(ANALYZER_URL, '_blank', 'noopener,noreferrer');
+    const option = ANALYZER_OPTIONS[this.analyzerChoice] ?? ANALYZER_OPTIONS.buddy;
+    window.open(option.url, '_blank', 'noopener,noreferrer');
   }
 
   private handleUiStateChange(state: UiState): void {
@@ -661,6 +674,7 @@ export class GameController {
     let pieceSet: PieceSet = 'scifi';
     let playForWinAiVsAi = true;
     let hintMode = false;
+    let analyzerChoice: AnalyzerChoice = DEFAULT_ANALYZER;
 
     if (storage) {
       const rawNames = storage.getItem(STORAGE_KEYS.names);
@@ -720,6 +734,11 @@ export class GameController {
         hintMode = rawHintMode === 'true';
       }
 
+      const rawAnalyzer = storage.getItem(STORAGE_KEYS.analyzerChoice);
+      if (rawAnalyzer && rawAnalyzer in ANALYZER_OPTIONS) {
+        analyzerChoice = rawAnalyzer as AnalyzerChoice;
+      }
+
       storage.setItem(STORAGE_KEYS.names, JSON.stringify(names));
       storage.setItem(STORAGE_KEYS.ai, JSON.stringify(ai));
       storage.setItem(STORAGE_KEYS.mode, mode);
@@ -727,9 +746,19 @@ export class GameController {
       storage.setItem(STORAGE_KEYS.pieceSet, pieceSet);
       storage.setItem(STORAGE_KEYS.playForWinAiVsAi, playForWinAiVsAi.toString());
       storage.setItem(STORAGE_KEYS.hintMode, hintMode.toString());
+      storage.setItem(STORAGE_KEYS.analyzerChoice, analyzerChoice);
     }
 
-    return { names, ai, mode, aiDelayMs, pieceSet, playForWinAiVsAi, hintMode };
+    return {
+      names,
+      ai,
+      mode,
+      aiDelayMs,
+      pieceSet,
+      playForWinAiVsAi,
+      hintMode,
+      analyzerChoice
+    };
   }
 
   private persistPreferences(): void {
@@ -748,6 +777,7 @@ export class GameController {
     storage.setItem(STORAGE_KEYS.pieceSet, this.pieceSet);
     storage.setItem(STORAGE_KEYS.playForWinAiVsAi, this.playForWinAiVsAi.toString());
     storage.setItem(STORAGE_KEYS.hintMode, this.hintMode.toString());
+    storage.setItem(STORAGE_KEYS.analyzerChoice, this.analyzerChoice);
   }
 
   private resetPositionHistory(): void {

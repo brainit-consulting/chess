@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog, and this project adheres to
 Semantic Versioning.
 
+## [1.1.29] - 2025-12-24
+### Added
+- Allow selecting an analyzer (BrainIT Chess Buddy Analyzer or Chess Analysis Pro) from the main UI.
+- Add an "Open Analyzer" action button that uses the selected analyzer.
+### Changed
+- Game-over analysis text and "Analyze Game" action now use the selected analyzer.
+- Game-over analyzer logo links to Chess Game Buddy by default.
+- Compact left panel layout (centered title, merged player/score block, inline audio/AI controls).
+- Update the in-UI version label to v1.1.29.
+
 ## [1.1.28] - 2025-12-24
 ### Added
 - Show the BrainIT Chess Game Engine logo in the left panel header.
