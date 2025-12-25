@@ -7,6 +7,12 @@ Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.1.26] - 2025-12-24
+### Added
+- Game-over modal includes an "Analyze Game" link to Chess Game Buddy.
+### Changed
+- Update the in-UI version label to v1.1.26.
+
 ## [1.1.25] - 2025-12-24
 ### Changed
 - Update the in-UI version label to v1.1.25.

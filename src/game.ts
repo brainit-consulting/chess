@@ -73,6 +73,7 @@ const DEFAULT_NAMES: PlayerNames = { white: 'White', black: 'Black' };
 const DEFAULT_AI_DELAY_MS = 700;
 const HUMAN_VS_AI_DELAY_MS = 380;
 const EXPLAIN_TIMEOUT_MS = 10000;
+const ANALYZER_URL = 'https://chessgamebuddy.base44.app/';
 const STORAGE_KEYS = {
   names: 'chess.playerNames',
   ai: 'chess.aiSettings',
@@ -179,6 +180,7 @@ export class GameController {
       onExportPlainHistory: () => this.exportPlainHistory(),
       onExportPlainHistoryHtml: () => this.exportPlainHistoryHtml(),
       onCopyPlainHistory: () => this.copyPlainHistory(),
+      onAnalyzeGame: () => this.openAnalyzer(),
       onUiStateChange: (state) => this.handleUiStateChange(state)
     }, {
       mode: this.mode,
@@ -512,6 +514,13 @@ export class GameController {
 
   private setMusicVolume(volume: number): void {
     this.music.setMusicVolume(volume);
+  }
+
+  private openAnalyzer(): void {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    window.open(ANALYZER_URL, '_blank', 'noopener,noreferrer');
   }
 
   private handleUiStateChange(state: UiState): void {

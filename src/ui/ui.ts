@@ -9,7 +9,7 @@ import { PieceType } from '../rules';
 const PLAYER_GUIDE_URL = `${import.meta.env.BASE_URL}player-user-guide.md`;
 const ANALYSIS_URL = 'https://chessanalysis.pro/';
 const LIVE_URL = 'https://brainit-consulting.github.io/chess/';
-const APP_VERSION = 'v1.1.25';
+const APP_VERSION = 'v1.1.26';
 
 export type UiState = {
   visible: boolean;
@@ -37,6 +37,7 @@ type UIHandlers = {
   onHideAiExplanation: () => void;
   onExportPgn: () => void;
   onCopyPgn: () => void;
+  onAnalyzeGame: () => void;
   onExportPlainHistory: () => void;
   onExportPlainHistoryHtml: () => void;
   onCopyPlainHistory: () => void;
@@ -90,6 +91,7 @@ export class GameUI {
   private summaryExportButton: HTMLButtonElement;
   private summaryCopyButton: HTMLButtonElement;
   private summaryPlainHtmlExportButton: HTMLButtonElement;
+  private summaryAnalyzeButton: HTMLButtonElement;
   private summaryCopyStatusEl: HTMLDivElement;
   private summaryHistoryTabs: HTMLDivElement;
   private summaryHistoryPgnButton: HTMLButtonElement;
@@ -967,6 +969,12 @@ export class GameUI {
     );
     this.summaryCopyButton.classList.add('ghost', 'hidden');
     this.summaryCopyButton.disabled = true;
+    this.summaryAnalyzeButton = this.makeButton('Analyze Game', () =>
+      this.handlers.onAnalyzeGame()
+    );
+    this.summaryAnalyzeButton.classList.add('ghost');
+    this.summaryAnalyzeButton.title = 'Analyze in Chess Game Buddy';
+    this.summaryAnalyzeButton.setAttribute('aria-label', 'Analyze in Chess Game Buddy');
     this.summaryPlainHtmlExportButton = this.makeButton('Export Plain HTML', () =>
       this.handlers.onExportPlainHistoryHtml()
     );
@@ -981,6 +989,7 @@ export class GameUI {
       closeBtn,
       this.summaryExportButton,
       this.summaryCopyButton,
+      this.summaryAnalyzeButton,
       this.summaryPlainHtmlExportButton,
       restartBtn
     );
