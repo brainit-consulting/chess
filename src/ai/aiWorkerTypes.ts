@@ -11,6 +11,8 @@ export type AiMoveRequest = {
   playForWin?: boolean;
   recentPositions?: string[];
   depthOverride?: number;
+  maxTimeMs?: number;
+  maxDepth?: number;
 };
 
 export type AiHintRequest = {

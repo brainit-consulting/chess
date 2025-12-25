@@ -19,11 +19,20 @@ type SearchOptions = {
   recentPositions?: string[];
   repetitionPenalty?: number;
   topMoveWindow?: number;
+  fairnessWindow?: number;
 };
 
 const MATE_SCORE = 20000;
 const DEFAULT_REPETITION_PENALTY = 15;
 const DEFAULT_TOP_MOVE_WINDOW = 10;
+const DEFAULT_FAIRNESS_WINDOW = 25;
+
+type TimedSearchOptions = Omit<SearchOptions, 'depth'> & {
+  maxDepth: number;
+  maxTimeMs: number;
+  now?: () => number;
+  onDepth?: (depth: number) => void;
+};
 
 export function findBestMove(state: GameState, color: Color, options: SearchOptions): Move | null {
   const legalMoves = options.legalMoves ?? getAllLegalMoves(state, color);
@@ -32,17 +41,18 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
   }
 
   const ordered = orderMoves(state, legalMoves, color, options.rng);
-  const scoredMoves: { move: Move; score: number }[] = [];
+  const scoredMoves: { move: Move; score: number; baseScore: number }[] = [];
   const playForWin = Boolean(options.playForWin && options.recentPositions?.length);
   const repetitionPenalty = options.repetitionPenalty ?? DEFAULT_REPETITION_PENALTY;
   const topMoveWindow = options.topMoveWindow ?? DEFAULT_TOP_MOVE_WINDOW;
+  const fairnessWindow = options.fairnessWindow ?? DEFAULT_FAIRNESS_WINDOW;
 
   for (const move of ordered) {
     const next = cloneState(state);
     next.activeColor = color;
     applyMove(next, move);
 
-    let score = alphaBeta(
+    let baseScore = alphaBeta(
       next,
       options.depth - 1,
       -Infinity,
@@ -51,6 +61,7 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
       color,
       options.rng
     );
+    let score = baseScore;
 
     if (playForWin) {
       const key = getPositionKey(next);
@@ -59,7 +70,7 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
       }
     }
 
-    scoredMoves.push({ move, score });
+    scoredMoves.push({ move, score, baseScore });
   }
 
   if (scoredMoves.length === 1) {
@@ -67,13 +78,77 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
   }
 
   const bestScore = Math.max(...scoredMoves.map((entry) => entry.score));
-  const windowed =
+  const baseBest = Math.max(...scoredMoves.map((entry) => entry.baseScore));
+  let windowed =
     playForWin && topMoveWindow > 0
       ? scoredMoves.filter((entry) => entry.score >= bestScore - topMoveWindow)
       : scoredMoves.filter((entry) => entry.score === bestScore);
 
+  if (playForWin) {
+    windowed = windowed.filter((entry) => entry.baseScore >= baseBest - fairnessWindow);
+    if (windowed.length === 0) {
+      const baseLeaders = scoredMoves.filter((entry) => entry.baseScore === baseBest);
+      const index = Math.floor(options.rng() * baseLeaders.length);
+      return baseLeaders[index].move;
+    }
+  }
+
   const index = Math.floor(options.rng() * windowed.length);
   return windowed[index].move;
+}
+
+export function findBestMoveTimed(
+  state: GameState,
+  color: Color,
+  options: TimedSearchOptions
+): Move | null {
+  const legalMoves = options.legalMoves ?? getAllLegalMoves(state, color);
+  if (legalMoves.length === 0) {
+    return null;
+  }
+
+  const now = options.now ?? defaultNow;
+  const start = now();
+  let best: Move | null = null;
+
+  for (let depth = 1; depth <= options.maxDepth; depth += 1) {
+    if (now() - start >= options.maxTimeMs) {
+      break;
+    }
+    options.onDepth?.(depth);
+    const move = findBestMove(state, color, {
+      depth,
+      rng: options.rng,
+      legalMoves,
+      playForWin: options.playForWin,
+      recentPositions: options.recentPositions,
+      repetitionPenalty: options.repetitionPenalty,
+      topMoveWindow: options.topMoveWindow,
+      fairnessWindow: options.fairnessWindow
+    });
+    if (move) {
+      best = move;
+    }
+  }
+
+  if (best) {
+    return best;
+  }
+
+  return findBestMove(state, color, {
+    depth: 1,
+    rng: options.rng,
+    legalMoves,
+    playForWin: options.playForWin,
+    recentPositions: options.recentPositions,
+    repetitionPenalty: options.repetitionPenalty,
+    topMoveWindow: options.topMoveWindow,
+    fairnessWindow: options.fairnessWindow
+  });
+}
+
+function defaultNow(): number {
+  return typeof performance !== 'undefined' ? performance.now() : Date.now();
 }
 
 function alphaBeta(

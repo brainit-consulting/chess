@@ -6,8 +6,17 @@ const LABEL_OFFSET = 0.62;
 const LABEL_Y = 0.01;
 const LABEL_SCALE = 0.32;
 
+export type CoordinateOrientation = 'white' | 'black';
+
+type CoordinateSprites = {
+  fileSprites: THREE.Sprite[];
+  rankSprites: THREE.Sprite[];
+};
+
 export function createCoordinateGroup(tileSize: number): THREE.Group {
   const group = new THREE.Group();
+  const fileSprites: THREE.Sprite[] = [];
+  const rankSprites: THREE.Sprite[] = [];
 
   for (let file = 0; file < 8; file += 1) {
     const sprite = createLabelSprite(FILE_LABELS[file]);
@@ -16,6 +25,7 @@ export function createCoordinateGroup(tileSize: number): THREE.Group {
       LABEL_Y,
       (-3.5 - LABEL_OFFSET) * tileSize
     );
+    fileSprites.push(sprite);
     group.add(sprite);
   }
 
@@ -26,10 +36,32 @@ export function createCoordinateGroup(tileSize: number): THREE.Group {
       LABEL_Y,
       (rank - 3.5) * tileSize
     );
+    rankSprites.push(sprite);
     group.add(sprite);
   }
 
+  const data: CoordinateSprites = { fileSprites, rankSprites };
+  group.userData.coordinates = data;
   return group;
+}
+
+export function setCoordinateOrientation(
+  group: THREE.Group,
+  orientation: CoordinateOrientation
+): void {
+  const data = group.userData.coordinates as CoordinateSprites | undefined;
+  if (!data) {
+    return;
+  }
+  const fileLabels = orientation === 'black' ? [...FILE_LABELS].reverse() : FILE_LABELS;
+  const rankLabels = orientation === 'black' ? [...RANK_LABELS].reverse() : RANK_LABELS;
+
+  data.fileSprites.forEach((sprite, index) => {
+    updateLabelSprite(sprite, fileLabels[index]);
+  });
+  data.rankSprites.forEach((sprite, index) => {
+    updateLabelSprite(sprite, rankLabels[index]);
+  });
 }
 
 function createLabelSprite(text: string): THREE.Sprite {
@@ -44,7 +76,21 @@ function createLabelSprite(text: string): THREE.Sprite {
   sprite.scale.set(LABEL_SCALE, LABEL_SCALE, 1);
   sprite.renderOrder = 2;
   sprite.raycast = () => {};
+  sprite.userData.label = text;
   return sprite;
+}
+
+function updateLabelSprite(sprite: THREE.Sprite, text: string): void {
+  if (sprite.userData.label === text) {
+    return;
+  }
+  sprite.userData.label = text;
+  const material = sprite.material as THREE.SpriteMaterial;
+  if (material.map) {
+    material.map.dispose();
+  }
+  material.map = createLabelTexture(text);
+  material.needsUpdate = true;
 }
 
 function createLabelTexture(text: string): THREE.Texture {

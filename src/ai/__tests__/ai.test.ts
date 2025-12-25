@@ -11,7 +11,7 @@ import {
   shouldResumeAfterExplanation,
   selectWorkerForRequest
 } from '../aiWorkerClient';
-import { findBestMove } from '../search';
+import * as search from '../search';
 import {
   addPiece,
   applyMove,
@@ -146,6 +146,7 @@ describe('AI move selection', () => {
       mode: 'hvai',
       hintMode: true,
       activeColor: 'w',
+      humanColor: 'w',
       gameOver: false,
       pendingPromotion: false
     });
@@ -155,6 +156,7 @@ describe('AI move selection', () => {
       mode: 'aivai',
       hintMode: true,
       activeColor: 'w',
+      humanColor: 'w',
       gameOver: false,
       pendingPromotion: false
     });
@@ -164,6 +166,7 @@ describe('AI move selection', () => {
       mode: 'hvai',
       hintMode: true,
       activeColor: 'b',
+      humanColor: 'w',
       gameOver: false,
       pendingPromotion: false
     });
@@ -179,6 +182,7 @@ describe('AI move selection', () => {
       mode: 'hvai',
       hintMode: true,
       activeColor: 'w',
+      humanColor: 'w',
       gameOver: false
     });
     expect(apply).toBe(false);
@@ -231,7 +235,7 @@ describe('AI move selection', () => {
     applyMove(nextA, moveA);
     const repeatKey = getPositionKey(nextA);
 
-    const chosen = findBestMove(state, 'w', {
+    const chosen = search.findBestMove(state, 'w', {
       depth: 1,
       rng: () => 0,
       legalMoves: [moveA, moveB],
@@ -243,6 +247,92 @@ describe('AI move selection', () => {
 
     expect(chosen).not.toBeNull();
     expect(sameMove(chosen as Move, moveA)).toBe(false);
+  });
+
+  it('applies play-for-win repetition rules symmetrically', () => {
+    const whiteState = createEmptyState();
+    addPiece(whiteState, 'king', 'w', sq(3, 3));
+    addPiece(whiteState, 'king', 'b', sq(7, 7));
+    whiteState.activeColor = 'w';
+
+    const whiteMoves = getAllLegalMoves(whiteState, 'w');
+    const whiteRepeat = whiteMoves.find((move) => move.to.file === 2 && move.to.rank === 3);
+    const whiteAlt = whiteMoves.find((move) => move.to.file === 4 && move.to.rank === 3);
+    if (!whiteRepeat || !whiteAlt) {
+      throw new Error('Expected two comparable white king moves.');
+    }
+
+    const nextWhite = cloneState(whiteState);
+    nextWhite.activeColor = 'w';
+    applyMove(nextWhite, whiteRepeat);
+    const whiteKey = getPositionKey(nextWhite);
+
+    const chosenWhite = search.findBestMove(whiteState, 'w', {
+      depth: 1,
+      rng: () => 0,
+      legalMoves: [whiteRepeat, whiteAlt],
+      playForWin: true,
+      recentPositions: [whiteKey],
+      repetitionPenalty: 1000,
+      topMoveWindow: 0
+    });
+
+    const blackState = createEmptyState();
+    addPiece(blackState, 'king', 'b', sq(3, 3));
+    addPiece(blackState, 'king', 'w', sq(7, 7));
+    blackState.activeColor = 'b';
+
+    const blackMoves = getAllLegalMoves(blackState, 'b');
+    const blackRepeat = blackMoves.find((move) => move.to.file === 2 && move.to.rank === 3);
+    const blackAlt = blackMoves.find((move) => move.to.file === 4 && move.to.rank === 3);
+    if (!blackRepeat || !blackAlt) {
+      throw new Error('Expected two comparable black king moves.');
+    }
+
+    const nextBlack = cloneState(blackState);
+    nextBlack.activeColor = 'b';
+    applyMove(nextBlack, blackRepeat);
+    const blackKey = getPositionKey(nextBlack);
+
+    const chosenBlack = search.findBestMove(blackState, 'b', {
+      depth: 1,
+      rng: () => 0,
+      legalMoves: [blackRepeat, blackAlt],
+      playForWin: true,
+      recentPositions: [blackKey],
+      repetitionPenalty: 1000,
+      topMoveWindow: 0
+    });
+
+    expect(chosenWhite).not.toBeNull();
+    expect(chosenBlack).not.toBeNull();
+    expect(sameMove(chosenWhite as Move, whiteRepeat)).toBe(false);
+    expect(sameMove(chosenBlack as Move, blackRepeat)).toBe(false);
+  });
+
+  it('respects the max thinking time budget', () => {
+    const state = createInitialState();
+    const legalMoves = getAllLegalMoves(state, 'w');
+    const nowValues = [0, 30, 80, 130];
+    let nowIndex = 0;
+    const depths: number[] = [];
+    const now = () => {
+      const value = nowValues[Math.min(nowIndex, nowValues.length - 1)];
+      nowIndex += 1;
+      return value;
+    };
+
+    const move = search.findBestMoveTimed(state, 'w', {
+      maxDepth: 4,
+      maxTimeMs: 100,
+      rng: () => 0,
+      legalMoves,
+      now,
+      onDepth: (depth) => depths.push(depth)
+    });
+
+    expect(move).not.toBeNull();
+    expect(depths).toEqual([1, 2]);
   });
 
   it('ignores stale explain responses by request or position', () => {

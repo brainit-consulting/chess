@@ -4,7 +4,7 @@ import { Color, GameState, Move, PieceType, Square, getPieceSquares } from '../r
 import { PieceSet, SnapView } from '../types';
 import { createSciFiPieceInstance, preloadSciFiModels } from './models/scifiChessModels';
 import { createStandardPieceInstance, preloadStandardModels } from './models/standardChessModels';
-import { createCoordinateGroup } from './coordinates';
+import { createCoordinateGroup, setCoordinateOrientation } from './coordinates';
 
 export type PickResult = {
   type: 'square' | 'piece';
@@ -88,6 +88,7 @@ export class SceneView {
     this.scene.add(this.piecesGroup);
     this.scene.add(this.markersGroup);
     this.coordinateGroup = createCoordinateGroup(TILE_SIZE);
+    setCoordinateOrientation(this.coordinateGroup, 'white');
     this.scene.add(this.coordinateGroup);
 
     this.addLights();
@@ -240,6 +241,7 @@ export class SceneView {
 
   snapView(view: SnapView): void {
     this.cameraController.snap(view);
+    setCoordinateOrientation(this.coordinateGroup, view === 'black' ? 'black' : 'white');
   }
 
   setUiState(state: { visible: boolean; collapsed: boolean; historyVisible: boolean }): void {

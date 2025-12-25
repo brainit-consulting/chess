@@ -1,7 +1,11 @@
 import { Color, GameState, Move, getAllLegalMoves } from '../rules';
-import { findBestMove } from './search';
+import { findBestMove, findBestMoveTimed } from './search';
 
-export type AiDifficulty = 'easy' | 'medium' | 'hard';
+export type AiDifficulty = 'easy' | 'medium' | 'hard' | 'max';
+
+export const MAX_THINKING_DEPTH_CAP = 7;
+export const MAX_THINKING_HUMAN_VS_AI_MS = 1000;
+export const MAX_THINKING_AI_VS_AI_MS = 700;
 
 export type AiOptions = {
   color?: Color;
@@ -11,12 +15,15 @@ export type AiOptions = {
   playForWin?: boolean;
   recentPositions?: string[];
   depthOverride?: number;
+  maxTimeMs?: number;
+  maxDepth?: number;
 };
 
 const DEPTH_BY_DIFFICULTY: Record<AiDifficulty, number> = {
   easy: 1,
   medium: 2,
-  hard: 3
+  hard: 3,
+  max: 3
 };
 
 export function chooseMove(state: GameState, options: AiOptions = {}): Move | null {
@@ -29,8 +36,21 @@ export function chooseMove(state: GameState, options: AiOptions = {}): Move | nu
   const rng =
     options.rng ?? (options.seed !== undefined ? createSeededRng(options.seed) : Math.random);
   const difficulty = options.difficulty ?? 'medium';
-  const depth = options.depthOverride ?? DEPTH_BY_DIFFICULTY[difficulty];
 
+  if (difficulty === 'max') {
+    const maxTimeMs = options.maxTimeMs ?? MAX_THINKING_HUMAN_VS_AI_MS;
+    const maxDepth = options.maxDepth ?? MAX_THINKING_DEPTH_CAP;
+    return findBestMoveTimed(state, color, {
+      maxDepth,
+      maxTimeMs,
+      rng,
+      legalMoves,
+      playForWin: options.playForWin,
+      recentPositions: options.recentPositions
+    });
+  }
+
+  const depth = options.depthOverride ?? DEPTH_BY_DIFFICULTY[difficulty];
   return findBestMove(state, color, {
     depth,
     rng,

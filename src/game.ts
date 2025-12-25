@@ -15,7 +15,13 @@ import {
   getPositionKey,
   sameSquare
 } from './rules';
-import { AiDifficulty, chooseMove } from './ai/ai';
+import {
+  AiDifficulty,
+  MAX_THINKING_AI_VS_AI_MS,
+  MAX_THINKING_DEPTH_CAP,
+  MAX_THINKING_HUMAN_VS_AI_MS,
+  chooseMove
+} from './ai/ai';
 import { explainMove } from './ai/aiExplain';
 import {
   AiExplainOptions,
@@ -70,6 +76,7 @@ type Preferences = {
   hintMode: boolean;
   analyzerChoice: AnalyzerChoice;
   showCoordinates: boolean;
+  humanColor: Color;
 };
 
 const DEFAULT_NAMES: PlayerNames = { white: 'White', black: 'Black' };
@@ -85,12 +92,14 @@ const STORAGE_KEYS = {
   playForWinAiVsAi: 'chess.playForWinAiVsAi',
   hintMode: 'chess.hintMode',
   analyzerChoice: 'chess.analyzerChoice',
-  showCoordinates: 'chess.showCoordinates'
+  showCoordinates: 'chess.showCoordinates',
+  humanColor: 'chess.humanColor'
 };
 const AI_LABELS: Record<AiDifficulty, string> = {
   easy: 'Easy',
   medium: 'Medium',
-  hard: 'Hard'
+  hard: 'Hard',
+  max: 'Max Thinking'
 };
 
 export class GameController {
@@ -129,6 +138,7 @@ export class GameController {
   private hintMode = false;
   private analyzerChoice: AnalyzerChoice = DEFAULT_ANALYZER;
   private showCoordinates = true;
+  private humanColor: Color = 'w';
   private hintMove: Move | null = null;
   private hintRequestId = 0;
   private hintPositionKey: string | null = null;
@@ -157,6 +167,7 @@ export class GameController {
     this.hintMode = preferences.hintMode;
     this.analyzerChoice = preferences.analyzerChoice;
     this.showCoordinates = preferences.showCoordinates;
+    this.humanColor = preferences.humanColor;
     const soundEnabled = SoundManager.loadEnabled();
     this.sound = new SoundManager(soundEnabled);
     this.music = initMusic();
@@ -182,6 +193,7 @@ export class GameController {
       onPieceSetChange: (pieceSet) => this.setPieceSet(pieceSet),
       onTogglePlayForWin: (enabled) => this.setPlayForWinAiVsAi(enabled),
       onToggleHintMode: (enabled) => this.setHintMode(enabled),
+      onHumanColorChange: (color) => this.setHumanColor(color),
       onShowAiExplanation: () => this.showAiExplanation(),
       onHideAiExplanation: () => this.hideAiExplanation(),
       onExportPgn: () => this.exportPgn(),
@@ -205,7 +217,8 @@ export class GameController {
       playForWin: this.playForWinAiVsAi,
       hintMode: this.hintMode,
       analyzerChoice: this.analyzerChoice,
-      showCoordinates: this.showCoordinates
+      showCoordinates: this.showCoordinates,
+      humanColor: this.humanColor
     });
     this.stats = new GameStats();
     this.stats.reset(this.state);
@@ -237,6 +250,7 @@ export class GameController {
 
   start(): void {
     void this.scene.ready().then(() => {
+      this.scene.snapView(this.getDefaultView());
       this.sync();
       this.maybeScheduleAiMove();
     });
@@ -435,6 +449,13 @@ export class GameController {
     this.aiPendingApplyAt = performance.now() + delayMs;
 
     const playForWin = this.mode === 'aivai' && this.playForWinAiVsAi;
+    const maxTimeMs =
+      this.aiDifficulty === 'max'
+        ? this.mode === 'aivai'
+          ? MAX_THINKING_AI_VS_AI_MS
+          : MAX_THINKING_HUMAN_VS_AI_MS
+        : undefined;
+    const maxDepth = this.aiDifficulty === 'max' ? MAX_THINKING_DEPTH_CAP : undefined;
     const request: AiWorkerRequest = {
       kind: 'move',
       requestId,
@@ -443,7 +464,9 @@ export class GameController {
       difficulty: this.aiDifficulty,
       seed: this.aiSeed,
       playForWin,
-      recentPositions: playForWin ? this.getRecentPositionKeys() : undefined
+      recentPositions: playForWin ? this.getRecentPositionKeys() : undefined,
+      maxTimeMs,
+      maxDepth
     };
 
     this.postAiRequest(request);
@@ -478,6 +501,9 @@ export class GameController {
     this.clearHint();
     this.clearAiExplanation();
     this.cancelAiMove();
+    if (this.mode === 'hvai') {
+      this.scene.snapView(this.getDefaultView());
+    }
     this.maybeScheduleAiMove();
   }
 
@@ -514,6 +540,23 @@ export class GameController {
     this.ui.setHintMode(enabled);
     this.clearHint();
     this.maybeRequestHint();
+  }
+
+  private setHumanColor(color: Color): void {
+    if (this.humanColor === color) {
+      return;
+    }
+    this.humanColor = color;
+    this.persistPreferences();
+    this.ui.setHumanColor(color);
+    this.updatePlayerNames();
+    this.cancelAiMove();
+    this.clearHint();
+    this.clearAiExplanation();
+    if (this.mode === 'hvai') {
+      this.scene.snapView(this.getDefaultView());
+    }
+    this.maybeScheduleAiMove();
   }
 
   private setSoundEnabled(enabled: boolean): void {
@@ -562,10 +605,17 @@ export class GameController {
     }
 
     if (this.mode === 'hvai') {
-      this.ui.setPlayerNames({
-        white: 'You',
-        black: `AI (${AI_LABELS[this.aiDifficulty]})`
-      });
+      if (this.humanColor === 'w') {
+        this.ui.setPlayerNames({
+          white: 'You',
+          black: `AI (${AI_LABELS[this.aiDifficulty]})`
+        });
+      } else {
+        this.ui.setPlayerNames({
+          white: `AI (${AI_LABELS[this.aiDifficulty]})`,
+          black: 'You'
+        });
+      }
       return;
     }
 
@@ -578,13 +628,17 @@ export class GameController {
       return false;
     }
     if (this.mode === 'hvai') {
-      return color === 'b';
+      return color !== this.humanColor;
     }
     return true;
   }
 
   private getAiDelayMs(): number {
     return this.mode === 'aivai' ? this.aiDelayMs : HUMAN_VS_AI_DELAY_MS;
+  }
+
+  private getDefaultView(): 'white' | 'black' {
+    return this.mode === 'hvai' && this.humanColor === 'b' ? 'black' : 'white';
   }
 
   private startAiVsAi(): void {
@@ -690,6 +744,7 @@ export class GameController {
     let hintMode = false;
     let analyzerChoice: AnalyzerChoice = DEFAULT_ANALYZER;
     let showCoordinates = true;
+    let humanColor: Color = 'w';
 
     if (storage) {
       const rawNames = storage.getItem(STORAGE_KEYS.names);
@@ -759,6 +814,11 @@ export class GameController {
         showCoordinates = rawCoords === 'true';
       }
 
+      const rawHumanColor = storage.getItem(STORAGE_KEYS.humanColor);
+      if (rawHumanColor === 'w' || rawHumanColor === 'b') {
+        humanColor = rawHumanColor;
+      }
+
       storage.setItem(STORAGE_KEYS.names, JSON.stringify(names));
       storage.setItem(STORAGE_KEYS.ai, JSON.stringify(ai));
       storage.setItem(STORAGE_KEYS.mode, mode);
@@ -768,6 +828,7 @@ export class GameController {
       storage.setItem(STORAGE_KEYS.hintMode, hintMode.toString());
       storage.setItem(STORAGE_KEYS.analyzerChoice, analyzerChoice);
       storage.setItem(STORAGE_KEYS.showCoordinates, showCoordinates.toString());
+      storage.setItem(STORAGE_KEYS.humanColor, humanColor);
     }
 
     return {
@@ -779,7 +840,8 @@ export class GameController {
       playForWinAiVsAi,
       hintMode,
       analyzerChoice,
-      showCoordinates
+      showCoordinates,
+      humanColor
     };
   }
 
@@ -801,6 +863,7 @@ export class GameController {
     storage.setItem(STORAGE_KEYS.hintMode, this.hintMode.toString());
     storage.setItem(STORAGE_KEYS.analyzerChoice, this.analyzerChoice);
     storage.setItem(STORAGE_KEYS.showCoordinates, this.showCoordinates.toString());
+    storage.setItem(STORAGE_KEYS.humanColor, this.humanColor);
   }
 
   private resetPositionHistory(): void {
@@ -809,7 +872,7 @@ export class GameController {
 
   private recordPositionKey(): void {
     this.recentPositions.push(getPositionKey(this.state));
-    const max = 12;
+    const max = 10;
     if (this.recentPositions.length > max) {
       this.recentPositions.splice(0, this.recentPositions.length - max);
     }
@@ -874,7 +937,9 @@ export class GameController {
           seed: request.seed,
           playForWin: request.playForWin,
           recentPositions: request.recentPositions,
-          depthOverride: request.depthOverride
+          depthOverride: request.depthOverride,
+          maxTimeMs: request.maxTimeMs,
+          maxDepth: request.maxDepth
         })
       };
     }
@@ -964,6 +1029,7 @@ export class GameController {
         mode: this.mode,
         hintMode: this.hintMode,
         activeColor: this.state.activeColor,
+        humanColor: this.humanColor,
         gameOver: this.gameOver
       })
     ) {
@@ -1015,6 +1081,7 @@ export class GameController {
         mode: this.mode,
         hintMode: this.hintMode,
         activeColor: this.state.activeColor,
+        humanColor: this.humanColor,
         gameOver: this.gameOver,
         pendingPromotion: Boolean(this.pendingPromotion)
       })
@@ -1037,7 +1104,7 @@ export class GameController {
       requestId: this.hintRequestId,
       positionKey: key,
       state: this.state,
-      color: 'w',
+      color: this.humanColor,
       depthOverride: 2,
       seed: this.aiSeed
     };
@@ -1279,9 +1346,15 @@ export class GameController {
       return { ...this.baseNames };
     }
     if (this.mode === 'hvai') {
+      if (this.humanColor === 'w') {
+        return {
+          white: 'You',
+          black: `AI (${AI_LABELS[this.aiDifficulty]})`
+        };
+      }
       return {
-        white: 'You',
-        black: `AI (${AI_LABELS[this.aiDifficulty]})`
+        white: `AI (${AI_LABELS[this.aiDifficulty]})`,
+        black: 'You'
       };
     }
     const label = `AI (${AI_LABELS[this.aiDifficulty]})`;

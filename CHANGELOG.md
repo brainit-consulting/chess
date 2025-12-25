@@ -5,9 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog, and this project adheres to
 Semantic Versioning.
 
+## [Unreleased]
+
+## [1.1.31] - 2025-12-24
+### Added
+- "Max Thinking" difficulty with time-based iterative deepening (capped depth).
+- Human vs AI "Play as" selection (White or Black, default White).
+### Changed
+- Play-for-Win now applies a fairness window to avoid large eval drops when avoiding repetition.
+- Add timing and symmetry tests for the Play-for-Win guardrails.
+### Fixed
+- Force the default camera to the White view on launch.
+- Correct board coordinate label mapping for White/Black views.
+
 ## [1.1.30] - 2025-12-24
 ### Added
-- Subtle board coordinates (a–h, 1–8) with a “Show Coordinates” toggle.
+- Subtle board coordinates (a-h, 1-8) with a "Show Coordinates" toggle.
 ### Changed
 - Analyzer selection persists and updates help/game-over text labels.
 - Game-over analyzer logo links to Chess Game Buddy by default.

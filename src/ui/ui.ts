@@ -11,7 +11,7 @@ import engineLogoUrl from '../../graphics/BrainITChessGameEngineLogo.png';
 
 const PLAYER_GUIDE_URL = `${import.meta.env.BASE_URL}player-user-guide.md`;
 const LIVE_URL = 'https://brainit-consulting.github.io/chess/';
-const APP_VERSION = 'v1.1.30';
+const APP_VERSION = 'v1.1.31';
 
 export type UiState = {
   visible: boolean;
@@ -35,6 +35,7 @@ type UIHandlers = {
   onPieceSetChange: (pieceSet: PieceSet) => void;
   onTogglePlayForWin: (enabled: boolean) => void;
   onToggleHintMode: (enabled: boolean) => void;
+  onHumanColorChange: (color: Color) => void;
   onShowAiExplanation: () => void;
   onHideAiExplanation: () => void;
   onExportPgn: () => void;
@@ -61,6 +62,7 @@ type UIOptions = {
   hintMode?: boolean;
   analyzerChoice?: AnalyzerChoice;
   showCoordinates?: boolean;
+  humanColor?: Color;
 };
 
 const UI_STATE_KEY = 'chess.uiState';
@@ -122,6 +124,8 @@ export class GameUI {
   private aiVsAiStarted = false;
   private aiVsAiRunning = false;
   private modeButtons: Record<GameMode, HTMLButtonElement>;
+  private humanColorRow: HTMLDivElement;
+  private humanColorSelect: HTMLSelectElement;
   private delayRow: HTMLDivElement;
   private delayValueEl: HTMLSpanElement;
   private delayInput: HTMLInputElement;
@@ -275,6 +279,7 @@ export class GameUI {
     const initialHintMode = options.hintMode ?? false;
     const initialAnalyzerChoice = options.analyzerChoice ?? DEFAULT_ANALYZER;
     const initialShowCoordinates = options.showCoordinates ?? true;
+    const initialHumanColor = options.humanColor ?? 'w';
     this.aiToggle.checked = initialAiEnabled;
     this.aiToggle.addEventListener('change', () => {
       const enabled = this.aiToggle.checked;
@@ -291,6 +296,7 @@ export class GameUI {
       <option value="easy">Easy</option>
       <option value="medium">Medium</option>
       <option value="hard">Hard</option>
+      <option value="max">Max Thinking</option>
     `;
     this.difficultySelect.value = initialDifficulty;
     this.difficultySelect.disabled = !initialAiEnabled;
@@ -299,6 +305,25 @@ export class GameUI {
     });
 
     aiRow.append(aiLabel, this.difficultySelect);
+
+    this.humanColorRow = document.createElement('div');
+    this.humanColorRow.className = 'control-row expand-only';
+
+    const humanLabel = document.createElement('span');
+    humanLabel.className = 'stat-label';
+    humanLabel.textContent = 'Play as';
+
+    this.humanColorSelect = document.createElement('select');
+    this.humanColorSelect.innerHTML = `
+      <option value="w">White</option>
+      <option value="b">Black</option>
+    `;
+    this.humanColorSelect.value = initialHumanColor;
+    this.humanColorSelect.addEventListener('change', () => {
+      this.handlers.onHumanColorChange(this.humanColorSelect.value as Color);
+    });
+
+    this.humanColorRow.append(humanLabel, this.humanColorSelect);
 
     const pieceSetTitle = document.createElement('div');
     pieceSetTitle.className = 'section-title expand-only';
@@ -615,6 +640,7 @@ export class GameUI {
       audioRow,
       this.musicHintEl,
       aiRow,
+      this.humanColorRow,
       this.delayRow,
       this.aiVsAiRow,
       this.hintRow,
@@ -654,6 +680,7 @@ export class GameUI {
     this.setPieceSet(initialPieceSet);
     this.setPlayForWin(initialPlayForWin);
     this.setHintMode(initialHintMode);
+    this.setHumanColor(initialHumanColor);
     this.setMusicVolume(initialMusicVolume);
     this.setMusicEnabled(initialMusicEnabled);
     this.setAnalyzerChoice(initialAnalyzerChoice);
@@ -674,6 +701,10 @@ export class GameUI {
   setPlayerNames(names: { white: string; black: string }): void {
     this.nameWhiteEl.textContent = names.white;
     this.nameBlackEl.textContent = names.black;
+  }
+
+  setHumanColor(color: Color): void {
+    this.humanColorSelect.value = color;
   }
 
   setScores(scores: { w: number; b: number }): void {
@@ -1319,6 +1350,7 @@ export class GameUI {
     const aiEnabled = this.mode !== 'hvh';
     this.aiToggle.checked = aiEnabled;
     this.difficultySelect.disabled = !aiEnabled;
+    this.humanColorRow.classList.toggle('hidden', this.mode !== 'hvai');
     this.delayRow.classList.toggle('hidden', this.mode !== 'aivai');
     this.hintRow.classList.toggle('hidden', this.mode !== 'hvai');
     this.hintToggle.disabled = this.mode !== 'hvai';

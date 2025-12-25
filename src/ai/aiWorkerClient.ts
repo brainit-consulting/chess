@@ -17,6 +17,7 @@ export type HintRequestGate = {
   mode: GameMode;
   hintMode: boolean;
   activeColor: Color;
+  humanColor: Color;
   gameOver: boolean;
   pendingPromotion: boolean;
 };
@@ -29,6 +30,7 @@ export type HintResponseGate = {
   mode: GameMode;
   hintMode: boolean;
   activeColor: Color;
+  humanColor: Color;
   gameOver: boolean;
 };
 
@@ -82,7 +84,7 @@ export function shouldRequestHint(state: HintRequestGate): boolean {
   if (state.gameOver || state.pendingPromotion) {
     return false;
   }
-  if (state.activeColor !== 'w') {
+  if (state.activeColor !== state.humanColor) {
     return false;
   }
   return true;
@@ -95,7 +97,7 @@ export function shouldApplyHintResponse(state: HintResponseGate): boolean {
   if (state.mode !== 'hvai' || !state.hintMode) {
     return false;
   }
-  if (state.gameOver || state.activeColor !== 'w') {
+  if (state.gameOver || state.activeColor !== state.humanColor) {
     return false;
   }
   if (state.positionKey !== state.currentPositionKey) {

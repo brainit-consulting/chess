@@ -35,7 +35,9 @@ export function computeAiMove(request: AiWorkerRequest): AiWorkerResponse {
     seed: request.seed,
     playForWin: request.playForWin,
     recentPositions: request.recentPositions,
-    depthOverride: request.depthOverride
+    depthOverride: request.depthOverride,
+    maxTimeMs: request.maxTimeMs,
+    maxDepth: request.maxDepth
   });
 
   return { kind: 'move', requestId: request.requestId, move };
