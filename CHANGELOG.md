@@ -7,6 +7,11 @@ Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.1.33] - 2025-12-25
+### Fixed
+- Show the "Play as" selector correctly inline with Play vs AI.
+- Reapply auto-snap to the human side after restart when enabled.
+
 ## [1.1.32] - 2025-12-25
 ### Added
 - Auto-snap toggle to keep the camera on the human side in Human vs AI.

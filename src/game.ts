@@ -292,6 +292,7 @@ export class GameController {
     this.ui.setGameTime(this.clock.getElapsedMs());
     this.resetPositionHistory();
     this.sync();
+    this.maybeAutoSnapView();
     this.maybeScheduleAiMove();
   }
 

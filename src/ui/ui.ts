@@ -11,7 +11,7 @@ import engineLogoUrl from '../../graphics/BrainITChessGameEngineLogo.png';
 
 const PLAYER_GUIDE_URL = `${import.meta.env.BASE_URL}player-user-guide.md`;
 const LIVE_URL = 'https://brainit-consulting.github.io/chess/';
-const APP_VERSION = 'v1.1.32';
+const APP_VERSION = 'v1.1.33';
 
 export type UiState = {
   visible: boolean;
@@ -128,7 +128,7 @@ export class GameUI {
   private aiVsAiStarted = false;
   private aiVsAiRunning = false;
   private modeButtons: Record<GameMode, HTMLButtonElement>;
-  private humanColorRow: HTMLDivElement;
+  private humanColorGroup: HTMLDivElement;
   private humanColorSelect: HTMLSelectElement;
   private autoSnapRow: HTMLDivElement;
   private autoSnapToggle: HTMLInputElement;
@@ -311,10 +311,8 @@ export class GameUI {
       this.handlers.onDifficultyChange(this.difficultySelect.value as AiDifficulty);
     });
 
-    aiRow.append(aiLabel, this.difficultySelect);
-
-    this.humanColorRow = document.createElement('div');
-    this.humanColorRow.className = 'control-row expand-only';
+    this.humanColorGroup = document.createElement('div');
+    this.humanColorGroup.className = 'inline-slider-group';
 
     const humanLabel = document.createElement('span');
     humanLabel.className = 'stat-label';
@@ -330,7 +328,9 @@ export class GameUI {
       this.handlers.onHumanColorChange(this.humanColorSelect.value as Color);
     });
 
-    this.humanColorRow.append(humanLabel, this.humanColorSelect);
+    this.humanColorGroup.append(humanLabel, this.humanColorSelect);
+
+    aiRow.append(aiLabel, this.difficultySelect, this.humanColorGroup);
 
     const pieceSetTitle = document.createElement('div');
     pieceSetTitle.className = 'section-title expand-only';
@@ -666,7 +666,6 @@ export class GameUI {
       audioRow,
       this.musicHintEl,
       aiRow,
-      this.humanColorRow,
       this.delayRow,
       this.aiVsAiRow,
       this.hintRow,
@@ -1402,7 +1401,7 @@ export class GameUI {
     const aiEnabled = this.mode !== 'hvh';
     this.aiToggle.checked = aiEnabled;
     this.difficultySelect.disabled = !aiEnabled;
-    this.humanColorRow.classList.toggle('hidden', this.mode !== 'hvai');
+    this.humanColorGroup.classList.toggle('hidden', this.mode !== 'hvai');
     this.autoSnapRow.classList.toggle('hidden', this.mode !== 'hvai');
     this.delayRow.classList.toggle('hidden', this.mode !== 'aivai');
     this.hintRow.classList.toggle('hidden', this.mode !== 'hvai');
