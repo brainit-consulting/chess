@@ -16,6 +16,9 @@ export class CameraController {
   private zoomDuration = 240;
   private nudgeStart: number | null = null;
   private nudgeDuration = 220;
+  private nudgeBasePosition = new THREE.Vector3();
+  private nudgeDirection = new THREE.Vector3();
+  private nudgeOffset = new THREE.Vector3();
   private settleStart: number | null = null;
   private settleDuration = 420;
 
@@ -101,6 +104,11 @@ export class CameraController {
 
   nudgeTurn(): void {
     // Gentle micro-nudge to acknowledge turn changes.
+    this.nudgeBasePosition.copy(this.camera.position);
+    this.nudgeDirection
+      .copy(this.camera.position)
+      .sub(this.controls.target)
+      .normalize();
     this.nudgeStart = performance.now();
   }
 
@@ -151,8 +159,8 @@ export class CameraController {
     const elapsed = performance.now() - this.nudgeStart;
     const t = Math.min(elapsed / this.nudgeDuration, 1);
     const strength = Math.sin(Math.PI * t) * 0.08;
-    const direction = this.camera.position.clone().sub(this.controls.target).normalize();
-    this.camera.position.add(direction.multiplyScalar(strength));
+    this.nudgeOffset.copy(this.nudgeDirection).multiplyScalar(strength);
+    this.camera.position.copy(this.nudgeBasePosition).add(this.nudgeOffset);
     if (t >= 1) {
       this.nudgeStart = null;
     }
