@@ -7,9 +7,11 @@ Semantic Versioning.
 
 ## [Unreleased]
 
-## [1.1.37] - 2025-12-26 08:00
+## [1.1.37] - 2025-12-26 08:31
 ### Added
 - Max Thinking evaluation heuristics for king safety, early queen development, and minor-piece PSTs.
+### Changed
+- Update the in-UI version label to v1.1.37.
 
 ## [1.1.36] - 2025-12-25
 ### Added
