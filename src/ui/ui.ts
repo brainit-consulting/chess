@@ -11,7 +11,7 @@ import engineLogoUrl from '../../graphics/BrainITChessGameEngineLogo.png';
 
 const PLAYER_GUIDE_URL = `${import.meta.env.BASE_URL}player-user-guide.md`;
 const LIVE_URL = 'https://brainit-consulting.github.io/chess/';
-const APP_VERSION = 'v1.1.37';
+const APP_VERSION = 'v1.1.38';
 
 export type UiState = {
   visible: boolean;

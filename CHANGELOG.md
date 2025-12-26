@@ -7,6 +7,12 @@ Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.1.38] - 2025-12-26 09:15
+### Fixed
+- Improve hosted export downloads by adding a safer download fallback.
+### Changed
+- Update the in-UI version label to v1.1.38.
+
 ## [1.1.37] - 2025-12-26 08:31
 ### Added
 - Max Thinking evaluation heuristics for king safety, early queen development, and minor-piece PSTs.

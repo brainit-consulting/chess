@@ -1589,12 +1589,27 @@ function formatDuration(ms: number): string {
 
 function downloadTextFile(content: string, filename: string, mimeType: string): void {
   const blob = new Blob([content], { type: mimeType });
+  const nav = typeof navigator !== 'undefined' ? navigator : undefined;
+  if (nav && 'msSaveOrOpenBlob' in nav) {
+    (nav as Navigator & { msSaveOrOpenBlob: (data: Blob, name: string) => void })
+      .msSaveOrOpenBlob(blob, filename);
+    return;
+  }
+
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
   link.download = filename;
+  link.rel = 'noopener';
+  link.target = '_blank';
   document.body.append(link);
-  link.click();
+  try {
+    link.click();
+  } catch {
+    link.dispatchEvent(
+      new MouseEvent('click', { bubbles: true, cancelable: true, view: window })
+    );
+  }
   link.remove();
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
