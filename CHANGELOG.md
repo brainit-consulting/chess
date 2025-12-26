@@ -7,6 +7,12 @@ Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.1.41] - 2025-12-26 10:35
+### Added
+- Max Thinking mate-distance scoring, transposition table, and mate-aware move ordering.
+### Changed
+- Update the in-UI version label to v1.1.41.
+
 ## [1.1.40] - 2025-12-26 10:04
 ### Added
 - Max Thinking quiescence search (captures and checks only) to reduce horizon effects.

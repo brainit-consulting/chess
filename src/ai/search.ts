@@ -21,6 +21,7 @@ type SearchOptions = {
   topMoveWindow?: number;
   fairnessWindow?: number;
   maxThinking?: boolean;
+  tt?: Map<string, TTEntry>;
 };
 
 const MATE_SCORE = 20000;
@@ -28,6 +29,15 @@ const DEFAULT_REPETITION_PENALTY = 15;
 const DEFAULT_TOP_MOVE_WINDOW = 10;
 const DEFAULT_FAIRNESS_WINDOW = 25;
 const QUIESCENCE_MAX_DEPTH = 4;
+
+type TTFlag = 'exact' | 'alpha' | 'beta';
+
+type TTEntry = {
+  depth: number;
+  score: number;
+  flag: TTFlag;
+  bestMove?: Move;
+};
 
 type TimedSearchOptions = Omit<SearchOptions, 'depth'> & {
   maxDepth: number;
@@ -42,7 +52,14 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
     return null;
   }
 
-  const ordered = orderMoves(state, legalMoves, color, options.rng);
+  const preferred =
+    options.maxThinking && options.tt
+      ? options.tt.get(getPositionKey(state))?.bestMove
+      : undefined;
+  const ordered = orderMoves(state, legalMoves, color, options.rng, {
+    preferred,
+    maxThinking: options.maxThinking
+  });
   const scoredMoves: { move: Move; score: number; baseScore: number }[] = [];
   const playForWin = Boolean(options.playForWin && options.recentPositions?.length);
   const repetitionPenalty = options.repetitionPenalty ?? DEFAULT_REPETITION_PENALTY;
@@ -62,7 +79,9 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
       opponentColor(color),
       color,
       options.rng,
-      options.maxThinking ?? false
+      options.maxThinking ?? false,
+      1,
+      options.tt
     );
     let score = baseScore;
 
@@ -113,6 +132,7 @@ export function findBestMoveTimed(
   const now = options.now ?? defaultNow;
   const start = now();
   let best: Move | null = null;
+  const tt = options.maxThinking ? options.tt ?? new Map<string, TTEntry>() : undefined;
 
   for (let depth = 1; depth <= options.maxDepth; depth += 1) {
     if (now() - start >= options.maxTimeMs) {
@@ -128,7 +148,8 @@ export function findBestMoveTimed(
       repetitionPenalty: options.repetitionPenalty,
       topMoveWindow: options.topMoveWindow,
       fairnessWindow: options.fairnessWindow,
-      maxThinking: options.maxThinking
+      maxThinking: options.maxThinking,
+      tt
     });
     if (move) {
       best = move;
@@ -148,7 +169,8 @@ export function findBestMoveTimed(
     repetitionPenalty: options.repetitionPenalty,
     topMoveWindow: options.topMoveWindow,
     fairnessWindow: options.fairnessWindow,
-    maxThinking: options.maxThinking
+    maxThinking: options.maxThinking,
+    tt
   });
 }
 
@@ -164,12 +186,40 @@ function alphaBeta(
   currentColor: Color,
   maximizingColor: Color,
   rng: () => number,
-  maxThinking: boolean
+  maxThinking: boolean,
+  ply: number,
+  tt?: Map<string, TTEntry>
 ): number {
   const legalMoves = getAllLegalMoves(state, currentColor);
+  const alphaOrig = alpha;
+  const betaOrig = beta;
+  let key: string | null = null;
+  let ttBestMove: Move | undefined;
+
+  if (maxThinking && tt) {
+    key = getPositionKey(state);
+    const cached = tt.get(key);
+    if (cached && cached.depth >= depth) {
+      if (cached.flag === 'exact') {
+        return cached.score;
+      }
+      if (cached.flag === 'alpha' && cached.score <= alpha) {
+        return cached.score;
+      }
+      if (cached.flag === 'beta' && cached.score >= beta) {
+        return cached.score;
+      }
+    }
+    ttBestMove = cached?.bestMove;
+  }
+
   if (legalMoves.length === 0) {
     if (isInCheck(state, currentColor)) {
-      return currentColor === maximizingColor ? -MATE_SCORE : MATE_SCORE;
+      return maxThinking
+        ? mateScore(currentColor, maximizingColor, ply)
+        : currentColor === maximizingColor
+          ? -MATE_SCORE
+          : MATE_SCORE;
     }
     return 0;
   }
@@ -185,48 +235,25 @@ function alphaBeta(
       currentColor,
       maximizingColor,
       rng,
+      ply,
       0
     );
   }
 
-  const ordered = orderMoves(state, legalMoves, currentColor, rng);
+  const ordered = orderMoves(state, legalMoves, currentColor, rng, {
+    preferred: ttBestMove,
+    maxThinking
+  });
   const maximizing = currentColor === maximizingColor;
 
   if (maximizing) {
     let value = -Infinity;
+    let bestMove: Move | undefined;
     for (const move of ordered) {
       const next = cloneState(state);
       next.activeColor = currentColor;
       applyMove(next, move);
-      value = Math.max(
-        value,
-        alphaBeta(
-          next,
-          depth - 1,
-          alpha,
-          beta,
-          opponentColor(currentColor),
-          maximizingColor,
-          rng,
-          maxThinking
-        )
-      );
-      alpha = Math.max(alpha, value);
-      if (alpha >= beta) {
-        break;
-      }
-    }
-    return value;
-  }
-
-  let value = Infinity;
-  for (const move of ordered) {
-    const next = cloneState(state);
-    next.activeColor = currentColor;
-    applyMove(next, move);
-    value = Math.min(
-      value,
-      alphaBeta(
+      const nextScore = alphaBeta(
         next,
         depth - 1,
         alpha,
@@ -234,13 +261,64 @@ function alphaBeta(
         opponentColor(currentColor),
         maximizingColor,
         rng,
-        maxThinking
-      )
+        maxThinking,
+        ply + 1,
+        tt
+      );
+      if (nextScore > value) {
+        value = nextScore;
+        bestMove = move;
+      }
+      alpha = Math.max(alpha, value);
+      if (alpha >= beta) {
+        break;
+      }
+    }
+    if (maxThinking && tt && key) {
+      tt.set(key, {
+        depth,
+        score: value,
+        flag: value <= alphaOrig ? 'alpha' : value >= betaOrig ? 'beta' : 'exact',
+        bestMove
+      });
+    }
+    return value;
+  }
+
+  let value = Infinity;
+  let bestMove: Move | undefined;
+  for (const move of ordered) {
+    const next = cloneState(state);
+    next.activeColor = currentColor;
+    applyMove(next, move);
+    const nextScore = alphaBeta(
+      next,
+      depth - 1,
+      alpha,
+      beta,
+      opponentColor(currentColor),
+      maximizingColor,
+      rng,
+      maxThinking,
+      ply + 1,
+      tt
     );
+    if (nextScore < value) {
+      value = nextScore;
+      bestMove = move;
+    }
     beta = Math.min(beta, value);
     if (alpha >= beta) {
       break;
     }
+  }
+  if (maxThinking && tt && key) {
+    tt.set(key, {
+      depth,
+      score: value,
+      flag: value <= alphaOrig ? 'alpha' : value >= betaOrig ? 'beta' : 'exact',
+      bestMove
+    });
   }
   return value;
 }
@@ -249,11 +327,16 @@ function orderMoves(
   state: GameState,
   moves: Move[],
   color: Color,
-  rng: () => number
+  rng: () => number,
+  options?: { preferred?: Move; maxThinking?: boolean }
 ): Move[] {
+  const preferred = options?.preferred;
+  const maxThinking = options?.maxThinking ?? false;
   const scored = moves.map((move) => ({
     move,
-    score: scoreMoveHeuristic(state, move, color),
+    score:
+      scoreMoveHeuristic(state, move, color, maxThinking) +
+      (preferred && sameMove(move, preferred) ? 100000 : 0),
     tie: rng()
   }));
 
@@ -261,7 +344,12 @@ function orderMoves(
   return scored.map((entry) => entry.move);
 }
 
-function scoreMoveHeuristic(state: GameState, move: Move, color: Color): number {
+function scoreMoveHeuristic(
+  state: GameState,
+  move: Move,
+  color: Color,
+  maxThinking: boolean
+): number {
   const movingPiece = getPieceAt(state, move.from);
   const movedValue = movingPiece ? PIECE_VALUES[movingPiece.type] : 0;
 
@@ -285,6 +373,15 @@ function scoreMoveHeuristic(state: GameState, move: Move, color: Color): number 
     score += 40;
   }
 
+  if (maxThinking) {
+    if (capturedValue > 0) {
+      score += capturedValue * 10 - movedValue;
+    }
+    if (givesCheck) {
+      score += 60;
+    }
+  }
+
   if (hanging) {
     score -= movedValue * 0.75;
   }
@@ -306,8 +403,17 @@ function quiescence(
   currentColor: Color,
   maximizingColor: Color,
   rng: () => number,
-  depth: number
+  ply: number,
+  qDepth: number
 ): number {
+  const legalMoves = getAllLegalMoves(state, currentColor);
+  if (legalMoves.length === 0) {
+    if (isInCheck(state, currentColor)) {
+      return mateScore(currentColor, maximizingColor, ply);
+    }
+    return 0;
+  }
+
   const standPat = evaluateState(state, maximizingColor, { maxThinking: true });
   const maximizing = currentColor === maximizingColor;
 
@@ -323,11 +429,10 @@ function quiescence(
     beta = Math.min(beta, standPat);
   }
 
-  if (depth >= QUIESCENCE_MAX_DEPTH) {
+  if (qDepth >= QUIESCENCE_MAX_DEPTH) {
     return standPat;
   }
 
-  const legalMoves = getAllLegalMoves(state, currentColor);
   const noisyMoves = legalMoves.filter(
     (move) => isCaptureMove(state, move) || givesCheck(state, move, currentColor)
   );
@@ -335,7 +440,9 @@ function quiescence(
     return standPat;
   }
 
-  const ordered = orderMoves(state, noisyMoves, currentColor, rng);
+  const ordered = orderMoves(state, noisyMoves, currentColor, rng, {
+    maxThinking: true
+  });
 
   if (maximizing) {
     let value = standPat;
@@ -345,7 +452,16 @@ function quiescence(
       applyMove(next, move);
       value = Math.max(
         value,
-        quiescence(next, alpha, beta, opponentColor(currentColor), maximizingColor, rng, depth + 1)
+        quiescence(
+          next,
+          alpha,
+          beta,
+          opponentColor(currentColor),
+          maximizingColor,
+          rng,
+          ply + 1,
+          qDepth + 1
+        )
       );
       alpha = Math.max(alpha, value);
       if (alpha >= beta) {
@@ -362,7 +478,16 @@ function quiescence(
     applyMove(next, move);
     value = Math.min(
       value,
-      quiescence(next, alpha, beta, opponentColor(currentColor), maximizingColor, rng, depth + 1)
+      quiescence(
+        next,
+        alpha,
+        beta,
+        opponentColor(currentColor),
+        maximizingColor,
+        rng,
+        ply + 1,
+        qDepth + 1
+      )
     );
     beta = Math.min(beta, value);
     if (alpha >= beta) {
@@ -409,6 +534,23 @@ function isMovedPieceHanging(state: GameState, move: Move, color: Color): boolea
 
 function opponentColor(color: Color): Color {
   return color === 'w' ? 'b' : 'w';
+}
+
+function sameMove(a: Move, b: Move): boolean {
+  return (
+    a.from.file === b.from.file &&
+    a.from.rank === b.from.rank &&
+    a.to.file === b.to.file &&
+    a.to.rank === b.to.rank &&
+    a.promotion === b.promotion &&
+    a.isCastle === b.isCastle &&
+    a.isEnPassant === b.isEnPassant
+  );
+}
+
+function mateScore(currentColor: Color, maximizingColor: Color, ply: number): number {
+  const sign = currentColor === maximizingColor ? -1 : 1;
+  return sign * (MATE_SCORE - ply);
 }
 
 function cloneState(state: GameState): GameState {
