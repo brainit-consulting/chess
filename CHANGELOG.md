@@ -7,6 +7,11 @@ Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.1.35] - 2025-12-25
+### Changed
+- Refresh the player guide to match current UI controls, analyzers, and exports.
+- Remove outdated control and end-condition references.
+
 ## [1.1.34] - 2025-12-25
 ### Added
 - Coordinate mode selector to switch between PGN-fixed labels and view-relative labels.

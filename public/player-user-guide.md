@@ -1,6 +1,6 @@
-# 3D Chess — Player User Guide
+# 3D Chess - Player User Guide
 
-Welcome to **3D Chess**! This guide explains all available game modes, controls, and features so you can get the most out of the experience.
+Welcome to **3D Chess**! This guide covers current modes, controls, and features.
 
 ---
 
@@ -10,9 +10,15 @@ Welcome to **3D Chess**! This guide explains all available game modes, controls,
 - Right click or Escape: cancel selection
 - Right click + drag: rotate camera
 - Scroll wheel: zoom in/out
-- Q/E: rotate yaw
-- R/F: rotate pitch
 - View buttons: White / Black / Isometric / Top-Down
+
+---
+
+## Play Online
+
+Share this link so others can play:
+
+https://brainit-consulting.github.io/chess/
 
 ---
 
@@ -28,123 +34,157 @@ Welcome to **3D Chess**! This guide explains all available game modes, controls,
 
 - You play against the computer.
 - Choose AI difficulty (Easy / Medium / Hard).
-- You can play as White or Black.
+- Choose **Play as White** or **Play as Black**.
+- You can switch sides mid-game if you want.
 
 ### AI vs AI
 
 - Watch two AI players compete.
-- Useful for learning strategies or testing the engine.
-- Includes additional controls such as **Start**, **Pause**, and **Play for Win**.
+- Use **Start**, **Pause**, **Resume**, and **Play for Win**.
+- AI will not start automatically - setup comes first.
 
 ---
 
-## AI Settings
+## Board and Camera
+
+### Coordinates
+
+- **Show Coordinates** toggles labels on or off.
+- **Coordinate Mode** controls label orientation:
+  - **PGN (fixed)**: labels stay in standard PGN orientation (a1 is always White's left rook). This matches move history and PGN exports.
+  - **View (rotate)**: labels rotate with the camera so a1 stays at the bottom-left of your screen.
+
+Tip: If you compare the board to the Game History, use **PGN (fixed)**.
+
+### Auto-snap to your side
+
+- When enabled, the camera snaps behind your pieces in Human vs AI.
+- When disabled, the camera stays where you put it.
+
+### Camera Views
+
+- **White View**: behind White's pieces.
+- **Black View**: behind Black's pieces.
+- **Isometric**: angled 3D view.
+- **Top-Down**: near top-down analysis view.
+
+---
+
+## AI Features
 
 ### AI Difficulty
 
-- **Easy**: Makes simple, non-optimal moves.
-- **Medium**: Balanced play.
-- **Hard**: Stronger evaluation and deeper look-ahead.
+- **Easy**: simple, non-optimal moves.
+- **Medium**: balanced play.
+- **Hard**: strongest default setting.
 
 ### AI Move Delay
 
 - Adds a delay (in milliseconds) between AI moves.
 - Helps you visually follow the game.
-- Adjustable before or during AI vs AI play.
 
 ### Play for Win (AI vs AI only)
 
-- Encourages the AI to avoid repetitive or drawish move loops.
-- Reduces threefold repetition.
-- Adds move variety when multiple good options exist.
+- Encourages the AI to avoid repetition loops.
+- Adds variety when multiple moves are similarly good.
 
----
+### Hint Mode (Human vs AI only)
 
-## AI vs AI Controls
+- Shows a subtle highlight for the recommended move.
+- Highlights the FROM and TO squares.
+- Does not auto-play the move.
 
-- **Start Game**: Begins AI vs AI play after setup.
-- **Pause**: Immediately stops AI thinking and movement.
-- **Resume**: Continues from the current position.
-- **Restart**: Resets the board and AI state.
+### Why this move?
 
-AI will **not** start automatically — setup always comes first.
+- Available after the AI makes a move.
+- Shows a short, engine-based explanation (no guessing).
+- In AI vs AI, the game pauses while the modal is open.
 
 ---
 
 ## Piece Sets
 
-You can switch between visual styles:
+- **Sci-Fi**: futuristic default set.
+- **Standard**: classic chess pieces.
 
-- **Sci-Fi**: Futuristic default set.
-- **Standard**: Classic chess pieces (imported from Blender).
-
-Changing the piece set:
-
-- Preserves the current game state.
-- Updates visuals instantly.
+Changing the piece set keeps the current game state and updates visuals immediately.
 
 ---
 
-## Camera Views
+## Game History and Exports
 
-Choose how you see the board:
+The right panel shows:
 
-- **White View**: Behind White’s pieces.
-- **Black View**: Behind Black’s pieces.
-- **Isometric**: Angled 3D view.
-- **Top-Down**: Drone-style view directly above the board.
+- Move history (White and Black columns).
+- Game time (excludes pauses).
+- Hide/Show toggle for the panel.
+
+Exports (available at game end):
+
+- **Export PGN** and **Copy PGN**.
+- **Export Plain English**, **Copy Plain English**, and **Export Plain HTML**.
+
+The game-over summary also includes:
+
+- PGN / Plain English tabs.
+- Export / Copy buttons.
+- **Analyze Game** button.
+
+---
+
+## Analyzers
+
+Use the **Analyzer** dropdown in the main UI to choose:
+
+- **BrainIT Chess Buddy Analyzer**
+- **Chess Analysis Pro**
+
+Click **Open Analyzer** to open your choice in a new tab, then paste or import your PGN.
 
 ---
 
 ## Game End Conditions
 
-The game will automatically end and show a summary when:
+The game ends and shows a summary on:
 
 - **Checkmate**
 - **Stalemate**
 - **Insufficient material** (for example, King vs King)
 - **Threefold repetition**
-- **50-move rule** (if enabled)
-
-### Game Summary Popup
-
-Includes:
-
-- Result (Win / Loss / Draw)
-- Reason (Checkmate, repetition, etc.)
-- Final material score
-- Brief explanation
 
 ---
 
-## Sound
+## Sound and Music
 
-- Toggle sound effects on or off.
-- Applies to moves, captures, and game events.
+- **Sound**: move, capture, check, and UI sounds.
+- **Music**: ambient background loop with a volume slider.
 
 ---
 
-## Preferences & Persistence
+## Preferences and Persistence
 
 The game remembers:
 
-- Last game mode
-- AI difficulty
+- Mode and AI difficulty
 - AI move delay
+- Play for Win
+- Hint Mode
+- Play as (Human vs AI)
 - Piece set
-- Camera view
-- “Play for Win” setting
-
-All preferences are restored on reload.
+- Coordinate mode and Show Coordinates
+- Auto-snap to your side
+- Analyzer choice
+- Sound and Music settings
+- UI panel visibility
 
 ---
 
 ## Tips
 
 - Use **AI vs AI + Play for Win** to study openings and endgames.
-- Slow down AI move delay when learning.
-- Switch camera views for better board awareness.
-- Top-Down view is ideal for analyzing positions.
+- Slow down AI move delay while learning.
+- Top-Down view is ideal for analysis.
+- Use **PGN (fixed)** coordinates when comparing to Game History.
 
 ---
 
