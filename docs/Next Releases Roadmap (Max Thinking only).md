@@ -17,6 +17,7 @@ Phase 3A — Move ordering upgrades (Killer + History)
 Impact: High
 Risk: Low
 Why: Better ordering means deeper effective search, fewer blunders, faster mates.
+Status: Completed in v1.1.44.
 
 Implementation
 1) Keep TT-best-move-first (already present).

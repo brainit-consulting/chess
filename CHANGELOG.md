@@ -6,6 +6,8 @@ The format is based on Keep a Changelog, and this project adheres to
 Semantic Versioning.
 
 ## [Unreleased]
+### Changed
+- Mark Phase 3A as completed in the Max Thinking roadmap.
 
 ## [1.1.44] - 2025-12-26 14:37
 ### Added
