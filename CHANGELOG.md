@@ -7,6 +7,12 @@ Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.1.40] - 2025-12-26 10:04
+### Added
+- Max Thinking quiescence search (captures and checks only) to reduce horizon effects.
+### Changed
+- Update the in-UI version label to v1.1.40.
+
 ## [1.1.39] - 2025-12-26 09:34
 ### Fixed
 - Use the native file picker when available to improve downloads on hosted builds.

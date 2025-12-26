@@ -553,4 +553,44 @@ describe('AI move selection', () => {
     const centerScore = evaluateState(centerState, 'w', { maxThinking: true });
     expect(centerScore).toBeGreaterThan(edgeScore);
   });
+
+  it('uses quiescence to avoid bad captures in max thinking', () => {
+    const state = createEmptyState();
+    addPiece(state, 'king', 'w', sq(4, 0));
+    addPiece(state, 'king', 'b', sq(4, 7));
+    addPiece(state, 'queen', 'w', sq(3, 0));
+    addPiece(state, 'rook', 'b', sq(3, 7));
+    addPiece(state, 'pawn', 'b', sq(3, 6));
+    state.activeColor = 'w';
+
+    const legalMoves = getAllLegalMoves(state, 'w');
+    const capture = legalMoves.find(
+      (move) => move.from.file === 3 && move.from.rank === 0 && move.to.file === 3 && move.to.rank === 6
+    );
+    const quiet = legalMoves.find(
+      (move) => move.from.file === 3 && move.from.rank === 0 && move.to.file === 4 && move.to.rank === 1
+    );
+
+    if (!capture || !quiet) {
+      throw new Error('Expected capture and quiet queen moves.');
+    }
+
+    const withoutQuiescence = search.findBestMove(state, 'w', {
+      depth: 1,
+      rng: () => 0,
+      legalMoves: [capture, quiet],
+      maxThinking: false
+    });
+
+    const withQuiescence = search.findBestMove(state, 'w', {
+      depth: 1,
+      rng: () => 0,
+      legalMoves: [capture, quiet],
+      maxThinking: true
+    });
+
+    expect(withoutQuiescence).not.toBeNull();
+    expect(withQuiescence).not.toBeNull();
+    expect(sameMove(withQuiescence as Move, capture)).toBe(false);
+  });
 });

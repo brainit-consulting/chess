@@ -27,6 +27,7 @@ const MATE_SCORE = 20000;
 const DEFAULT_REPETITION_PENALTY = 15;
 const DEFAULT_TOP_MOVE_WINDOW = 10;
 const DEFAULT_FAIRNESS_WINDOW = 25;
+const QUIESCENCE_MAX_DEPTH = 4;
 
 type TimedSearchOptions = Omit<SearchOptions, 'depth'> & {
   maxDepth: number;
@@ -174,7 +175,18 @@ function alphaBeta(
   }
 
   if (depth <= 0) {
-    return evaluateState(state, maximizingColor, { maxThinking });
+    if (!maxThinking) {
+      return evaluateState(state, maximizingColor, { maxThinking });
+    }
+    return quiescence(
+      state,
+      alpha,
+      beta,
+      currentColor,
+      maximizingColor,
+      rng,
+      0
+    );
   }
 
   const ordered = orderMoves(state, legalMoves, currentColor, rng);
@@ -285,6 +297,94 @@ function scoreMoveHeuristic(state: GameState, move: Move, color: Color): number 
   }
 
   return score;
+}
+
+function quiescence(
+  state: GameState,
+  alpha: number,
+  beta: number,
+  currentColor: Color,
+  maximizingColor: Color,
+  rng: () => number,
+  depth: number
+): number {
+  const standPat = evaluateState(state, maximizingColor, { maxThinking: true });
+  const maximizing = currentColor === maximizingColor;
+
+  if (maximizing) {
+    if (standPat >= beta) {
+      return standPat;
+    }
+    alpha = Math.max(alpha, standPat);
+  } else {
+    if (standPat <= alpha) {
+      return standPat;
+    }
+    beta = Math.min(beta, standPat);
+  }
+
+  if (depth >= QUIESCENCE_MAX_DEPTH) {
+    return standPat;
+  }
+
+  const legalMoves = getAllLegalMoves(state, currentColor);
+  const noisyMoves = legalMoves.filter(
+    (move) => isCaptureMove(state, move) || givesCheck(state, move, currentColor)
+  );
+  if (noisyMoves.length === 0) {
+    return standPat;
+  }
+
+  const ordered = orderMoves(state, noisyMoves, currentColor, rng);
+
+  if (maximizing) {
+    let value = standPat;
+    for (const move of ordered) {
+      const next = cloneState(state);
+      next.activeColor = currentColor;
+      applyMove(next, move);
+      value = Math.max(
+        value,
+        quiescence(next, alpha, beta, opponentColor(currentColor), maximizingColor, rng, depth + 1)
+      );
+      alpha = Math.max(alpha, value);
+      if (alpha >= beta) {
+        break;
+      }
+    }
+    return value;
+  }
+
+  let value = standPat;
+  for (const move of ordered) {
+    const next = cloneState(state);
+    next.activeColor = currentColor;
+    applyMove(next, move);
+    value = Math.min(
+      value,
+      quiescence(next, alpha, beta, opponentColor(currentColor), maximizingColor, rng, depth + 1)
+    );
+    beta = Math.min(beta, value);
+    if (alpha >= beta) {
+      break;
+    }
+  }
+  return value;
+}
+
+function isCaptureMove(state: GameState, move: Move): boolean {
+  if (move.capturedId || move.isEnPassant) {
+    return true;
+  }
+  const target = getPieceAt(state, move.to);
+  return Boolean(target);
+}
+
+function givesCheck(state: GameState, move: Move, color: Color): boolean {
+  const next = cloneState(state);
+  next.activeColor = color;
+  applyMove(next, move);
+  return isInCheck(next, opponentColor(color));
 }
 
 function getCaptureValue(state: GameState, move: Move): number {
