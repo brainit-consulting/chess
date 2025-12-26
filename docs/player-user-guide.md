@@ -190,3 +190,15 @@ The game remembers:
 
 Enjoy the game, and have fun exploring chess in 3D!
 Emile from brainitconsulting.com
+
+## A note about ranking of chess engines
+- https://www.rankred.com/chess-engines/
+- Stockfish has an Arpad Elo rating of 3759 in 2025 
+
+## Complexity is beautiful
+The number of possible moves makes chess one of the most complex games 
+
+If you construct a complete tree of all possible moves in a chessboard, you will get a total of 10 to the power of120 moves. That’s an extremely large number.
+
+To put this into perspective, there have been only 10 to the power of 26 nanoseconds since the Big Bang and about 10 to the power of 75 atoms in the entire universe. These numbers are dwarfed by the number of possible moves in chess, making it one of the most complex board games.
+
