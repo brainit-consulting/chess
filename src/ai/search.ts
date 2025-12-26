@@ -22,6 +22,7 @@ type SearchOptions = {
   fairnessWindow?: number;
   maxThinking?: boolean;
   tt?: Map<string, TTEntry>;
+  ordering?: OrderingState;
 };
 
 const MATE_SCORE = 20000;
@@ -38,6 +39,19 @@ type TTEntry = {
   flag: TTFlag;
   bestMove?: Move;
 };
+
+export type OrderingState = {
+  killerMoves: { primary?: Move; secondary?: Move }[];
+  history: number[];
+};
+
+export function createOrderingState(maxDepth: number): OrderingState {
+  const maxPlies = Math.max(8, maxDepth + 6);
+  return {
+    killerMoves: Array.from({ length: maxPlies }, () => ({})),
+    history: new Array(64 * 64).fill(0)
+  };
+}
 
 type TimedSearchOptions = Omit<SearchOptions, 'depth'> & {
   maxDepth: number;
@@ -70,13 +84,18 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
     return null;
   }
 
+  const ordering = options.maxThinking
+    ? options.ordering ?? createOrderingState(options.depth + 4)
+    : undefined;
   const preferred =
     options.maxThinking && options.tt
       ? options.tt.get(getPositionKey(state))?.bestMove
       : undefined;
   const ordered = orderMoves(state, legalMoves, color, options.rng, {
     preferred,
-    maxThinking: options.maxThinking
+    maxThinking: options.maxThinking,
+    ordering,
+    ply: 0
   });
   const scoredMoves: { move: Move; score: number; baseScore: number }[] = [];
   const playForWin = Boolean(options.playForWin && options.recentPositions?.length);
@@ -99,7 +118,8 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
       options.rng,
       options.maxThinking ?? false,
       1,
-      options.tt
+      options.tt,
+      ordering
     );
     let score = baseScore;
 
@@ -151,10 +171,16 @@ export function findBestMoveTimed(
   const start = now();
   let best: Move | null = null;
   const tt = options.maxThinking ? options.tt ?? new Map<string, TTEntry>() : undefined;
+  const ordering = options.maxThinking
+    ? options.ordering ?? createOrderingState(options.maxDepth + 4)
+    : undefined;
 
   for (let depth = 1; depth <= options.maxDepth; depth += 1) {
     if (now() - start >= options.maxTimeMs) {
       break;
+    }
+    if (ordering && depth > 1) {
+      decayHistory(ordering);
     }
     options.onDepth?.(depth);
     const move = findBestMove(state, color, {
@@ -167,7 +193,8 @@ export function findBestMoveTimed(
       topMoveWindow: options.topMoveWindow,
       fairnessWindow: options.fairnessWindow,
       maxThinking: options.maxThinking,
-      tt
+      tt,
+      ordering
     });
     if (move) {
       best = move;
@@ -188,7 +215,8 @@ export function findBestMoveTimed(
     topMoveWindow: options.topMoveWindow,
     fairnessWindow: options.fairnessWindow,
     maxThinking: options.maxThinking,
-    tt
+    tt,
+    ordering
   });
 }
 
@@ -213,6 +241,9 @@ export function findBestMoveTimedDebug(
   const now = options.now ?? defaultNow;
   const start = now();
   const tt = options.maxThinking ? options.tt ?? new Map<string, TTEntry>() : undefined;
+  const ordering = options.maxThinking
+    ? options.ordering ?? createOrderingState(options.maxDepth + 4)
+    : undefined;
   let depthCompleted = 0;
   let bestMove: Move | null = null;
   let bestScore: number | null = null;
@@ -221,6 +252,9 @@ export function findBestMoveTimedDebug(
   for (let depth = 1; depth <= options.maxDepth; depth += 1) {
     if (now() - start >= options.maxTimeMs) {
       break;
+    }
+    if (ordering && depth > 1) {
+      decayHistory(ordering);
     }
     options.onDepth?.(depth);
     const scored = scoreRootMoves(state, color, {
@@ -233,7 +267,8 @@ export function findBestMoveTimedDebug(
       topMoveWindow: options.topMoveWindow,
       fairnessWindow: options.fairnessWindow,
       maxThinking: options.maxThinking,
-      tt
+      tt,
+      ordering
     });
     if (scored.move) {
       bestMove = scored.move;
@@ -254,7 +289,8 @@ export function findBestMoveTimedDebug(
       topMoveWindow: options.topMoveWindow,
       fairnessWindow: options.fairnessWindow,
       maxThinking: options.maxThinking,
-      tt
+      tt,
+      ordering
     });
     bestMove = scored.move;
     bestScore = scored.score;
@@ -283,7 +319,9 @@ function scoreRootMoves(
     preferred: options.maxThinking && options.tt
       ? options.tt.get(getPositionKey(state))?.bestMove
       : undefined,
-    maxThinking: options.maxThinking
+    maxThinking: options.maxThinking,
+    ordering: options.ordering,
+    ply: 0
   });
   const scoredMoves: MateProbeScoredMove[] = [];
   const playForWin = Boolean(options.playForWin && options.recentPositions?.length);
@@ -306,7 +344,8 @@ function scoreRootMoves(
       options.rng,
       options.maxThinking ?? false,
       1,
-      options.tt
+      options.tt,
+      options.ordering
     );
     let score = baseScore;
 
@@ -375,7 +414,8 @@ function alphaBeta(
   rng: () => number,
   maxThinking: boolean,
   ply: number,
-  tt?: Map<string, TTEntry>
+  tt?: Map<string, TTEntry>,
+  ordering?: OrderingState
 ): number {
   const legalMoves = getAllLegalMoves(state, currentColor);
   const alphaOrig = alpha;
@@ -429,7 +469,9 @@ function alphaBeta(
 
   const ordered = orderMoves(state, legalMoves, currentColor, rng, {
     preferred: ttBestMove,
-    maxThinking
+    maxThinking,
+    ordering,
+    ply
   });
   const maximizing = currentColor === maximizingColor;
 
@@ -450,7 +492,8 @@ function alphaBeta(
         rng,
         maxThinking,
         ply + 1,
-        tt
+        tt,
+        ordering
       );
       if (nextScore > value) {
         value = nextScore;
@@ -458,6 +501,10 @@ function alphaBeta(
       }
       alpha = Math.max(alpha, value);
       if (alpha >= beta) {
+        if (maxThinking && ordering && isQuietForOrdering(state, move, currentColor)) {
+          recordKiller(ordering, ply, move);
+          recordHistory(ordering, move, depth);
+        }
         break;
       }
     }
@@ -488,7 +535,8 @@ function alphaBeta(
       rng,
       maxThinking,
       ply + 1,
-      tt
+      tt,
+      ordering
     );
     if (nextScore < value) {
       value = nextScore;
@@ -496,6 +544,10 @@ function alphaBeta(
     }
     beta = Math.min(beta, value);
     if (alpha >= beta) {
+      if (maxThinking && ordering && isQuietForOrdering(state, move, currentColor)) {
+        recordKiller(ordering, ply, move);
+        recordHistory(ordering, move, depth);
+      }
       break;
     }
   }
@@ -515,20 +567,34 @@ function orderMoves(
   moves: Move[],
   color: Color,
   rng: () => number,
-  options?: { preferred?: Move; maxThinking?: boolean }
+  options?: { preferred?: Move; maxThinking?: boolean; ordering?: OrderingState; ply?: number }
 ): Move[] {
   const preferred = options?.preferred;
   const maxThinking = options?.maxThinking ?? false;
-  const scored = moves.map((move) => ({
+  const ordering = options?.ordering;
+  const ply = options?.ply ?? 0;
+  const scored = moves.map((move, index) => ({
     move,
-    score:
-      scoreMoveHeuristic(state, move, color, maxThinking) +
-      (preferred && sameMove(move, preferred) ? 100000 : 0),
-    tie: rng()
+    score: buildOrderScore(state, move, color, maxThinking, {
+      preferred,
+      ordering,
+      ply
+    }),
+    tie: maxThinking ? index : rng()
   }));
 
   scored.sort((a, b) => b.score - a.score || a.tie - b.tie);
   return scored.map((entry) => entry.move);
+}
+
+export function orderMovesForTest(
+  state: GameState,
+  moves: Move[],
+  color: Color,
+  rng: () => number,
+  options?: { preferred?: Move; maxThinking?: boolean; ordering?: OrderingState; ply?: number }
+): Move[] {
+  return orderMoves(state, moves, color, rng, options);
 }
 
 function scoreMoveHeuristic(
@@ -581,6 +647,77 @@ function scoreMoveHeuristic(
   }
 
   return score;
+}
+
+function buildOrderScore(
+  state: GameState,
+  move: Move,
+  color: Color,
+  maxThinking: boolean,
+  options: { preferred?: Move; ordering?: OrderingState; ply: number }
+): number {
+  let score = scoreMoveHeuristic(state, move, color, maxThinking);
+
+  if (options.preferred && sameMove(move, options.preferred)) {
+    score += 100000;
+  }
+
+  if (maxThinking && options.ordering) {
+    const killerScore = getKillerScore(options.ordering, options.ply, move);
+    const historyScore = isQuietForOrdering(state, move, color)
+      ? Math.min(getHistoryScore(options.ordering, move), 1000)
+      : 0;
+    score += killerScore + historyScore;
+  }
+
+  return score;
+}
+
+function getKillerScore(ordering: OrderingState, ply: number, move: Move): number {
+  const slot = ordering.killerMoves[ply];
+  if (!slot) {
+    return 0;
+  }
+  if (slot.primary && sameMove(slot.primary, move)) {
+    return 3000;
+  }
+  if (slot.secondary && sameMove(slot.secondary, move)) {
+    return 2000;
+  }
+  return 0;
+}
+
+function getHistoryScore(ordering: OrderingState, move: Move): number {
+  return ordering.history[getHistoryIndex(move)] ?? 0;
+}
+
+function recordKiller(ordering: OrderingState, ply: number, move: Move): void {
+  if (!ordering.killerMoves[ply]) {
+    ordering.killerMoves[ply] = {};
+  }
+  const slot = ordering.killerMoves[ply];
+  if (slot.primary && sameMove(slot.primary, move)) {
+    return;
+  }
+  slot.secondary = slot.primary;
+  slot.primary = move;
+}
+
+function recordHistory(ordering: OrderingState, move: Move, depth: number): void {
+  const index = getHistoryIndex(move);
+  ordering.history[index] = Math.min(ordering.history[index] + depth * depth, 50000);
+}
+
+function decayHistory(ordering: OrderingState): void {
+  for (let i = 0; i < ordering.history.length; i += 1) {
+    ordering.history[i] = Math.floor(ordering.history[i] * 0.9);
+  }
+}
+
+function getHistoryIndex(move: Move): number {
+  const from = move.from.rank * 8 + move.from.file;
+  const to = move.to.rank * 8 + move.to.file;
+  return from * 64 + to;
 }
 
 function quiescence(
@@ -690,6 +827,16 @@ function isCaptureMove(state: GameState, move: Move): boolean {
   }
   const target = getPieceAt(state, move.to);
   return Boolean(target);
+}
+
+function isQuietForOrdering(state: GameState, move: Move, color: Color): boolean {
+  if (move.isCastle || move.promotion) {
+    return false;
+  }
+  if (isCaptureMove(state, move)) {
+    return false;
+  }
+  return !givesCheck(state, move, color);
 }
 
 function givesCheck(state: GameState, move: Move, color: Color): boolean {

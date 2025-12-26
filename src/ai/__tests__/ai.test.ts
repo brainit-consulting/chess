@@ -311,6 +311,43 @@ describe('AI move selection', () => {
     expect(sameMove(chosenBlack as Move, blackRepeat)).toBe(false);
   });
 
+  it('prioritizes TT, killer, and history moves in max-thinking ordering', () => {
+    const state = createEmptyState();
+    addPiece(state, 'king', 'w', sq(4, 0));
+    addPiece(state, 'king', 'b', sq(4, 7));
+    state.activeColor = 'w';
+
+    const moves = getAllLegalMoves(state, 'w');
+    const preferred = moves.find((move) => move.to.file === 4 && move.to.rank === 1);
+    const killer = moves.find((move) => move.to.file === 3 && move.to.rank === 0);
+    const historyMove = moves.find((move) => move.to.file === 5 && move.to.rank === 0);
+
+    if (!preferred || !killer || !historyMove) {
+      throw new Error('Expected three distinct king moves for ordering test.');
+    }
+
+    const ordering = search.createOrderingState(4);
+    ordering.killerMoves[0].primary = killer;
+    const historyIndex =
+      (historyMove.from.rank * 8 + historyMove.from.file) * 64 +
+      (historyMove.to.rank * 8 + historyMove.to.file);
+    ordering.history[historyIndex] = 5000;
+
+    const ordered = search.orderMovesForTest(state, moves, 'w', () => 0.5, {
+      preferred,
+      maxThinking: true,
+      ordering,
+      ply: 0
+    });
+
+    expect(sameMove(ordered[0], preferred)).toBe(true);
+    const killerIndex = ordered.findIndex((move) => sameMove(move, killer));
+    const historyIdx = ordered.findIndex((move) => sameMove(move, historyMove));
+    expect(killerIndex).toBeGreaterThan(-1);
+    expect(historyIdx).toBeGreaterThan(-1);
+    expect(killerIndex).toBeLessThan(historyIdx);
+  });
+
   it('respects the max thinking time budget', () => {
     const state = createInitialState();
     const legalMoves = getAllLegalMoves(state, 'w');

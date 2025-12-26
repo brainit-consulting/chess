@@ -7,6 +7,15 @@ Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.1.44] - 2025-12-26 14:37
+### Added
+- Max Thinking move ordering upgrades (killer + history heuristics, Max-only).
+- Add Max Thinking roadmap and planning docs.
+### Changed
+- Make Max Thinking move ordering deterministic for equal scores.
+- Add a Max-only ordering unit test.
+- Update the in-UI version label to v1.1.44.
+
 ## [1.1.43] - 2025-12-26 12:41
 ### Added
 - Add Chess Engine AI to the analyzer dropdown options.
