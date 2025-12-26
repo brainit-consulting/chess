@@ -7,7 +7,7 @@ Semantic Versioning.
 
 ## [Unreleased]
 ### Changed
-- (none)
+- Update docs to reflect Max Thinking search upgrades and current analyzer options.
 
 ## [1.1.45] - 2025-12-26 15:26
 ### Added

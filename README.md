@@ -36,22 +36,21 @@ npm run test:run
 - Right click or Escape: cancel selection
 - Right drag: rotate camera
 - Scroll: zoom
-- Q/E: rotate yaw
-- R/F: rotate pitch
-- Snap buttons: White / Black / Isometric views
-- Play vs AI toggle: enable Human (White) vs AI (Black)
-- Difficulty selector: Easy / Medium / Hard
+- Snap buttons: White / Black / Isometric / Top-Down views
+- Mode selector: Human vs Human / Human vs AI / AI vs AI
+- Difficulty selector: Easy / Medium / Hard / Max Thinking
+- Play as selector (Human vs AI): choose White or Black
 
 ## Modes
 
 - Mode selector: Human vs Human, Human vs AI, or AI vs AI.
-- AI vs AI includes an AI move delay slider and shows a game-over summary modal.
-- Draws include stalemate and insufficient material (e.g., K vs K, K+N/B vs K).
+- AI vs AI includes Start/Pause/Resume, an AI move delay slider, and Play for Win.
+- Draws include stalemate, insufficient material (e.g., K vs K, K+N/B vs K), and threefold repetition.
 
 ## Analyze Your Games
 
 - Export PGN from the Game History panel or the game-over summary.
-- Use the Analyzer dropdown (BrainIT Chess Buddy Analyzer, Chess Analysis Pro, Chess Engine AI) and paste or import the PGN to replay and analyze.
+- Use the Analyzer dropdown (BrainIT Chess Buddy Analyzer, Chess Analysis Pro, Chess Engine AI) or the game-over "Analyze Game" button, then paste or import the PGN to replay and analyze.
 
 ## Structure
 

@@ -1,25 +1,30 @@
 # Planned Improvements for Max Thinking
 
-This document lists candidate improvements to the Max Thinking mode. It is a planning list only; no code changes are implied.
+This document lists candidate improvements to the Max Thinking mode. Items marked as implemented reflect current code.
+
+## Implemented (current code)
+
+- Quiescence search at leaf nodes (captures + checks only).
+- Mate-distance scoring to prefer shorter mates when a mate is proven.
+- Transposition table with best-move reuse across iterative deepening.
+- Move ordering upgrades: TT best move first, checks/captures prioritized, killer/history heuristics.
+- Aspiration windows in iterative deepening to reduce re-search overhead.
+- Max-only eval heuristics: king safety, early queen penalty, knight/bishop PSTs.
 
 ## Search-Quality Upgrades (high ROI)
 
-- Quiescence extensions: include checks, promotions, and forced recaptures to stabilize leaf evaluation.
-- Move ordering: checks first, MVV-LVA for captures, TT best move first, killer/history heuristics.
+- Quiescence extensions: include promotions and forced recaptures to stabilize leaf evaluation.
 - Static exchange evaluation (SEE): filter losing captures before search explores them.
 - Null-move pruning (conservative): quick cutoffs in quiet positions with safe depth reductions.
 - Late move reductions (LMR): reduce depth for low-priority moves to search key lines deeper.
-- Aspiration windows: search around prior score to reduce re-search overhead.
 
 ## Evaluation Tweaks (lightweight, explainable)
 
-- King safety tuning: slightly stronger penalties for exposed kings or missing pawn shields.
+- King safety tuning: stronger penalties for exposed kings or missing pawn shields.
 - Phase-aware PSTs: simple king/queen tables that shift between opening and endgame.
-- Mate-distance bias: keep preferring shorter mates once a forced mate is detected.
 
 ## Transposition Table Enhancements
 
-- Store node type + best move per ply; improve reuse across iterative deepening.
 - Add simple aging/bucketed replacement to reduce collision churn.
 
 ## Performance/Responsiveness Safeguards
@@ -29,10 +34,9 @@ This document lists candidate improvements to the Max Thinking mode. It is a pla
 
 ## Suggested Phasing (when you decide)
 
-1) Move ordering + SEE (tactical stability, faster pruning).
+1) SEE-lite + quiescence extensions (tactical stability).
 2) Conservative null-move + LMR (better depth usage).
-3) Quiescence extensions + aspiration windows (stability + speed).
-4) Eval fine-tuning (king safety + PSTs) if needed.
+3) Eval fine-tuning (phase-aware PSTs) if needed.
 
 ---
 

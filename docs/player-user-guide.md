@@ -52,7 +52,7 @@ https://brainit-consulting.github.io/chess/
 - **Show Coordinates** toggles labels on or off.
 - **Coordinate Mode** controls label orientation:
   - **PGN (fixed)**: labels stay in standard PGN orientation (a1 is always White's left rook). This matches move history and PGN exports.
-  - **View (rotate)**: labels rotate with the camera so a1 stays at the bottom-left of your screen.
+  - **View (rotate)**: labels flip for Black View so the bottom edge reads from Black's side.
 
 Tip: If you compare the board to the Game History, use **PGN (fixed)**.
 
@@ -76,7 +76,8 @@ Tip: If you compare the board to the Game History, use **PGN (fixed)**.
 
 - **Easy**: simple, non-optimal moves.
 - **Medium**: balanced play.
-- **Hard**: strongest default setting.
+- **Hard**: strongest fixed-depth setting.
+- **Max Thinking**: strongest overall; uses a time budget and deeper search.
 
 ### AI Move Delay
 

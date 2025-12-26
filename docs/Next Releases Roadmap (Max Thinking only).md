@@ -49,7 +49,7 @@ Phase 3B - Aspiration Windows (Iterative Deepening)
 Impact: Medium-High
 Risk: Low-Medium
 Why: Speeds alpha-beta by searching a narrower score window around the last iteration's score.
-Status: Completed (pending release).
+Status: Completed in v1.1.45.
 
 Implementation
 - At each iterative deepening depth:
@@ -91,7 +91,7 @@ Tests
 - Ensure quiescence still finds mates/capture lines.
 
 ========================================================
-Release v1.1.45 — Deeper Search Tricks (Higher risk; only after v1.1.44 proven)
+Release v1.1.46 - Deeper Search Tricks (Higher risk; only after v1.1.45 proven)
 ========================================================
 
 Phase 4A — LMR (Late Move Reductions), conservative

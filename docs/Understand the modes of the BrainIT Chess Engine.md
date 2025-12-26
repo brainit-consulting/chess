@@ -49,14 +49,15 @@ Max Thinking adds additional, interpretable heuristics:
 
 Easy/Medium/Hard do not use these extra terms.
 
-## Max Thinking search extras (Phase 2A/2B)
+## Max Thinking search extras
 
 Max Thinking also adds search-only improvements:
 
 - **Quiescence search** at leaf nodes (captures + checks only).
 - **Mate-distance scoring** to prefer shorter mates.
 - **Transposition table** for caching scores and best moves across depth passes.
-- **Mate-aware move ordering** (TT best move first, checks and high-value captures prioritized).
+- **Move ordering upgrades** (TT best move first, checks and high-value captures prioritized, plus killer/history heuristics).
+- **Aspiration windows** during iterative deepening to reduce re-search overhead.
 
 Easy/Medium/Hard do not use these search extras.
 
@@ -94,4 +95,4 @@ Play-for-Win uses a repetition penalty and fairness window during move selection
 
 ## Summary
 
-Max Thinking is the strongest available mode because it uses a time budget, deeper search, and extra evaluation heuristics. Hard remains faster and more predictable but is weaker on tactics and long forcing lines. All modes share the same rules and legal move generation.
+Max Thinking is the strongest available mode because it uses a time budget, deeper search, extra evaluation heuristics, and Max-only search upgrades (quiescence, TT, move ordering, aspiration windows). Hard remains faster and more predictable but is weaker on tactics and long forcing lines. All modes share the same rules and legal move generation.
