@@ -7,7 +7,15 @@ Semantic Versioning.
 
 ## [Unreleased]
 ### Changed
-- Update docs to reflect Max Thinking search upgrades and current analyzer options.
+- (none)
+
+## [1.1.46] - 2025-12-26 16:12
+### Added
+- Max-only SEE-lite capture filtering for move ordering and quiescence.
+### Changed
+- Mark Phase 3C as completed in the Max Thinking roadmap.
+- Update Max Thinking docs to reflect current search upgrades.
+- Update the in-UI version label to v1.1.46.
 
 ## [1.1.45] - 2025-12-26 15:26
 ### Added

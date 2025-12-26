@@ -378,6 +378,74 @@ describe('AI move selection', () => {
     expect(retries).toBe(1);
   });
 
+  it('deprioritizes a poisoned pawn capture in max thinking ordering', () => {
+    const state = createEmptyState();
+    addPiece(state, 'king', 'w', sq(4, 0));
+    addPiece(state, 'queen', 'w', sq(3, 0));
+    addPiece(state, 'king', 'b', sq(0, 7));
+    addPiece(state, 'rook', 'b', sq(3, 7));
+    addPiece(state, 'pawn', 'b', sq(3, 6));
+    state.activeColor = 'w';
+
+    const moves = getAllLegalMoves(state, 'w');
+    const capture = moves.find(
+      (move) => move.from.file === 3 && move.from.rank === 0 && move.to.file === 3 && move.to.rank === 6
+    );
+    const quiet = moves.find(
+      (move) => move.from.file === 3 && move.from.rank === 0 && move.to.file === 3 && move.to.rank === 1
+    );
+
+    if (!capture || !quiet) {
+      throw new Error('Expected queen capture and quiet move for SEE-lite test.');
+    }
+
+    const ordered = search.orderMovesForTest(state, moves, 'w', () => 0.5, {
+      maxThinking: true,
+      ply: 0
+    });
+    const captureIndex = ordered.findIndex((move) => sameMove(move, capture));
+    const quietIndex = ordered.findIndex((move) => sameMove(move, quiet));
+    expect(captureIndex).toBeGreaterThan(quietIndex);
+  });
+
+  it('keeps winning captures and checks eligible for quiescence', () => {
+    const state = createEmptyState();
+    addPiece(state, 'king', 'w', sq(4, 0));
+    addPiece(state, 'king', 'b', sq(4, 7));
+    addPiece(state, 'pawn', 'w', sq(4, 4));
+    addPiece(state, 'queen', 'b', sq(3, 5));
+    state.activeColor = 'w';
+
+    const moves = getAllLegalMoves(state, 'w');
+    const capture = moves.find(
+      (move) => move.from.file === 4 && move.from.rank === 4 && move.to.file === 3 && move.to.rank === 5
+    );
+    if (!capture) {
+      throw new Error('Expected pawn capture for SEE-lite test.');
+    }
+
+    const net = search.seeLiteNetForTest(state, capture, 'w');
+    expect(net).toBeGreaterThan(0);
+    expect(search.shouldPruneCaptureForTest(state, capture, 'w')).toBe(false);
+
+    const checkState = createEmptyState();
+    addPiece(checkState, 'king', 'w', sq(4, 0));
+    addPiece(checkState, 'queen', 'w', sq(3, 0));
+    addPiece(checkState, 'king', 'b', sq(4, 7));
+    addPiece(checkState, 'rook', 'b', sq(3, 7));
+    addPiece(checkState, 'pawn', 'b', sq(3, 6));
+    checkState.activeColor = 'w';
+
+    const checkMoves = getAllLegalMoves(checkState, 'w');
+    const checkingCapture = checkMoves.find(
+      (move) => move.from.file === 3 && move.from.rank === 0 && move.to.file === 3 && move.to.rank === 6
+    );
+    if (!checkingCapture) {
+      throw new Error('Expected checking capture for SEE-lite test.');
+    }
+    expect(search.shouldPruneCaptureForTest(checkState, checkingCapture, 'w')).toBe(false);
+  });
+
   it('ignores stale explain responses by request or position', () => {
     const apply = shouldApplyExplainResponse({
       requestId: 2,

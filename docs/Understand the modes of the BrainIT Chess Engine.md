@@ -58,6 +58,7 @@ Max Thinking also adds search-only improvements:
 - **Transposition table** for caching scores and best moves across depth passes.
 - **Move ordering upgrades** (TT best move first, checks and high-value captures prioritized, plus killer/history heuristics).
 - **Aspiration windows** during iterative deepening to reduce re-search overhead.
+- **SEE-lite capture filter** to deprioritize clearly losing captures.
 
 Easy/Medium/Hard do not use these search extras.
 

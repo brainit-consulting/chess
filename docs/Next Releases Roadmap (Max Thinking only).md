@@ -68,10 +68,11 @@ Tests
 
 --------------------------------------------------------
 
-Phase 3C — SEE-lite capture filter (tactical sanity + speed)
-Impact: Medium–High
+Phase 3C - SEE-lite capture filter (tactical sanity + speed)
+Impact: Medium-High
 Risk: Medium
 Why: Prevent obviously losing captures and reduce branching.
+Status: Completed in v1.1.46.
 
 Implementation (lightweight, not full SEE)
 - For each capture candidate:

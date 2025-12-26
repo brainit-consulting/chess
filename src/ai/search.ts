@@ -31,6 +31,9 @@ const DEFAULT_TOP_MOVE_WINDOW = 10;
 const DEFAULT_FAIRNESS_WINDOW = 25;
 const DEFAULT_ASPIRATION_WINDOW = 35;
 const DEFAULT_ASPIRATION_MAX_RETRIES = 3;
+const SEE_ORDER_PENALTY_THRESHOLD = -200;
+const SEE_ORDER_PENALTY_BASE = 400;
+const SEE_QUIESCENCE_PRUNE_THRESHOLD = -350;
 const QUIESCENCE_MAX_DEPTH = 4;
 
 type TTFlag = 'exact' | 'alpha' | 'beta';
@@ -778,6 +781,10 @@ function scoreMoveHeuristic(
   if (maxThinking) {
     if (capturedValue > 0) {
       score += capturedValue * 10 - movedValue;
+      const seeNet = seeLiteNet(state, move, color);
+      if (seeNet <= SEE_ORDER_PENALTY_THRESHOLD) {
+        score -= SEE_ORDER_PENALTY_BASE + Math.abs(seeNet);
+      }
     }
     if (givesCheck) {
       score += 60;
@@ -913,7 +920,14 @@ function quiescence(
     return standPat;
   }
 
-  const ordered = orderMoves(state, noisyMoves, currentColor, rng, {
+  const filtered = noisyMoves.filter(
+    (move) => !shouldPruneCapture(state, move, currentColor)
+  );
+  if (filtered.length === 0) {
+    return standPat;
+  }
+
+  const ordered = orderMoves(state, filtered, currentColor, rng, {
     maxThinking: true
   });
 
@@ -978,6 +992,17 @@ function isCaptureMove(state: GameState, move: Move): boolean {
   return Boolean(target);
 }
 
+function shouldPruneCapture(state: GameState, move: Move, color: Color): boolean {
+  if (!isCaptureMove(state, move)) {
+    return false;
+  }
+  if (givesCheck(state, move, color)) {
+    return false;
+  }
+  const net = seeLiteNet(state, move, color);
+  return net <= SEE_QUIESCENCE_PRUNE_THRESHOLD;
+}
+
 function isQuietForOrdering(state: GameState, move: Move, color: Color): boolean {
   if (move.isCastle || move.promotion) {
     return false;
@@ -1004,6 +1029,41 @@ function getCaptureValue(state: GameState, move: Move): number {
     return PIECE_VALUES.pawn;
   }
   return 0;
+}
+
+function seeLiteNet(state: GameState, move: Move, color: Color): number {
+  const movingPiece = getPieceAt(state, move.from);
+  const capturedValue = getCaptureValue(state, move);
+  if (!movingPiece || capturedValue === 0) {
+    return 0;
+  }
+  const attackerValue = PIECE_VALUES[movingPiece.type];
+  const next = cloneState(state);
+  next.activeColor = color;
+  applyMove(next, move);
+
+  const movedId = next.board[move.to.rank]?.[move.to.file];
+  if (!movedId) {
+    return capturedValue - attackerValue;
+  }
+
+  const opponentMoves = getAllLegalMoves(next, opponentColor(color));
+  let defenderValue = 0;
+  for (const reply of opponentMoves) {
+    if (reply.capturedId !== movedId) {
+      continue;
+    }
+    const defender = getPieceAt(next, reply.from);
+    if (!defender) {
+      continue;
+    }
+    const value = PIECE_VALUES[defender.type];
+    if (defenderValue === 0 || value < defenderValue) {
+      defenderValue = value;
+    }
+  }
+
+  return capturedValue - attackerValue - defenderValue;
 }
 
 function isMovedPieceHanging(state: GameState, move: Move, color: Color): boolean {
@@ -1034,6 +1094,19 @@ function sameMove(a: Move, b: Move): boolean {
 function mateScore(currentColor: Color, maximizingColor: Color, ply: number): number {
   const sign = currentColor === maximizingColor ? -1 : 1;
   return sign * (MATE_SCORE - ply);
+}
+
+// Test-only helpers for SEE-lite assertions.
+export function seeLiteNetForTest(state: GameState, move: Move, color: Color): number {
+  return seeLiteNet(state, move, color);
+}
+
+export function shouldPruneCaptureForTest(
+  state: GameState,
+  move: Move,
+  color: Color
+): boolean {
+  return shouldPruneCapture(state, move, color);
 }
 
 function cloneState(state: GameState): GameState {
