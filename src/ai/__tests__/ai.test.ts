@@ -446,6 +446,14 @@ describe('AI move selection', () => {
     expect(search.shouldPruneCaptureForTest(checkState, checkingCapture, 'w')).toBe(false);
   });
 
+  it('applies late-move reductions only for later quiet moves', () => {
+    expect(search.getLmrReductionForTest(4, 4, false, true)).toBe(1);
+    expect(search.getLmrReductionForTest(2, 4, false, true)).toBe(0);
+    expect(search.getLmrReductionForTest(4, 1, false, true)).toBe(0);
+    expect(search.getLmrReductionForTest(4, 4, true, true)).toBe(0);
+    expect(search.getLmrReductionForTest(4, 4, false, false)).toBe(0);
+  });
+
   it('ignores stale explain responses by request or position', () => {
     const apply = shouldApplyExplainResponse({
       requestId: 2,

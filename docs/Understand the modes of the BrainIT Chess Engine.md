@@ -59,6 +59,7 @@ Max Thinking also adds search-only improvements:
 - **Move ordering upgrades** (TT best move first, checks and high-value captures prioritized, plus killer/history heuristics).
 - **Aspiration windows** during iterative deepening to reduce re-search overhead.
 - **SEE-lite capture filter** to deprioritize clearly losing captures.
+- **Late move reductions (LMR)** for low-priority quiet moves.
 
 Easy/Medium/Hard do not use these search extras.
 

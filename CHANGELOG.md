@@ -9,6 +9,14 @@ Semantic Versioning.
 ### Changed
 - (none)
 
+## [1.1.47] - 2025-12-26 16:35
+### Added
+- Max-only late move reductions (LMR) for deeper effective search.
+### Changed
+- Mark Phase 4A as completed in the Max Thinking roadmap.
+- Update Max Thinking docs to reflect current search upgrades.
+- Update the in-UI version label to v1.1.47.
+
 ## [1.1.46] - 2025-12-26 16:12
 ### Added
 - Max-only SEE-lite capture filtering for move ordering and quiescence.

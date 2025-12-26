@@ -34,6 +34,9 @@ const DEFAULT_ASPIRATION_MAX_RETRIES = 3;
 const SEE_ORDER_PENALTY_THRESHOLD = -200;
 const SEE_ORDER_PENALTY_BASE = 400;
 const SEE_QUIESCENCE_PRUNE_THRESHOLD = -350;
+const LMR_MIN_DEPTH = 3;
+const LMR_START_MOVE = 3;
+const LMR_REDUCTION = 1;
 const QUIESCENCE_MAX_DEPTH = 4;
 
 type TTFlag = 'exact' | 'alpha' | 'beta';
@@ -626,17 +629,23 @@ function alphaBeta(
     ply
   });
   const maximizing = currentColor === maximizingColor;
+  const inCheck = maxThinking ? isInCheck(state, currentColor) : false;
 
   if (maximizing) {
     let value = -Infinity;
     let bestMove: Move | undefined;
-    for (const move of ordered) {
+    for (let index = 0; index < ordered.length; index += 1) {
+      const move = ordered[index];
       const next = cloneState(state);
       next.activeColor = currentColor;
       applyMove(next, move);
-      const nextScore = alphaBeta(
+      const reduction = maxThinking
+        ? getLmrReduction(depth, index, inCheck, isQuietForLmr(state, move, currentColor))
+        : 0;
+      const reducedDepth = Math.max(0, depth - 1 - reduction);
+      let nextScore = alphaBeta(
         next,
-        depth - 1,
+        reducedDepth,
         alpha,
         beta,
         opponentColor(currentColor),
@@ -647,6 +656,21 @@ function alphaBeta(
         tt,
         ordering
       );
+      if (reduction > 0 && reducedDepth < depth - 1 && nextScore > alpha) {
+        nextScore = alphaBeta(
+          next,
+          depth - 1,
+          alpha,
+          beta,
+          opponentColor(currentColor),
+          maximizingColor,
+          rng,
+          maxThinking,
+          ply + 1,
+          tt,
+          ordering
+        );
+      }
       if (nextScore > value) {
         value = nextScore;
         bestMove = move;
@@ -673,13 +697,18 @@ function alphaBeta(
 
   let value = Infinity;
   let bestMove: Move | undefined;
-  for (const move of ordered) {
+  for (let index = 0; index < ordered.length; index += 1) {
+    const move = ordered[index];
     const next = cloneState(state);
     next.activeColor = currentColor;
     applyMove(next, move);
-    const nextScore = alphaBeta(
+    const reduction = maxThinking
+      ? getLmrReduction(depth, index, inCheck, isQuietForLmr(state, move, currentColor))
+      : 0;
+    const reducedDepth = Math.max(0, depth - 1 - reduction);
+    let nextScore = alphaBeta(
       next,
-      depth - 1,
+      reducedDepth,
       alpha,
       beta,
       opponentColor(currentColor),
@@ -690,6 +719,21 @@ function alphaBeta(
       tt,
       ordering
     );
+    if (reduction > 0 && reducedDepth < depth - 1 && nextScore < beta) {
+      nextScore = alphaBeta(
+        next,
+        depth - 1,
+        alpha,
+        beta,
+        opponentColor(currentColor),
+        maximizingColor,
+        rng,
+        maxThinking,
+        ply + 1,
+        tt,
+        ordering
+      );
+    }
     if (nextScore < value) {
       value = nextScore;
       bestMove = move;
@@ -1003,6 +1047,24 @@ function shouldPruneCapture(state: GameState, move: Move, color: Color): boolean
   return net <= SEE_QUIESCENCE_PRUNE_THRESHOLD;
 }
 
+function getLmrReduction(
+  depth: number,
+  moveIndex: number,
+  inCheck: boolean,
+  isQuiet: boolean
+): number {
+  if (depth < LMR_MIN_DEPTH) {
+    return 0;
+  }
+  if (moveIndex < LMR_START_MOVE) {
+    return 0;
+  }
+  if (inCheck || !isQuiet) {
+    return 0;
+  }
+  return LMR_REDUCTION;
+}
+
 function isQuietForOrdering(state: GameState, move: Move, color: Color): boolean {
   if (move.isCastle || move.promotion) {
     return false;
@@ -1011,6 +1073,10 @@ function isQuietForOrdering(state: GameState, move: Move, color: Color): boolean
     return false;
   }
   return !givesCheck(state, move, color);
+}
+
+function isQuietForLmr(state: GameState, move: Move, color: Color): boolean {
+  return isQuietForOrdering(state, move, color);
 }
 
 function givesCheck(state: GameState, move: Move, color: Color): boolean {
@@ -1107,6 +1173,15 @@ export function shouldPruneCaptureForTest(
   color: Color
 ): boolean {
   return shouldPruneCapture(state, move, color);
+}
+
+export function getLmrReductionForTest(
+  depth: number,
+  moveIndex: number,
+  inCheck: boolean,
+  isQuiet: boolean
+): number {
+  return getLmrReduction(depth, moveIndex, inCheck, isQuiet);
 }
 
 function cloneState(state: GameState): GameState {

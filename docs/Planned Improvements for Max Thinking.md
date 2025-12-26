@@ -10,6 +10,7 @@ This document lists candidate improvements to the Max Thinking mode. Items marke
 - Move ordering upgrades: TT best move first, checks/captures prioritized, killer/history heuristics.
 - Aspiration windows in iterative deepening to reduce re-search overhead.
 - SEE-lite capture filter to deprioritize clearly losing captures.
+- Late move reductions (LMR) for low-priority quiet moves.
 - Max-only eval heuristics: king safety, early queen penalty, knight/bishop PSTs.
 
 ## Search-Quality Upgrades (high ROI)

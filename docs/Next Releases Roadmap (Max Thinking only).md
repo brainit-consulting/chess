@@ -95,10 +95,11 @@ Tests
 Release v1.1.46 - Deeper Search Tricks (Higher risk; only after v1.1.45 proven)
 ========================================================
 
-Phase 4A — LMR (Late Move Reductions), conservative
+Phase 4A - LMR (Late Move Reductions), conservative
 Impact: High
-Risk: Medium–High
+Risk: Medium-High
 Prereq: killer/history + aspiration windows must be working well.
+Status: Completed in v1.1.47.
 
 Implementation
 - After N best moves (e.g., after first 3–4 moves), reduce depth for low-priority quiet moves.
