@@ -7,6 +7,12 @@ Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.1.39] - 2025-12-26 09:34
+### Fixed
+- Use the native file picker when available to improve downloads on hosted builds.
+### Changed
+- Update the in-UI version label to v1.1.39.
+
 ## [1.1.38] - 2025-12-26 09:15
 ### Fixed
 - Improve hosted export downloads by adding a safer download fallback.

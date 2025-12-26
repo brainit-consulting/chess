@@ -1596,12 +1596,17 @@ function downloadTextFile(content: string, filename: string, mimeType: string): 
     return;
   }
 
+  const win = typeof window !== 'undefined' ? window : undefined;
+  if (win && 'showSaveFilePicker' in win && win.isSecureContext) {
+    void saveWithPicker(blob, filename, mimeType);
+    return;
+  }
+
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
   link.download = filename;
   link.rel = 'noopener';
-  link.target = '_blank';
   document.body.append(link);
   try {
     link.click();
@@ -1612,4 +1617,41 @@ function downloadTextFile(content: string, filename: string, mimeType: string): 
   }
   link.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function saveWithPicker(blob: Blob, filename: string, mimeType: string): Promise<void> {
+  try {
+    const ext = filename.includes('.') ? `.${filename.split('.').pop()}` : '';
+    const picker = (window as Window & {
+      showSaveFilePicker: (options: {
+        suggestedName: string;
+        types: { description: string; accept: Record<string, string[]> }[];
+      }) => Promise<FileSystemFileHandle>;
+    }).showSaveFilePicker;
+    const handle = await picker({
+      suggestedName: filename,
+      types: [
+        {
+          description: 'Export',
+          accept: {
+            [mimeType]: ext ? [ext] : []
+          }
+        }
+      ]
+    });
+    const writable = await handle.createWritable();
+    await writable.write(blob);
+    await writable.close();
+  } catch {
+    // If the user cancels or the API is blocked, fall back silently.
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.rel = 'noopener';
+    document.body.append(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
 }
