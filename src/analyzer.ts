@@ -1,4 +1,4 @@
-export type AnalyzerChoice = 'buddy' | 'analysispro';
+export type AnalyzerChoice = 'buddy' | 'analysispro' | 'analysisnet';
 
 export const ANALYZER_OPTIONS: Record<
   AnalyzerChoice,
@@ -11,6 +11,10 @@ export const ANALYZER_OPTIONS: Record<
   analysispro: {
     label: 'Chess Analysis Pro',
     url: 'https://chessanalysis.pro/'
+  },
+  analysisnet: {
+    label: 'Chess Analysis Net',
+    url: 'https://chessanalysis.net/'
   }
 };
 

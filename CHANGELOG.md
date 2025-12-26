@@ -7,6 +7,12 @@ Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.1.42] - 2025-12-26 10:53
+### Added
+- Add Chess Analysis Net to the analyzer dropdown options.
+### Changed
+- Update the in-UI version label to v1.1.42.
+
 ## [1.1.41] - 2025-12-26 10:35
 ### Added
 - Max Thinking mate-distance scoring, transposition table, and mate-aware move ordering.
