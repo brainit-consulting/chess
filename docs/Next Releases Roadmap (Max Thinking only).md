@@ -45,10 +45,11 @@ Tests
 
 --------------------------------------------------------
 
-Phase 3B — Aspiration Windows (Iterative Deepening)
-Impact: Medium–High
-Risk: Low–Medium
-Why: Speeds alpha-beta by searching a narrower score window around the last iteration’s score.
+Phase 3B - Aspiration Windows (Iterative Deepening)
+Impact: Medium-High
+Risk: Low-Medium
+Why: Speeds alpha-beta by searching a narrower score window around the last iteration's score.
+Status: Completed (pending release).
 
 Implementation
 - At each iterative deepening depth:

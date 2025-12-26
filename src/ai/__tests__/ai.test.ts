@@ -373,6 +373,11 @@ describe('AI move selection', () => {
     expect(depths).toEqual([1, 2]);
   });
 
+  it('retries aspiration windows on score swings (deterministic)', () => {
+    const retries = search.simulateAspirationRetriesForTest([100, 5], 0, 10, 3);
+    expect(retries).toBe(1);
+  });
+
   it('ignores stale explain responses by request or position', () => {
     const apply = shouldApplyExplainResponse({
       requestId: 2,

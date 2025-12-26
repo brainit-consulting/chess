@@ -7,7 +7,14 @@ Semantic Versioning.
 
 ## [Unreleased]
 ### Changed
-- Mark Phase 3A as completed in the Max Thinking roadmap.
+- (none)
+
+## [1.1.45] - 2025-12-26 15:26
+### Added
+- Max Thinking aspiration windows for iterative deepening with deterministic retry tests.
+### Changed
+- Mark Phase 3B as completed in the Max Thinking roadmap.
+- Update the in-UI version label to v1.1.45.
 
 ## [1.1.44] - 2025-12-26 14:37
 ### Added

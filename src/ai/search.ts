@@ -29,6 +29,8 @@ const MATE_SCORE = 20000;
 const DEFAULT_REPETITION_PENALTY = 15;
 const DEFAULT_TOP_MOVE_WINDOW = 10;
 const DEFAULT_FAIRNESS_WINDOW = 25;
+const DEFAULT_ASPIRATION_WINDOW = 35;
+const DEFAULT_ASPIRATION_MAX_RETRIES = 3;
 const QUIESCENCE_MAX_DEPTH = 4;
 
 type TTFlag = 'exact' | 'alpha' | 'beta';
@@ -58,6 +60,8 @@ type TimedSearchOptions = Omit<SearchOptions, 'depth'> & {
   maxTimeMs: number;
   now?: () => number;
   onDepth?: (depth: number) => void;
+  aspirationWindow?: number;
+  aspirationMaxRetries?: number;
 };
 
 export type MateProbeScoredMove = {
@@ -76,6 +80,7 @@ export type MateProbeReport = {
   depthCompleted: number;
   scoredMoves: MateProbeScoredMove[];
   ttEntries?: number;
+  aspirationRetries?: number;
 };
 
 export function findBestMove(state: GameState, color: Color, options: SearchOptions): Move | null {
@@ -170,10 +175,16 @@ export function findBestMoveTimed(
   const now = options.now ?? defaultNow;
   const start = now();
   let best: Move | null = null;
+  let prevScore: number | null = null;
   const tt = options.maxThinking ? options.tt ?? new Map<string, TTEntry>() : undefined;
   const ordering = options.maxThinking
     ? options.ordering ?? createOrderingState(options.maxDepth + 4)
     : undefined;
+  const aspirationWindow = options.maxThinking
+    ? options.aspirationWindow ?? DEFAULT_ASPIRATION_WINDOW
+    : 0;
+  const aspirationMaxRetries =
+    options.aspirationMaxRetries ?? DEFAULT_ASPIRATION_MAX_RETRIES;
 
   for (let depth = 1; depth <= options.maxDepth; depth += 1) {
     if (now() - start >= options.maxTimeMs) {
@@ -183,21 +194,50 @@ export function findBestMoveTimed(
       decayHistory(ordering);
     }
     options.onDepth?.(depth);
-    const move = findBestMove(state, color, {
-      depth,
-      rng: options.rng,
-      legalMoves,
-      playForWin: options.playForWin,
-      recentPositions: options.recentPositions,
-      repetitionPenalty: options.repetitionPenalty,
-      topMoveWindow: options.topMoveWindow,
-      fairnessWindow: options.fairnessWindow,
-      maxThinking: options.maxThinking,
-      tt,
-      ordering
-    });
-    if (move) {
-      best = move;
+    let scored: { move: Move | null; score: number | null } | null = null;
+    if (options.maxThinking && prevScore !== null && aspirationWindow > 0) {
+      const outcome = runAspirationSearch(
+        prevScore,
+        aspirationWindow,
+        aspirationMaxRetries,
+        () => now() - start >= options.maxTimeMs,
+        (alpha, beta) =>
+          scoreRootMoves(state, color, {
+            depth,
+            rng: options.rng,
+            legalMoves,
+            playForWin: options.playForWin,
+            recentPositions: options.recentPositions,
+            repetitionPenalty: options.repetitionPenalty,
+            topMoveWindow: options.topMoveWindow,
+            fairnessWindow: options.fairnessWindow,
+            maxThinking: options.maxThinking,
+            tt,
+            ordering
+          }, { alpha, beta }),
+        (result) => result.score
+      );
+      scored = { move: outcome.result.move, score: outcome.result.score };
+    } else {
+      const result = scoreRootMoves(state, color, {
+        depth,
+        rng: options.rng,
+        legalMoves,
+        playForWin: options.playForWin,
+        recentPositions: options.recentPositions,
+        repetitionPenalty: options.repetitionPenalty,
+        topMoveWindow: options.topMoveWindow,
+        fairnessWindow: options.fairnessWindow,
+        maxThinking: options.maxThinking,
+        tt,
+        ordering
+      });
+      scored = { move: result.move, score: result.score };
+    }
+
+    if (scored?.move) {
+      best = scored.move;
+      prevScore = scored.score;
     }
   }
 
@@ -218,6 +258,67 @@ export function findBestMoveTimed(
     tt,
     ordering
   });
+}
+
+type AspirationOutcome<T> = {
+  result: T;
+  retries: number;
+  timedOut: boolean;
+};
+
+function runAspirationSearch<T>(
+  prevScore: number,
+  window: number,
+  maxRetries: number,
+  shouldStop: () => boolean,
+  search: (alpha: number, beta: number) => T,
+  getScore: (result: T) => number | null
+): AspirationOutcome<T> {
+  let retries = 0;
+  let currentWindow = window;
+  let result = search(prevScore - currentWindow, prevScore + currentWindow);
+
+  while (true) {
+    if (shouldStop()) {
+      return { result, retries, timedOut: true };
+    }
+    const score = getScore(result);
+    const alpha = prevScore - currentWindow;
+    const beta = prevScore + currentWindow;
+    if (score !== null && score > alpha && score < beta) {
+      return { result, retries, timedOut: false };
+    }
+    retries += 1;
+    if (retries > maxRetries) {
+      result = search(-Infinity, Infinity);
+      return { result, retries, timedOut: false };
+    }
+    currentWindow *= 2;
+    result = search(prevScore - currentWindow, prevScore + currentWindow);
+  }
+}
+
+// Test-only: validate aspiration retry logic with deterministic score sequences.
+export function simulateAspirationRetriesForTest(
+  scores: number[],
+  prevScore: number,
+  window: number,
+  maxRetries: number
+): number {
+  let index = 0;
+  const outcome = runAspirationSearch(
+    prevScore,
+    window,
+    maxRetries,
+    () => false,
+    () => {
+      const score = scores[Math.min(index, scores.length - 1)] ?? 0;
+      index += 1;
+      return { score };
+    },
+    (result) => result.score
+  );
+  return outcome.retries;
 }
 
 // Test-only helper: mirrors timed search but returns root scores + mate info.
@@ -244,10 +345,17 @@ export function findBestMoveTimedDebug(
   const ordering = options.maxThinking
     ? options.ordering ?? createOrderingState(options.maxDepth + 4)
     : undefined;
+  const aspirationWindow = options.maxThinking
+    ? options.aspirationWindow ?? DEFAULT_ASPIRATION_WINDOW
+    : 0;
+  const aspirationMaxRetries =
+    options.aspirationMaxRetries ?? DEFAULT_ASPIRATION_MAX_RETRIES;
   let depthCompleted = 0;
   let bestMove: Move | null = null;
   let bestScore: number | null = null;
   let scoredMoves: MateProbeScoredMove[] = [];
+  let aspirationRetries = 0;
+  let prevScore: number | null = null;
 
   for (let depth = 1; depth <= options.maxDepth; depth += 1) {
     if (now() - start >= options.maxTimeMs) {
@@ -257,24 +365,61 @@ export function findBestMoveTimedDebug(
       decayHistory(ordering);
     }
     options.onDepth?.(depth);
-    const scored = scoreRootMoves(state, color, {
-      depth,
-      rng: options.rng,
-      legalMoves,
-      playForWin: options.playForWin,
-      recentPositions: options.recentPositions,
-      repetitionPenalty: options.repetitionPenalty,
-      topMoveWindow: options.topMoveWindow,
-      fairnessWindow: options.fairnessWindow,
-      maxThinking: options.maxThinking,
-      tt,
-      ordering
-    });
+    let scored:
+      | { move: Move | null; score: number | null; scoredMoves: MateProbeScoredMove[] }
+      | undefined;
+    if (options.maxThinking && prevScore !== null && aspirationWindow > 0) {
+      const outcome = runAspirationSearch(
+        prevScore,
+        aspirationWindow,
+        aspirationMaxRetries,
+        () => now() - start >= options.maxTimeMs,
+        (alpha, beta) =>
+          scoreRootMoves(state, color, {
+            depth,
+            rng: options.rng,
+            legalMoves,
+            playForWin: options.playForWin,
+            recentPositions: options.recentPositions,
+            repetitionPenalty: options.repetitionPenalty,
+            topMoveWindow: options.topMoveWindow,
+            fairnessWindow: options.fairnessWindow,
+            maxThinking: options.maxThinking,
+            tt,
+            ordering
+          }, { alpha, beta }),
+        (result) => result.score
+      );
+      aspirationRetries += outcome.retries;
+      scored = outcome.result;
+    } else {
+      scored = scoreRootMoves(state, color, {
+        depth,
+        rng: options.rng,
+        legalMoves,
+        playForWin: options.playForWin,
+        recentPositions: options.recentPositions,
+        repetitionPenalty: options.repetitionPenalty,
+        topMoveWindow: options.topMoveWindow,
+        fairnessWindow: options.fairnessWindow,
+        maxThinking: options.maxThinking,
+        tt,
+        ordering
+      });
+    }
+    if (!scored) {
+      scored = {
+        move: null,
+        score: null,
+        scoredMoves: []
+      };
+    }
     if (scored.move) {
       bestMove = scored.move;
       bestScore = scored.score;
       scoredMoves = scored.scoredMoves;
       depthCompleted = depth;
+      prevScore = scored.score;
     }
   }
 
@@ -306,14 +451,16 @@ export function findBestMoveTimedDebug(
     mateInMoves: mateInfo?.mateInMoves ?? null,
     depthCompleted,
     scoredMoves,
-    ttEntries: tt?.size
+    ttEntries: tt?.size,
+    aspirationRetries
   };
 }
 
 function scoreRootMoves(
   state: GameState,
   color: Color,
-  options: SearchOptions
+  options: SearchOptions,
+  window?: { alpha: number; beta: number }
 ): { move: Move | null; score: number | null; scoredMoves: MateProbeScoredMove[] } {
   const ordered = orderMoves(state, options.legalMoves ?? [], color, options.rng, {
     preferred: options.maxThinking && options.tt
@@ -323,6 +470,8 @@ function scoreRootMoves(
     ordering: options.ordering,
     ply: 0
   });
+  const alpha = window?.alpha ?? -Infinity;
+  const beta = window?.beta ?? Infinity;
   const scoredMoves: MateProbeScoredMove[] = [];
   const playForWin = Boolean(options.playForWin && options.recentPositions?.length);
   const repetitionPenalty = options.repetitionPenalty ?? DEFAULT_REPETITION_PENALTY;
@@ -337,8 +486,8 @@ function scoreRootMoves(
     let baseScore = alphaBeta(
       next,
       options.depth - 1,
-      -Infinity,
-      Infinity,
+      alpha,
+      beta,
       opponentColor(color),
       color,
       options.rng,
