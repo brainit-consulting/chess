@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Dreaming About Becoming a Grand Master Chess Engine One Day</title>
+  <style>
+    :root {
+      --bg: #0b0b10;
+      --card: #12121a;
+      --text: #f2f2f6;
+      --muted: #b7b7c6;
+      --accent: #7B3FA0;
+      --accent2: #4CAF50;
+      --border: rgba(255,255,255,.10);
+      --shadow: 0 18px 60px rgba(0,0,0,.45);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    }
+    body {
+      margin: 0;
+      background: radial-gradient(1200px 700px at 15% 0%, rgba(123,63,160,.25), transparent 55%),
+                  radial-gradient(1000px 650px at 85% 10%, rgba(76,175,80,.18), transparent 50%),
+                  var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      line-height: 1.6;
+    }
+    .wrap {
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 42px 18px 64px;
+    }
+    header {
+      display: flex;
+      gap: 14px;
+      align-items: baseline;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+    h1 {
+      font-size: clamp(28px, 4.2vw, 44px);
+      margin: 0;
+      letter-spacing: -0.02em;
+    }
+    .sub {
+      color: var(--muted);
+      margin: 6px 0 0;
+      font-size: 15px;
+      max-width: 700px;
+    }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: rgba(18,18,26,.65);
+      box-shadow: 0 10px 28px rgba(0,0,0,.25);
+      font-size: 13px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      box-shadow: 0 0 0 4px rgba(123,63,160,.14);
+    }
+    .card {
+      background: rgba(18,18,26,.85);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 22px 22px;
+      box-shadow: var(--shadow);
+      margin-top: 18px;
+    }
+    h2 {
+      margin: 0 0 10px;
+      font-size: 21px;
+      letter-spacing: -0.01em;
+    }
+    p {
+      margin: 10px 0;
+    }
+    ul {
+      margin: 10px 0 0 20px;
+      padding: 0;
+    }
+    li {
+      margin: 8px 0;
+    }
+    .muted {
+      color: var(--muted);
+    }
+    .callout {
+      border-left: 4px solid var(--accent);
+      padding: 16px 16px 16px 18px;
+      background: rgba(123,63,160,.12);
+      border-radius: 14px;
+      margin-top: 14px;
+    }
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+      border-radius: 14px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    .table th, .table td {
+      text-align: left;
+      padding: 12px;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+      vertical-align: top;
+    }
+    .table th {
+      color: var(--muted);
+      font-weight: 600;
+      background: rgba(255,255,255,.03);
+    }
+    footer {
+      margin-top: 26px;
+      color: var(--muted);
+      font-size: 13px;
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>Dreaming About Becoming a Grand Master Chess Engine One Day</h1>
+        <p class="sub">
+          An open invitation to exceptional programmers, engine developers, and AI researchers who want to help
+          transform a thoughtful, explainable chess engine into something truly world‑class.
+        </p>
+      </div>
+      <div class="chip">
+        <span class="dot"></span>
+        <span>BrainIT Chess Engine</span>
+      </div>
+    </header>
+
+    <div class="card">
+      <h2>Why this project exists</h2>
+      <p>
+        The BrainIT Chess Engine began with a simple but ambitious idea:
+        build a chess engine that <strong>thinks visibly</strong>, explains its decisions,
+        and scales its strength in a transparent, principled way.
+      </p>
+      <p>
+        Today, the engine is a clean, classical alpha–beta implementation with shared rules,
+        a shared evaluation function, and multiple difficulty modes controlled purely by
+        <strong>search depth and time</strong>.
+      </p>
+      <div class="callout">
+        <p class="muted" style="margin:0">
+          This makes the engine understandable, hackable, and an ideal foundation for deeper research and experimentation.
+        </p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Where the engine stands today</h2>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Mode</th>
+            <th>Search approach</th>
+            <th>Current behavior</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Easy</strong></td>
+            <td>Fixed depth (1)</td>
+            <td>Intentionally weak, educational, forgiving.</td>
+          </tr>
+          <tr>
+            <td><strong>Medium</strong></td>
+            <td>Fixed depth (2)</td>
+            <td>Club‑level play with basic tactical awareness.</td>
+          </tr>
+          <tr>
+            <td><strong>Hard</strong></td>
+            <td>Fixed depth (3)</td>
+            <td>First “serious chess” tier with reduced blunders.</td>
+          </tr>
+          <tr>
+            <td><strong>Max Thinking</strong></td>
+            <td>Timed iterative deepening (cap 7)</td>
+            <td>Strongest mode; adaptive, tactical, and still fully explainable.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>The dream: from strong to extraordinary</h2>
+      <p>
+        With its current architecture, the engine can realistically approach
+        <strong>strong club to expert‑level play</strong>. Reaching beyond that —
+        toward master and grand‑master‑level engines — requires collaboration.
+      </p>
+      <p class="muted">
+        This is where you come in.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>We’re inviting builders, not spectators</h2>
+      <p>
+        We’re looking for programmers who are excited by:
+      </p>
+      <ul>
+        <li>Search optimization (move ordering, pruning, transposition tables)</li>
+        <li>Evaluation design (positional heuristics, balance, long‑term planning)</li>
+        <li>NNUE or hybrid neural evaluation approaches</li>
+        <li>Opening theory integration and automated book building</li>
+        <li>Endgame tablebases and perfect‑play transitions</li>
+        <li>Performance tuning in constrained environments (browser, workers, time budgets)</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>Why contribute?</h2>
+      <ul>
+        <li>Work on a chess engine that values <strong>clarity and explainability</strong>, not just raw force.</li>
+        <li>Experiment freely without legacy complexity or opaque code.</li>
+        <li>Help shape an engine designed for humans, learners, and researchers.</li>
+        <li>Be part of a long‑term effort to push a clean engine toward elite strength.</li>
+      </ul>
+      <div class="callout">
+        <p style="margin:0">
+          This is not about chasing leaderboard numbers alone — it’s about building something elegant, powerful,
+          and understandable.
+        </p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>If this resonates with you</h2>
+      <p>
+        If you’ve ever wanted to help turn a thoughtful chess engine into a future
+        grand‑master‑level system — or simply enjoy the challenge of pushing search,
+        evaluation, and AI design forward — we’d love to collaborate.
+      </p>
+      <p class="muted">
+        Big goals start with clean foundations. This one is ready.
+      </p>
+    </div>
+
+    <footer>
+      <div>Generated: 2025-12-26 03:03:57</div>
+      <div class="muted"><strong>Dreaming About Becoming a Grand Master Chess Engine One Day</strong> — Invitation Edition</div>
+    </footer>
+  </div>
+</body>
+</html>

@@ -59,3 +59,5 @@ npm run test:run
 - `src/client`: Three.js scene, camera, picking, highlights
 - `src/ui`: DOM overlay for status, buttons, promotion UI
 - `src/ai`: AI move selection (heuristics + minimax)
+
+Learn more: [Dreaming About Becoming a Grand Master Chess Engine Invitation](docs/Dreaming_About_Becoming_a_Grand_Master_Chess_Engine_Invitation.html)

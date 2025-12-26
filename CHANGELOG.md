@@ -7,6 +7,13 @@ Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.1.36] - 2025-12-25
+### Added
+- Document AI difficulty modes and Max Thinking behavior in the docs.
+- Add the Dreaming About Becoming a Grand Master Chess Engine Invitation link to docs and README.
+### Changed
+- Update the in-UI version label to v1.1.36.
+
 ## [1.1.35] - 2025-12-25
 ### Changed
 - Refresh the player guide to match current UI controls, analyzers, and exports.
@@ -189,3 +196,5 @@ Semantic Versioning.
 ### Added
 
 - First public playable online build (GitHub Pages).
+
+Learn more: [Dreaming About Becoming a Grand Master Chess Engine Invitation](docs/Dreaming_About_Becoming_a_Grand_Master_Chess_Engine_Invitation.html)

@@ -190,3 +190,5 @@ The game remembers:
 
 Enjoy the game, and have fun exploring chess in 3D!
 Emile from brainitconsulting.com
+
+Learn more: [Dreaming About Becoming a Grand Master Chess Engine Invitation](Dreaming_About_Becoming_a_Grand_Master_Chess_Engine_Invitation.html)
