@@ -7,8 +7,13 @@ Semantic Versioning.
 
 ## [Unreleased]
 ### Changed
-- (none)
 
+## [1.1.48] - 2025-12-26 17:13
+### Added
+- Max-only null-move pruning with conservative endgame guards.
+### Changed
+- Mark Phase 4B as completed in the Max Thinking roadmap.
+- Update the in-UI version label to v1.1.48.
 ## [1.1.47] - 2025-12-26 16:35
 ### Added
 - Max-only late move reductions (LMR) for deeper effective search.

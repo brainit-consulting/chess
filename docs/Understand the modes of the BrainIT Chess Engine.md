@@ -60,6 +60,7 @@ Max Thinking also adds search-only improvements:
 - **Aspiration windows** during iterative deepening to reduce re-search overhead.
 - **SEE-lite capture filter** to deprioritize clearly losing captures.
 - **Late move reductions (LMR)** for low-priority quiet moves.
+- **Null-move pruning** with conservative endgame guards.
 
 Easy/Medium/Hard do not use these search extras.
 

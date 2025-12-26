@@ -37,6 +37,9 @@ const SEE_QUIESCENCE_PRUNE_THRESHOLD = -350;
 const LMR_MIN_DEPTH = 3;
 const LMR_START_MOVE = 3;
 const LMR_REDUCTION = 1;
+const NULL_MOVE_MIN_DEPTH = 3;
+const NULL_MOVE_REDUCTION = 2;
+const NULL_MOVE_MIN_MATERIAL = 1200;
 const QUIESCENCE_MAX_DEPTH = 4;
 
 type TTFlag = 'exact' | 'alpha' | 'beta';
@@ -622,14 +625,47 @@ function alphaBeta(
     );
   }
 
+  const maximizing = currentColor === maximizingColor;
+  const inCheck = maxThinking ? isInCheck(state, currentColor) : false;
+
+  if (
+    maxThinking &&
+    depth >= NULL_MOVE_MIN_DEPTH &&
+    !inCheck &&
+    shouldAllowNullMove(state, currentColor)
+  ) {
+    const next = cloneState(state);
+    next.activeColor = opponentColor(currentColor);
+    next.enPassantTarget = null;
+    const reductionDepth = Math.max(0, depth - 1 - NULL_MOVE_REDUCTION);
+    const nullScore = alphaBeta(
+      next,
+      reductionDepth,
+      alpha,
+      beta,
+      opponentColor(currentColor),
+      maximizingColor,
+      rng,
+      maxThinking,
+      ply + 1,
+      tt,
+      ordering
+    );
+    if (maximizing) {
+      if (nullScore >= beta) {
+        return nullScore;
+      }
+    } else if (nullScore <= alpha) {
+      return nullScore;
+    }
+  }
+
   const ordered = orderMoves(state, legalMoves, currentColor, rng, {
     preferred: ttBestMove,
     maxThinking,
     ordering,
     ply
   });
-  const maximizing = currentColor === maximizingColor;
-  const inCheck = maxThinking ? isInCheck(state, currentColor) : false;
 
   if (maximizing) {
     let value = -Infinity;
@@ -1065,6 +1101,27 @@ function getLmrReduction(
   return LMR_REDUCTION;
 }
 
+function shouldAllowNullMove(state: GameState, color: Color): boolean {
+  let totalMaterial = 0;
+  let hasNonPawnForSide = false;
+  for (const piece of state.pieces.values()) {
+    if (piece.type === 'king') {
+      continue;
+    }
+    totalMaterial += PIECE_VALUES[piece.type];
+    if (piece.color === color && piece.type !== 'pawn') {
+      hasNonPawnForSide = true;
+    }
+  }
+  if (!hasNonPawnForSide) {
+    return false;
+  }
+  if (totalMaterial < NULL_MOVE_MIN_MATERIAL) {
+    return false;
+  }
+  return true;
+}
+
 function isQuietForOrdering(state: GameState, move: Move, color: Color): boolean {
   if (move.isCastle || move.promotion) {
     return false;
@@ -1182,6 +1239,10 @@ export function getLmrReductionForTest(
   isQuiet: boolean
 ): number {
   return getLmrReduction(depth, moveIndex, inCheck, isQuiet);
+}
+
+export function shouldAllowNullMoveForTest(state: GameState, color: Color): boolean {
+  return shouldAllowNullMove(state, color);
 }
 
 function cloneState(state: GameState): GameState {

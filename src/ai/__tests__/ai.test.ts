@@ -454,6 +454,23 @@ describe('AI move selection', () => {
     expect(search.getLmrReductionForTest(4, 4, false, false)).toBe(0);
   });
 
+  it('disables null-move pruning in pawn-only endgames', () => {
+    const state = createEmptyState();
+    addPiece(state, 'king', 'w', sq(4, 0));
+    addPiece(state, 'king', 'b', sq(4, 7));
+    addPiece(state, 'pawn', 'w', sq(0, 1));
+    addPiece(state, 'pawn', 'b', sq(7, 6));
+    state.activeColor = 'w';
+
+    expect(search.shouldAllowNullMoveForTest(state, 'w')).toBe(false);
+  });
+
+  it('allows null-move pruning in middlegames with material', () => {
+    const state = createInitialState();
+    state.activeColor = 'w';
+    expect(search.shouldAllowNullMoveForTest(state, 'w')).toBe(true);
+  });
+
   it('ignores stale explain responses by request or position', () => {
     const apply = shouldApplyExplainResponse({
       requestId: 2,

@@ -115,9 +115,10 @@ Tests
 
 --------------------------------------------------------
 
-Phase 4B — Null-move pruning, very conservative + endgame guards
+Phase 4B - Null-move pruning, very conservative + endgame guards
 Impact: High
 Risk: High
+Status: Completed in v1.1.48.
 
 Implementation safeguards
 - Disable in:
