@@ -97,7 +97,7 @@ You are doing this the right way:
 - Measuring, not tuning
 - Stockfish as an external baseline
 - Directional results first
-- Clean baseline at v1.1.36
+- Clean baseline at v1.1.42
 
 Once the harness exists, we can interpret the Elo deltas safely and plan future
 engine improvements without contaminating the benchmark.

@@ -138,6 +138,7 @@ Use the **Analyzer** dropdown in the main UI to choose:
 
 - **BrainIT Chess Buddy Analyzer**
 - **Chess Analysis Pro**
+- **Chess Engine AI**
 
 Click **Open Analyzer** to open your choice in a new tab, then paste or import your PGN.
 

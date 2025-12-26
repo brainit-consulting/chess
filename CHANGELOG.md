@@ -7,6 +7,15 @@ Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.1.43] - 2025-12-26 12:41
+### Added
+- Add Chess Engine AI to the analyzer dropdown options.
+- Add dev-only mate probe helpers to validate mate-distance scoring.
+### Changed
+- Remove Chess Analysis Net from the analyzer dropdown options.
+- Update analyzer references in the docs.
+- Update the in-UI version label to v1.1.43.
+
 ## [1.1.42] - 2025-12-26 10:53
 ### Added
 - Add Chess Analysis Net to the analyzer dropdown options.

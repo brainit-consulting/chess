@@ -1,4 +1,4 @@
-export type AnalyzerChoice = 'buddy' | 'analysispro' | 'analysisnet';
+export type AnalyzerChoice = 'buddy' | 'analysispro' | 'chessengine';
 
 export const ANALYZER_OPTIONS: Record<
   AnalyzerChoice,
@@ -12,9 +12,9 @@ export const ANALYZER_OPTIONS: Record<
     label: 'Chess Analysis Pro',
     url: 'https://chessanalysis.pro/'
   },
-  analysisnet: {
-    label: 'Chess Analysis Net',
-    url: 'https://chessanalysis.net/'
+  chessengine: {
+    label: 'Chess Engine AI',
+    url: 'https://chessengine.ai/'
   }
 };
 

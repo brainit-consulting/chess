@@ -49,6 +49,17 @@ Max Thinking adds additional, interpretable heuristics:
 
 Easy/Medium/Hard do not use these extra terms.
 
+## Max Thinking search extras (Phase 2A/2B)
+
+Max Thinking also adds search-only improvements:
+
+- **Quiescence search** at leaf nodes (captures + checks only).
+- **Mate-distance scoring** to prefer shorter mates.
+- **Transposition table** for caching scores and best moves across depth passes.
+- **Mate-aware move ordering** (TT best move first, checks and high-value captures prioritized).
+
+Easy/Medium/Hard do not use these search extras.
+
 ## Why Max Thinking is stronger than Hard
 
 Hard uses a fixed **depth 3** search. Max Thinking uses **iterative deepening with a time budget** and can reach deeper depths (up to cap 7). In practice:

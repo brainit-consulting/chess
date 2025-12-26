@@ -51,7 +51,7 @@ npm run test:run
 ## Analyze Your Games
 
 - Export PGN from the Game History panel or the game-over summary.
-- Open https://chessanalysis.pro/ and paste or import the PGN to replay and analyze.
+- Use the Analyzer dropdown (BrainIT Chess Buddy Analyzer, Chess Analysis Pro, Chess Engine AI) and paste or import the PGN to replay and analyze.
 
 ## Structure
 

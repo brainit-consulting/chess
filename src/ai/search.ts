@@ -46,6 +46,24 @@ type TimedSearchOptions = Omit<SearchOptions, 'depth'> & {
   onDepth?: (depth: number) => void;
 };
 
+export type MateProbeScoredMove = {
+  move: Move;
+  score: number;
+  baseScore: number;
+  mateInPly: number | null;
+  mateInMoves: number | null;
+};
+
+export type MateProbeReport = {
+  move: Move | null;
+  score: number | null;
+  mateInPly: number | null;
+  mateInMoves: number | null;
+  depthCompleted: number;
+  scoredMoves: MateProbeScoredMove[];
+  ttEntries?: number;
+};
+
 export function findBestMove(state: GameState, color: Color, options: SearchOptions): Move | null {
   const legalMoves = options.legalMoves ?? getAllLegalMoves(state, color);
   if (legalMoves.length === 0) {
@@ -172,6 +190,175 @@ export function findBestMoveTimed(
     maxThinking: options.maxThinking,
     tt
   });
+}
+
+// Test-only helper: mirrors timed search but returns root scores + mate info.
+export function findBestMoveTimedDebug(
+  state: GameState,
+  color: Color,
+  options: TimedSearchOptions
+): MateProbeReport {
+  const legalMoves = options.legalMoves ?? getAllLegalMoves(state, color);
+  if (legalMoves.length === 0) {
+    return {
+      move: null,
+      score: null,
+      mateInPly: null,
+      mateInMoves: null,
+      depthCompleted: 0,
+      scoredMoves: []
+    };
+  }
+
+  const now = options.now ?? defaultNow;
+  const start = now();
+  const tt = options.maxThinking ? options.tt ?? new Map<string, TTEntry>() : undefined;
+  let depthCompleted = 0;
+  let bestMove: Move | null = null;
+  let bestScore: number | null = null;
+  let scoredMoves: MateProbeScoredMove[] = [];
+
+  for (let depth = 1; depth <= options.maxDepth; depth += 1) {
+    if (now() - start >= options.maxTimeMs) {
+      break;
+    }
+    options.onDepth?.(depth);
+    const scored = scoreRootMoves(state, color, {
+      depth,
+      rng: options.rng,
+      legalMoves,
+      playForWin: options.playForWin,
+      recentPositions: options.recentPositions,
+      repetitionPenalty: options.repetitionPenalty,
+      topMoveWindow: options.topMoveWindow,
+      fairnessWindow: options.fairnessWindow,
+      maxThinking: options.maxThinking,
+      tt
+    });
+    if (scored.move) {
+      bestMove = scored.move;
+      bestScore = scored.score;
+      scoredMoves = scored.scoredMoves;
+      depthCompleted = depth;
+    }
+  }
+
+  if (!bestMove) {
+    const scored = scoreRootMoves(state, color, {
+      depth: 1,
+      rng: options.rng,
+      legalMoves,
+      playForWin: options.playForWin,
+      recentPositions: options.recentPositions,
+      repetitionPenalty: options.repetitionPenalty,
+      topMoveWindow: options.topMoveWindow,
+      fairnessWindow: options.fairnessWindow,
+      maxThinking: options.maxThinking,
+      tt
+    });
+    bestMove = scored.move;
+    bestScore = scored.score;
+    scoredMoves = scored.scoredMoves;
+    depthCompleted = 1;
+  }
+
+  const mateInfo = bestScore !== null ? getMateInfo(bestScore) : null;
+  return {
+    move: bestMove,
+    score: bestScore,
+    mateInPly: mateInfo?.mateInPly ?? null,
+    mateInMoves: mateInfo?.mateInMoves ?? null,
+    depthCompleted,
+    scoredMoves,
+    ttEntries: tt?.size
+  };
+}
+
+function scoreRootMoves(
+  state: GameState,
+  color: Color,
+  options: SearchOptions
+): { move: Move | null; score: number | null; scoredMoves: MateProbeScoredMove[] } {
+  const ordered = orderMoves(state, options.legalMoves ?? [], color, options.rng, {
+    preferred: options.maxThinking && options.tt
+      ? options.tt.get(getPositionKey(state))?.bestMove
+      : undefined,
+    maxThinking: options.maxThinking
+  });
+  const scoredMoves: MateProbeScoredMove[] = [];
+  const playForWin = Boolean(options.playForWin && options.recentPositions?.length);
+  const repetitionPenalty = options.repetitionPenalty ?? DEFAULT_REPETITION_PENALTY;
+  const topMoveWindow = options.topMoveWindow ?? DEFAULT_TOP_MOVE_WINDOW;
+  const fairnessWindow = options.fairnessWindow ?? DEFAULT_FAIRNESS_WINDOW;
+
+  for (const move of ordered) {
+    const next = cloneState(state);
+    next.activeColor = color;
+    applyMove(next, move);
+
+    let baseScore = alphaBeta(
+      next,
+      options.depth - 1,
+      -Infinity,
+      Infinity,
+      opponentColor(color),
+      color,
+      options.rng,
+      options.maxThinking ?? false,
+      1,
+      options.tt
+    );
+    let score = baseScore;
+
+    if (playForWin) {
+      const key = getPositionKey(next);
+      if (options.recentPositions?.includes(key)) {
+        score -= repetitionPenalty;
+      }
+    }
+
+    const mateInfo = getMateInfo(score);
+    scoredMoves.push({
+      move,
+      score,
+      baseScore,
+      mateInPly: mateInfo?.mateInPly ?? null,
+      mateInMoves: mateInfo?.mateInMoves ?? null
+    });
+  }
+
+  if (scoredMoves.length === 0) {
+    return { move: null, score: null, scoredMoves };
+  }
+
+  const bestScore = Math.max(...scoredMoves.map((entry) => entry.score));
+  const baseBest = Math.max(...scoredMoves.map((entry) => entry.baseScore));
+  let windowed =
+    playForWin && topMoveWindow > 0
+      ? scoredMoves.filter((entry) => entry.score >= bestScore - topMoveWindow)
+      : scoredMoves.filter((entry) => entry.score === bestScore);
+
+  if (playForWin) {
+    windowed = windowed.filter((entry) => entry.baseScore >= baseBest - fairnessWindow);
+    if (windowed.length === 0) {
+      const baseLeaders = scoredMoves.filter((entry) => entry.baseScore === baseBest);
+      const index = Math.floor(options.rng() * baseLeaders.length);
+      return { move: baseLeaders[index].move, score: baseLeaders[index].score, scoredMoves };
+    }
+  }
+
+  const index = Math.floor(options.rng() * windowed.length);
+  return { move: windowed[index].move, score: windowed[index].score, scoredMoves };
+}
+
+function getMateInfo(score: number): { mateInPly: number; mateInMoves: number } | null {
+  const abs = Math.abs(score);
+  if (abs < MATE_SCORE - 100) {
+    return null;
+  }
+  const mateInPly = Math.max(0, MATE_SCORE - abs);
+  const mateInMoves = Math.ceil(mateInPly / 2);
+  return { mateInPly, mateInMoves };
 }
 
 function defaultNow(): number {
