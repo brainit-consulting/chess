@@ -26,13 +26,13 @@
       line-height: 1.6;
     }
     .wrap {
-      max-width: 960px;
+      max-width: 980px;
       margin: 0 auto;
-      padding: 48px 18px 72px;
+      padding: 48px 18px 76px;
     }
     header {
       text-align: center;
-      margin-bottom: 28px;
+      margin-bottom: 30px;
     }
     .logo {
       max-width: 220px;
@@ -40,27 +40,27 @@
       display: block;
     }
     h1 {
-      font-size: clamp(28px, 4.2vw, 44px);
+      font-size: clamp(30px, 4.4vw, 46px);
       margin: 0;
       letter-spacing: -0.02em;
     }
     .sub {
       color: var(--muted);
-      margin: 10px auto 0;
-      font-size: 15px;
-      max-width: 720px;
+      margin: 12px auto 0;
+      font-size: 16px;
+      max-width: 760px;
     }
     .card {
       background: rgba(18,18,26,.85);
       border: 1px solid var(--border);
       border-radius: 18px;
-      padding: 22px;
+      padding: 26px;
       box-shadow: var(--shadow);
-      margin-top: 22px;
+      margin-top: 24px;
     }
     h2 {
-      margin: 0 0 10px;
-      font-size: 21px;
+      margin: 0 0 12px;
+      font-size: 22px;
     }
     p {
       margin: 10px 0;
@@ -70,14 +70,14 @@
       padding: 16px;
       background: rgba(123,63,160,.12);
       border-radius: 14px;
-      margin-top: 14px;
+      margin-top: 16px;
     }
     .cta-wrap {
       display: flex;
       gap: 18px;
       flex-wrap: wrap;
       justify-content: center;
-      margin-top: 26px;
+      margin-top: 30px;
     }
     .cta {
       display: inline-flex;
@@ -86,20 +86,26 @@
       padding: 18px 36px;
       border-radius: 999px;
       font-size: 18px;
-      font-weight: 600;
+      font-weight: 700;
       text-decoration: none;
       color: #ffffff;
       background: linear-gradient(135deg, var(--accent), var(--accent2));
       box-shadow: 0 14px 34px rgba(0,0,0,.45);
       transition: transform .15s ease, box-shadow .15s ease;
-      min-width: 240px;
+      min-width: 260px;
+      text-align: center;
+    }
+    .cta.secondary {
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.12);
+      color: var(--text);
     }
     .cta:hover {
       transform: translateY(-2px);
       box-shadow: 0 18px 42px rgba(0,0,0,.55);
     }
     footer {
-      margin-top: 36px;
+      margin-top: 38px;
       color: var(--muted);
       font-size: 13px;
       text-align: center;
@@ -113,7 +119,7 @@
       <h1>Dreaming About Becoming a Grand Master Chess Engine One Day</h1>
       <p class="sub">
         An open invitation to exceptional programmers, engine developers, and AI researchers
-        to help evolve the BrainIT Chess Engine toward true grand‑master‑level strength.
+        to help evolve the BrainIT Chess Engine from strong club-level play toward true grand-master ambition.
       </p>
     </header>
 
@@ -121,24 +127,29 @@
       <h2>The Invitation</h2>
       <p>
         BrainIT Chess is a clean, explainable chess engine built on a classical alpha–beta foundation.
-        Its strength scales predictably through search depth and time, making it ideal for collaboration,
-        experimentation, and long‑term evolution.
+        It scales strength predictably through search depth and time, making it ideal for collaboration,
+        experimentation, and serious engine research.
       </p>
+
       <div class="callout">
         <p style="margin:0">
-          We are not chasing brute force alone. We are building understanding, elegance, and power — together.
+          We believe world-class engines don’t have to be opaque.
+          Help us prove that explainability and strength can grow together.
         </p>
       </div>
 
       <div class="cta-wrap">
-        <a class="cta" href="https://brainit-consulting.github.io/chess/" target="_blank">♟️ Play Chess</a>
-        <a class="cta" href="https://chessgamebuddy.base44.app/" target="_blank">🧠 Analyze a Game</a>
-        <a class="cta" href="https://brainitconsulting.com/contact" target="_blank">✉️ Get in Touch</a>
+        <a class="cta" href="https://brainit-consulting.github.io/chess/" target="_blank" rel="noopener noreferrer">♟️ Play Chess</a>
+        <a class="cta" href="https://chessgamebuddy.base44.app/" target="_blank" rel="noopener noreferrer">🧠 Analyze a Game</a>
+        <a class="cta" href="https://brainitconsulting.com/contact" target="_blank" rel="noopener noreferrer">✉️ Get in Touch</a>
+        <a class="cta secondary" href="Dreaming_About_Becoming_a_Grand_Master_Chess_Engine_Details.html" target="_blank" rel="noopener noreferrer">
+          📘 Read the Full Technical Vision
+        </a>
       </div>
     </div>
 
     <footer>
-      <div>Generated: 2025-12-26 11:52:44</div>
+      <div>Generated: 2025-12-26 12:12:09</div>
       <div><strong>BrainIT Chess Game Engine</strong></div>
     </footer>
   </div>

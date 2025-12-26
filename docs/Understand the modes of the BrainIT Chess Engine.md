@@ -10,14 +10,13 @@ That makes Max Thinking stronger in most positions, at the cost of more compute 
 
 ## What all modes have in common
 
-All modes use the same evaluation and legality rules:
+All modes share:
 
 - Same rules engine and legal move generation.
-- Same evaluation function (material + mobility and related heuristics).
 - Same alpha-beta search core.
 - Same Play-for-Win rules in AI vs AI (if enabled).
 
-So the difference is **search depth/time**, not a different evaluation or "cheating" rules.
+Max Thinking adds extra evaluation terms (listed below), while Easy/Medium/Hard keep the baseline evaluation.
 
 ## Difficulty comparison (current implementation)
 
@@ -28,7 +27,7 @@ Source: `src/ai/ai.ts` and `src/ai/search.ts`.
 | Easy | Fixed depth | depth 1 | Fast, intentionally weak. |
 | Medium | Fixed depth | depth 2 | Balanced speed/strength. |
 | Hard | Fixed depth | depth 3 | Strongest fixed-depth mode. |
-| Max Thinking | Timed iterative deepening | time budget with cap | Strongest overall; keeps searching until time runs out. |
+| Max Thinking | Timed iterative deepening | time budget with cap | Strongest overall; adds extra evaluation terms and keeps searching until time runs out. |
 
 ### Max Thinking defaults
 
@@ -39,6 +38,16 @@ These are currently defined in `src/ai/ai.ts` and applied in `src/game.ts`:
 - **AI vs AI movetime**: `MAX_THINKING_AI_VS_AI_MS = 700`
 
 Max Thinking runs iterative deepening from depth 1 up to the cap and returns the best fully completed depth inside the time budget.
+
+## Max Thinking evaluation extras
+
+Max Thinking adds additional, interpretable heuristics:
+
+- King safety (opening safety, castling, pawn shield).
+- Early queen development penalty.
+- Piece-square tables for knights and bishops.
+
+Easy/Medium/Hard do not use these extra terms.
 
 ## Why Max Thinking is stronger than Hard
 
@@ -74,4 +83,4 @@ Play-for-Win uses a repetition penalty and fairness window during move selection
 
 ## Summary
 
-Max Thinking is the strongest available mode because it uses a time budget and deeper search. Hard remains faster and more predictable but is weaker on tactics and long forcing lines. All modes share the same rules, evaluation, and legal move generation.
+Max Thinking is the strongest available mode because it uses a time budget, deeper search, and extra evaluation heuristics. Hard remains faster and more predictable but is weaker on tactics and long forcing lines. All modes share the same rules and legal move generation.

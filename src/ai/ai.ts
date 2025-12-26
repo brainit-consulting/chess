@@ -46,7 +46,8 @@ export function chooseMove(state: GameState, options: AiOptions = {}): Move | nu
       rng,
       legalMoves,
       playForWin: options.playForWin,
-      recentPositions: options.recentPositions
+      recentPositions: options.recentPositions,
+      maxThinking: true
     });
   }
 
@@ -56,7 +57,8 @@ export function chooseMove(state: GameState, options: AiOptions = {}): Move | nu
     rng,
     legalMoves,
     playForWin: options.playForWin,
-    recentPositions: options.recentPositions
+    recentPositions: options.recentPositions,
+    maxThinking: false
   });
 }
 

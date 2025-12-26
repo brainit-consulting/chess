@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { chooseMove } from '../ai';
 import { explainMove } from '../aiExplain';
 import { computeAiMove } from '../aiWorker';
+import { evaluateState } from '../evaluate';
 import {
   shouldApplyAiResponse,
   shouldApplyExplainResponse,
@@ -516,5 +517,40 @@ describe('AI move selection', () => {
       bullet.toLowerCase().includes('castles')
     );
     expect(hasCastle).toBe(true);
+  });
+
+  it('applies early queen penalties only in max thinking', () => {
+    const state = createEmptyState();
+    addPiece(state, 'king', 'w', sq(4, 0));
+    addPiece(state, 'king', 'b', sq(4, 7));
+    addPiece(state, 'queen', 'w', sq(3, 2), true);
+    addPiece(state, 'queen', 'b', sq(3, 7));
+    addPiece(state, 'knight', 'w', sq(1, 0));
+    addPiece(state, 'bishop', 'w', sq(2, 0));
+    addPiece(state, 'knight', 'b', sq(1, 7));
+    addPiece(state, 'bishop', 'b', sq(2, 7));
+    state.fullmoveNumber = 2;
+
+    const base = evaluateState(state, 'w');
+    const max = evaluateState(state, 'w', { maxThinking: true });
+    expect(max).toBeLessThan(base);
+  });
+
+  it('rewards central minor placement in max thinking', () => {
+    const edgeState = createEmptyState();
+    addPiece(edgeState, 'king', 'w', sq(4, 0));
+    addPiece(edgeState, 'king', 'b', sq(4, 7));
+    addPiece(edgeState, 'knight', 'w', sq(1, 0));
+    addPiece(edgeState, 'knight', 'b', sq(1, 7));
+
+    const centerState = createEmptyState();
+    addPiece(centerState, 'king', 'w', sq(4, 0));
+    addPiece(centerState, 'king', 'b', sq(4, 7));
+    addPiece(centerState, 'knight', 'w', sq(2, 2), true);
+    addPiece(centerState, 'knight', 'b', sq(1, 7));
+
+    const edgeScore = evaluateState(edgeState, 'w', { maxThinking: true });
+    const centerScore = evaluateState(centerState, 'w', { maxThinking: true });
+    expect(centerScore).toBeGreaterThan(edgeScore);
   });
 });

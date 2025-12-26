@@ -20,6 +20,7 @@ type SearchOptions = {
   repetitionPenalty?: number;
   topMoveWindow?: number;
   fairnessWindow?: number;
+  maxThinking?: boolean;
 };
 
 const MATE_SCORE = 20000;
@@ -59,7 +60,8 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
       Infinity,
       opponentColor(color),
       color,
-      options.rng
+      options.rng,
+      options.maxThinking ?? false
     );
     let score = baseScore;
 
@@ -124,7 +126,8 @@ export function findBestMoveTimed(
       recentPositions: options.recentPositions,
       repetitionPenalty: options.repetitionPenalty,
       topMoveWindow: options.topMoveWindow,
-      fairnessWindow: options.fairnessWindow
+      fairnessWindow: options.fairnessWindow,
+      maxThinking: options.maxThinking
     });
     if (move) {
       best = move;
@@ -143,7 +146,8 @@ export function findBestMoveTimed(
     recentPositions: options.recentPositions,
     repetitionPenalty: options.repetitionPenalty,
     topMoveWindow: options.topMoveWindow,
-    fairnessWindow: options.fairnessWindow
+    fairnessWindow: options.fairnessWindow,
+    maxThinking: options.maxThinking
   });
 }
 
@@ -158,7 +162,8 @@ function alphaBeta(
   beta: number,
   currentColor: Color,
   maximizingColor: Color,
-  rng: () => number
+  rng: () => number,
+  maxThinking: boolean
 ): number {
   const legalMoves = getAllLegalMoves(state, currentColor);
   if (legalMoves.length === 0) {
@@ -169,7 +174,7 @@ function alphaBeta(
   }
 
   if (depth <= 0) {
-    return evaluateState(state, maximizingColor);
+    return evaluateState(state, maximizingColor, { maxThinking });
   }
 
   const ordered = orderMoves(state, legalMoves, currentColor, rng);
@@ -183,7 +188,16 @@ function alphaBeta(
       applyMove(next, move);
       value = Math.max(
         value,
-        alphaBeta(next, depth - 1, alpha, beta, opponentColor(currentColor), maximizingColor, rng)
+        alphaBeta(
+          next,
+          depth - 1,
+          alpha,
+          beta,
+          opponentColor(currentColor),
+          maximizingColor,
+          rng,
+          maxThinking
+        )
       );
       alpha = Math.max(alpha, value);
       if (alpha >= beta) {
@@ -200,7 +214,16 @@ function alphaBeta(
     applyMove(next, move);
     value = Math.min(
       value,
-      alphaBeta(next, depth - 1, alpha, beta, opponentColor(currentColor), maximizingColor, rng)
+      alphaBeta(
+        next,
+        depth - 1,
+        alpha,
+        beta,
+        opponentColor(currentColor),
+        maximizingColor,
+        rng,
+        maxThinking
+      )
     );
     beta = Math.min(beta, value);
     if (alpha >= beta) {
