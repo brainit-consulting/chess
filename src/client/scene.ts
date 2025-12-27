@@ -5,6 +5,7 @@ import { CoordinateMode, PieceSet, SnapView } from '../types';
 import { createSciFiPieceInstance, preloadSciFiModels } from './models/scifiChessModels';
 import { createStandardPieceInstance, preloadStandardModels } from './models/standardChessModels';
 import { createCoordinateGroup, setCoordinateOrientation } from './coordinates';
+import { isDarkSquare, squareToWorld as mapSquareToWorld } from './boardMapping';
 
 export type PickResult = {
   type: 'square' | 'piece';
@@ -67,8 +68,10 @@ export class SceneView {
   private pieceProvider: PieceSetProvider;
   private lastState: GameState | null = null;
   private coordinateGroup: THREE.Group;
-  private coordinateMode: CoordinateMode = 'pgn';
-  private currentView: SnapView = 'white';
+  private coordinateMode: CoordinateMode = 'fixed-white';
+  private mappingValidated = false;
+  private debugOverlay: THREE.Group | null = null;
+  private debugEnabled = false;
 
   constructor(container: HTMLElement, handlers: SceneHandlers, pieceSet: PieceSet = 'scifi') {
     this.handlers = handlers;
@@ -99,6 +102,7 @@ export class SceneView {
     this.pieceSet = pieceSet;
     this.pieceProvider = PIECE_SET_PROVIDERS[this.pieceSet];
     this.readyPromise = this.loadPieceSet(this.pieceSet);
+    this.debugEnabled = import.meta.env.DEV && this.readDebugFlag();
 
     window.addEventListener('resize', () => this.handleResize(container));
     window.addEventListener('keydown', (event) => this.cameraController.handleKey(event.key));
@@ -171,6 +175,7 @@ export class SceneView {
   }
 
   private applyState(state: GameState): void {
+    this.validateBoardMapping(state);
     const positions = getPieceSquares(state);
     const seen = new Set<number>();
 
@@ -243,7 +248,6 @@ export class SceneView {
 
   snapView(view: SnapView): void {
     this.cameraController.snap(view);
-    this.currentView = view;
     this.applyCoordinateOrientation();
   }
 
@@ -251,10 +255,6 @@ export class SceneView {
     this.cameraController.setUiZoomedOut(
       !state.visible || state.collapsed || !state.historyVisible
     );
-  }
-
-  setCoordinatesVisible(visible: boolean): void {
-    this.coordinateGroup.visible = visible;
   }
 
   setCoordinateMode(mode: CoordinateMode): void {
@@ -328,7 +328,7 @@ export class SceneView {
     for (let rank = 0; rank < 8; rank += 1) {
       const row: THREE.Mesh[] = [];
       for (let file = 0; file < 8; file += 1) {
-        const isDark = (file + rank) % 2 === 1;
+        const isDark = isDarkSquare(file, rank);
         const material = isDark ? dark.clone() : light.clone();
         const geometry = new THREE.BoxGeometry(TILE_SIZE, 0.1, TILE_SIZE);
         const mesh = new THREE.Mesh(geometry, material);
@@ -367,11 +367,8 @@ export class SceneView {
   }
 
   private squareToWorld(square: Square): THREE.Vector3 {
-    return new THREE.Vector3(
-      (square.file - 3.5) * TILE_SIZE,
-      0.02,
-      (square.rank - 3.5) * TILE_SIZE
-    );
+    const pos = mapSquareToWorld(square, TILE_SIZE);
+    return new THREE.Vector3(pos.x, pos.y, pos.z);
   }
 
   private updateCheckHalo(square: Square): void {
@@ -521,8 +518,109 @@ export class SceneView {
   }
 
   private applyCoordinateOrientation(): void {
-    const orientation =
-      this.coordinateMode === 'view' && this.currentView === 'black' ? 'black' : 'white';
+    if (this.coordinateMode === 'hidden') {
+      this.coordinateGroup.visible = false;
+      return;
+    }
+    this.coordinateGroup.visible = true;
+    const orientation = this.coordinateMode === 'fixed-black' ? 'black' : 'white';
     setCoordinateOrientation(this.coordinateGroup, orientation);
+  }
+
+  private validateBoardMapping(state: GameState): void {
+    if (this.mappingValidated || !import.meta.env.DEV) {
+      return;
+    }
+    this.mappingValidated = true;
+    const errors: string[] = [];
+
+    if (!isDarkSquare(0, 0)) {
+      errors.push('a1 should be dark.');
+    }
+    if (isDarkSquare(3, 0)) {
+      errors.push('d1 should be light.');
+    }
+    if (!isDarkSquare(4, 0)) {
+      errors.push('e1 should be dark.');
+    }
+
+    const queenId = state.board[0]?.[3];
+    const kingId = state.board[0]?.[4];
+    const queen = queenId ? state.pieces.get(queenId) : null;
+    const king = kingId ? state.pieces.get(kingId) : null;
+    if (!queen || queen.type !== 'queen' || queen.color !== 'w') {
+      errors.push('White queen should be on d1.');
+    }
+    if (!king || king.type !== 'king' || king.color !== 'w') {
+      errors.push('White king should be on e1.');
+    }
+
+    if (errors.length) {
+      console.warn('[BoardMapping] Invariant check failed:', errors);
+      return;
+    }
+
+    if (this.debugEnabled) {
+      this.showDebugOverlay();
+    }
+  }
+
+  private showDebugOverlay(): void {
+    if (this.debugOverlay) {
+      return;
+    }
+    const group = new THREE.Group();
+    group.add(this.createDebugLabel('a1 dark', { file: 0, rank: 0 }));
+    group.add(this.createDebugLabel('d1 WQ', { file: 3, rank: 0 }));
+    group.add(this.createDebugLabel('e1 WK', { file: 4, rank: 0 }));
+    this.scene.add(group);
+    this.debugOverlay = group;
+  }
+
+  private createDebugLabel(text: string, square: Square): THREE.Sprite {
+    const texture = this.createDebugTexture(text);
+    const material = new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+      depthWrite: false,
+      depthTest: false
+    });
+    const sprite = new THREE.Sprite(material);
+    sprite.scale.set(0.9, 0.9, 1);
+    const pos = this.squareToWorld(square);
+    sprite.position.set(pos.x, 0.25, pos.z);
+    sprite.renderOrder = 3;
+    return sprite;
+  }
+
+  private createDebugTexture(text: string): THREE.Texture {
+    const canvas = document.createElement('canvas');
+    const size = 128;
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.clearRect(0, 0, size, size);
+      ctx.font = '700 36px "Segoe UI", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = 'rgba(255, 216, 128, 0.9)';
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
+      ctx.lineWidth = 6;
+      ctx.strokeText(text, size / 2, size / 2);
+      ctx.fillText(text, size / 2, size / 2);
+    }
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    return texture;
+  }
+
+  private readDebugFlag(): boolean {
+    try {
+      return localStorage.getItem('chess.debugCoordinates') === 'true';
+    } catch {
+      return false;
+    }
   }
 }

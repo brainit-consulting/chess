@@ -75,9 +75,9 @@ export class CameraController {
     const camera = this.controls.object as THREE.PerspectiveCamera;
 
     if (view === 'white') {
-      camera.position.set(0, elevation, radius);
-    } else if (view === 'black') {
       camera.position.set(0, elevation, -radius);
+    } else if (view === 'black') {
+      camera.position.set(0, elevation, radius);
     } else if (view === 'top') {
       const height = Math.cos(topAngle) * topRadius;
       const offset = Math.sin(topAngle) * topRadius;

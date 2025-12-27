@@ -75,7 +75,6 @@ type Preferences = {
   playForWinAiVsAi: boolean;
   hintMode: boolean;
   analyzerChoice: AnalyzerChoice;
-  showCoordinates: boolean;
   humanColor: Color;
   autoSnapHumanView: boolean;
   coordinateMode: CoordinateMode;
@@ -94,7 +93,6 @@ const STORAGE_KEYS = {
   playForWinAiVsAi: 'chess.playForWinAiVsAi',
   hintMode: 'chess.hintMode',
   analyzerChoice: 'chess.analyzerChoice',
-  showCoordinates: 'chess.showCoordinates',
   humanColor: 'chess.humanColor',
   autoSnapHumanView: 'chess.autoSnapHumanView',
   coordinateMode: 'chess.coordinateMode'
@@ -141,10 +139,9 @@ export class GameController {
   private recentPositions: string[] = [];
   private hintMode = false;
   private analyzerChoice: AnalyzerChoice = DEFAULT_ANALYZER;
-  private showCoordinates = true;
   private humanColor: Color = 'w';
   private autoSnapHumanView = true;
-  private coordinateMode: CoordinateMode = 'pgn';
+  private coordinateMode: CoordinateMode = 'fixed-white';
   private hintMove: Move | null = null;
   private hintRequestId = 0;
   private hintPositionKey: string | null = null;
@@ -172,7 +169,6 @@ export class GameController {
     this.playForWinAiVsAi = preferences.playForWinAiVsAi;
     this.hintMode = preferences.hintMode;
     this.analyzerChoice = preferences.analyzerChoice;
-    this.showCoordinates = preferences.showCoordinates;
     this.humanColor = preferences.humanColor;
     this.autoSnapHumanView = preferences.autoSnapHumanView;
     this.coordinateMode = preferences.coordinateMode;
@@ -183,7 +179,6 @@ export class GameController {
       onPick: (pick) => this.handlePick(pick),
       onCancel: () => this.clearSelection()
     }, this.pieceSet);
-    this.scene.setCoordinatesVisible(this.showCoordinates);
     this.scene.setCoordinateMode(this.coordinateMode);
     this.initAiWorker();
     this.ui = new GameUI(uiRoot, {
@@ -213,7 +208,6 @@ export class GameController {
       onCopyPlainHistory: () => this.copyPlainHistory(),
       onAnalyzerChange: (choice) => this.setAnalyzerChoice(choice),
       onAnalyzeGame: () => this.openAnalyzer(),
-      onToggleCoordinates: (enabled) => this.setShowCoordinates(enabled),
       onCoordinateModeChange: (mode) => this.setCoordinateMode(mode),
       onUiStateChange: (state) => this.handleUiStateChange(state)
     }, {
@@ -228,7 +222,6 @@ export class GameController {
       playForWin: this.playForWinAiVsAi,
       hintMode: this.hintMode,
       analyzerChoice: this.analyzerChoice,
-      showCoordinates: this.showCoordinates,
       humanColor: this.humanColor,
       autoSnapHumanView: this.autoSnapHumanView,
       coordinateMode: this.coordinateMode
@@ -608,13 +601,6 @@ export class GameController {
     this.ui.setAnalyzerChoice(choice);
   }
 
-  private setShowCoordinates(enabled: boolean): void {
-    this.showCoordinates = enabled;
-    this.persistPreferences();
-    this.ui.setCoordinatesEnabled(enabled);
-    this.scene.setCoordinatesVisible(enabled);
-  }
-
   private openAnalyzer(): void {
     if (typeof window === 'undefined') {
       return;
@@ -780,10 +766,9 @@ export class GameController {
     let playForWinAiVsAi = true;
     let hintMode = false;
     let analyzerChoice: AnalyzerChoice = DEFAULT_ANALYZER;
-    let showCoordinates = true;
     let humanColor: Color = 'w';
     let autoSnapHumanView = true;
-    let coordinateMode: CoordinateMode = 'pgn';
+    let coordinateMode: CoordinateMode = 'fixed-white';
 
     if (storage) {
       const rawNames = storage.getItem(STORAGE_KEYS.names);
@@ -848,11 +833,6 @@ export class GameController {
         analyzerChoice = rawAnalyzer as AnalyzerChoice;
       }
 
-      const rawCoords = storage.getItem(STORAGE_KEYS.showCoordinates);
-      if (rawCoords !== null) {
-        showCoordinates = rawCoords === 'true';
-      }
-
       const rawHumanColor = storage.getItem(STORAGE_KEYS.humanColor);
       if (rawHumanColor === 'w' || rawHumanColor === 'b') {
         humanColor = rawHumanColor;
@@ -864,8 +844,17 @@ export class GameController {
       }
 
       const rawCoordinateMode = storage.getItem(STORAGE_KEYS.coordinateMode);
-      if (rawCoordinateMode === 'pgn' || rawCoordinateMode === 'view') {
-        coordinateMode = rawCoordinateMode;
+      if (rawCoordinateMode === 'fixed-white' || rawCoordinateMode === 'pgn') {
+        coordinateMode = 'fixed-white';
+      } else if (rawCoordinateMode === 'fixed-black' || rawCoordinateMode === 'view') {
+        coordinateMode = 'fixed-black';
+      } else if (rawCoordinateMode === 'hidden') {
+        coordinateMode = 'hidden';
+      }
+
+      const rawShowCoordinates = storage.getItem('chess.showCoordinates');
+      if (rawShowCoordinates === 'false') {
+        coordinateMode = 'hidden';
       }
 
       storage.setItem(STORAGE_KEYS.names, JSON.stringify(names));
@@ -876,7 +865,6 @@ export class GameController {
       storage.setItem(STORAGE_KEYS.playForWinAiVsAi, playForWinAiVsAi.toString());
       storage.setItem(STORAGE_KEYS.hintMode, hintMode.toString());
       storage.setItem(STORAGE_KEYS.analyzerChoice, analyzerChoice);
-      storage.setItem(STORAGE_KEYS.showCoordinates, showCoordinates.toString());
       storage.setItem(STORAGE_KEYS.humanColor, humanColor);
       storage.setItem(STORAGE_KEYS.autoSnapHumanView, autoSnapHumanView.toString());
       storage.setItem(STORAGE_KEYS.coordinateMode, coordinateMode);
@@ -891,7 +879,6 @@ export class GameController {
       playForWinAiVsAi,
       hintMode,
       analyzerChoice,
-      showCoordinates,
       humanColor,
       autoSnapHumanView,
       coordinateMode
@@ -915,7 +902,6 @@ export class GameController {
     storage.setItem(STORAGE_KEYS.playForWinAiVsAi, this.playForWinAiVsAi.toString());
     storage.setItem(STORAGE_KEYS.hintMode, this.hintMode.toString());
     storage.setItem(STORAGE_KEYS.analyzerChoice, this.analyzerChoice);
-    storage.setItem(STORAGE_KEYS.showCoordinates, this.showCoordinates.toString());
     storage.setItem(STORAGE_KEYS.humanColor, this.humanColor);
     storage.setItem(STORAGE_KEYS.autoSnapHumanView, this.autoSnapHumanView.toString());
     storage.setItem(STORAGE_KEYS.coordinateMode, this.coordinateMode);

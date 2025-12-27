@@ -43,7 +43,6 @@ type UIHandlers = {
   onCopyPgn: () => void;
   onAnalyzerChange: (choice: AnalyzerChoice) => void;
   onAnalyzeGame: () => void;
-  onToggleCoordinates: (enabled: boolean) => void;
   onCoordinateModeChange: (mode: CoordinateMode) => void;
   onExportPlainHistory: () => void;
   onExportPlainHistoryHtml: () => void;
@@ -63,7 +62,6 @@ type UIOptions = {
   playForWin?: boolean;
   hintMode?: boolean;
   analyzerChoice?: AnalyzerChoice;
-  showCoordinates?: boolean;
   humanColor?: Color;
   autoSnapHumanView?: boolean;
   coordinateMode?: CoordinateMode;
@@ -150,7 +148,6 @@ export class GameUI {
   private musicVolumeValueEl: HTMLSpanElement;
   private musicVolumeInput: HTMLInputElement;
   private musicHintEl: HTMLDivElement;
-  private coordinatesToggle: HTMLInputElement;
   private coordinateModeRow: HTMLDivElement;
   private coordinateModeSelect: HTMLSelectElement;
   private analyzerSelect: HTMLSelectElement;
@@ -288,10 +285,9 @@ export class GameUI {
     const initialPlayForWin = options.playForWin ?? true;
     const initialHintMode = options.hintMode ?? false;
     const initialAnalyzerChoice = options.analyzerChoice ?? DEFAULT_ANALYZER;
-    const initialShowCoordinates = options.showCoordinates ?? true;
     const initialHumanColor = options.humanColor ?? 'w';
     const initialAutoSnap = options.autoSnapHumanView ?? true;
-    const initialCoordinateMode = options.coordinateMode ?? 'pgn';
+    const initialCoordinateMode = options.coordinateMode ?? 'fixed-white';
     this.aiToggle.checked = initialAiEnabled;
     this.aiToggle.addEventListener('change', () => {
       const enabled = this.aiToggle.checked;
@@ -359,39 +355,20 @@ export class GameUI {
     boardTitle.className = 'section-title expand-only';
     boardTitle.textContent = 'Board';
 
-    const boardRow = document.createElement('div');
-    boardRow.className = 'control-row expand-only';
-
-    const coordinatesLabel = document.createElement('label');
-    coordinatesLabel.className = 'toggle';
-
-    this.coordinatesToggle = document.createElement('input');
-    this.coordinatesToggle.type = 'checkbox';
-    this.coordinatesToggle.checked = initialShowCoordinates;
-    this.coordinatesToggle.addEventListener('change', () => {
-      this.coordinateModeSelect.disabled = !this.coordinatesToggle.checked;
-      this.handlers.onToggleCoordinates(this.coordinatesToggle.checked);
-    });
-
-    const coordinatesText = document.createElement('span');
-    coordinatesText.textContent = 'Show Coordinates';
-    coordinatesLabel.append(this.coordinatesToggle, coordinatesText);
-    boardRow.append(coordinatesLabel);
-
     this.coordinateModeRow = document.createElement('div');
     this.coordinateModeRow.className = 'control-row expand-only';
 
     const coordinateModeLabel = document.createElement('span');
     coordinateModeLabel.className = 'stat-label';
-    coordinateModeLabel.textContent = 'Coordinate Mode';
+    coordinateModeLabel.textContent = 'Coordinate Display';
 
     this.coordinateModeSelect = document.createElement('select');
     this.coordinateModeSelect.innerHTML = `
-      <option value="pgn">PGN (fixed)</option>
-      <option value="view">View (rotate)</option>
+      <option value="fixed-white">Fixed (White)</option>
+      <option value="fixed-black">Fixed (Black)</option>
+      <option value="hidden">Hidden</option>
     `;
     this.coordinateModeSelect.value = initialCoordinateMode;
-    this.coordinateModeSelect.disabled = !initialShowCoordinates;
     this.coordinateModeSelect.addEventListener('change', () => {
       this.handlers.onCoordinateModeChange(
         this.coordinateModeSelect.value as CoordinateMode
@@ -686,7 +663,6 @@ export class GameUI {
       pieceSetTitle,
       pieceSetRow,
       boardTitle,
-      boardRow,
       this.coordinateModeRow,
       this.autoSnapRow,
       playerTitle,
@@ -739,7 +715,6 @@ export class GameUI {
     this.setMusicVolume(initialMusicVolume);
     this.setMusicEnabled(initialMusicEnabled);
     this.setAnalyzerChoice(initialAnalyzerChoice);
-    this.setCoordinatesEnabled(initialShowCoordinates);
     this.setCoordinateMode(initialCoordinateMode);
     this.setMusicUnlockHint(false);
     this.setAiVsAiState({ started: false, running: false });
@@ -918,11 +893,6 @@ export class GameUI {
 
   setPieceSet(pieceSet: PieceSet): void {
     this.pieceSetSelect.value = pieceSet;
-  }
-
-  setCoordinatesEnabled(enabled: boolean): void {
-    this.coordinatesToggle.checked = enabled;
-    this.coordinateModeSelect.disabled = !enabled;
   }
 
   setAnalyzerChoice(choice: AnalyzerChoice): void {
