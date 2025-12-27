@@ -133,7 +133,9 @@ body {
 }
 
 .ui-logo-engine {
-  height: 38px;
+  height: 80px;
+  width: 80px;
+  object-fit: contain;
 }
 
 .ui-logo-analyzer {
