@@ -564,11 +564,11 @@ function scoreRootMoves(
   const topMoveWindow = options.topMoveWindow ?? DEFAULT_TOP_MOVE_WINDOW;
   const fairnessWindow = options.fairnessWindow ?? DEFAULT_FAIRNESS_WINDOW;
 
-  let bestMove: Move | null = ordered[0] ?? null;
-  let bestScore: number | null = null;
+  let bestMoveSoFar: Move | null = ordered[0] ?? null;
+  let bestScoreSoFar: number | null = null;
   for (const move of ordered) {
     if (shouldStop && shouldStop()) {
-      return { move: bestMove, score: bestScore, scoredMoves };
+      return { move: bestMoveSoFar, score: bestScoreSoFar, scoredMoves };
     }
     const next = cloneState(state);
     next.activeColor = color;
@@ -605,9 +605,9 @@ function scoreRootMoves(
       mateInPly: mateInfo?.mateInPly ?? null,
       mateInMoves: mateInfo?.mateInMoves ?? null
     });
-    if (bestScore === null || score > bestScore) {
-      bestScore = score;
-      bestMove = move;
+    if (bestScoreSoFar === null || score > bestScoreSoFar) {
+      bestScoreSoFar = score;
+      bestMoveSoFar = move;
     }
   }
 
