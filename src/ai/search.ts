@@ -117,7 +117,7 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
     options.maxTimeMs !== undefined || options.stopRequested
       ? () => {
           nodeCounter += 1;
-          if ((nodeCounter & 255) !== 0) {
+          if ((nodeCounter & 63) !== 0) {
             return false;
           }
           return shouldStop();
@@ -660,7 +660,8 @@ function alphaBeta(
       maximizingColor,
       rng,
       ply,
-      0
+      0,
+      stopChecker
     );
   }
 
@@ -749,6 +750,9 @@ function alphaBeta(
           stopChecker
         );
       }
+      if (stopChecker && stopChecker()) {
+        return value;
+      }
       if (nextScore > value) {
         value = nextScore;
         bestMove = move;
@@ -813,6 +817,9 @@ function alphaBeta(
         ordering,
         stopChecker
       );
+    }
+    if (stopChecker && stopChecker()) {
+      return value;
     }
     if (nextScore < value) {
       value = nextScore;
@@ -1008,8 +1015,12 @@ function quiescence(
   maximizingColor: Color,
   rng: () => number,
   ply: number,
-  qDepth: number
+  qDepth: number,
+  stopChecker?: () => boolean
 ): number {
+  if (stopChecker && stopChecker()) {
+    return evaluateState(state, maximizingColor, { maxThinking: true });
+  }
   const legalMoves = getAllLegalMoves(state, currentColor);
   if (legalMoves.length === 0) {
     if (isInCheck(state, currentColor)) {
@@ -1071,9 +1082,13 @@ function quiescence(
           maximizingColor,
           rng,
           ply + 1,
-          qDepth + 1
+          qDepth + 1,
+          stopChecker
         )
       );
+      if (stopChecker && stopChecker()) {
+        return value;
+      }
       alpha = Math.max(alpha, value);
       if (alpha >= beta) {
         break;
@@ -1097,9 +1112,13 @@ function quiescence(
         maximizingColor,
         rng,
         ply + 1,
-        qDepth + 1
+        qDepth + 1,
+        stopChecker
       )
     );
+    if (stopChecker && stopChecker()) {
+      return value;
+    }
     beta = Math.min(beta, value);
     if (alpha >= beta) {
       break;
