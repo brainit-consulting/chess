@@ -17,6 +17,7 @@ export type AiOptions = {
   depthOverride?: number;
   maxTimeMs?: number;
   maxDepth?: number;
+  stopRequested?: () => boolean;
 };
 
 const DEPTH_BY_DIFFICULTY: Record<AiDifficulty, number> = {
@@ -52,13 +53,16 @@ export function chooseMove(state: GameState, options: AiOptions = {}): Move | nu
   }
 
   const depth = options.depthOverride ?? DEPTH_BY_DIFFICULTY[difficulty];
+  const maxTimeMs = difficulty === 'hard' ? options.maxTimeMs : undefined;
   return findBestMove(state, color, {
     depth,
     rng,
     legalMoves,
     playForWin: options.playForWin,
     recentPositions: options.recentPositions,
-    maxThinking: false
+    maxThinking: false,
+    maxTimeMs,
+    stopRequested: options.stopRequested
   });
 }
 

@@ -23,6 +23,9 @@ type SearchOptions = {
   maxThinking?: boolean;
   tt?: Map<string, TTEntry>;
   ordering?: OrderingState;
+  maxTimeMs?: number;
+  now?: () => number;
+  stopRequested?: () => boolean;
 };
 
 const MATE_SCORE = 20000;
@@ -98,6 +101,18 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
     return null;
   }
 
+  const now = options.now ?? defaultNow;
+  const start = options.maxTimeMs ? now() : 0;
+  const shouldStop = () => {
+    if (options.stopRequested && options.stopRequested()) {
+      return true;
+    }
+    if (options.maxTimeMs === undefined) {
+      return false;
+    }
+    return now() - start >= options.maxTimeMs;
+  };
+
   const ordering = options.maxThinking
     ? options.ordering ?? createOrderingState(options.depth + 4)
     : undefined;
@@ -111,6 +126,7 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
     ordering,
     ply: 0
   });
+  let bestSoFar: Move | null = ordered[0] ?? legalMoves[0] ?? null;
   const scoredMoves: { move: Move; score: number; baseScore: number }[] = [];
   const playForWin = Boolean(options.playForWin && options.recentPositions?.length);
   const repetitionPenalty = options.repetitionPenalty ?? DEFAULT_REPETITION_PENALTY;
@@ -118,6 +134,9 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
   const fairnessWindow = options.fairnessWindow ?? DEFAULT_FAIRNESS_WINDOW;
 
   for (const move of ordered) {
+    if (shouldStop()) {
+      return bestSoFar ?? move;
+    }
     const next = cloneState(state);
     next.activeColor = color;
     applyMove(next, move);
@@ -144,6 +163,9 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
       }
     }
 
+    if (!bestSoFar) {
+      bestSoFar = move;
+    }
     scoredMoves.push({ move, score, baseScore });
   }
 

@@ -7,14 +7,19 @@ if (!parentPort) {
   throw new Error('engineWorker must be run as a worker thread.');
 }
 
+let stopRequested = false;
+
 parentPort.on('message', (message) => {
   if (message && message.kind === 'stop') {
+    stopRequested = true;
     return;
   }
   try {
+    stopRequested = false;
     const move = chooseMove(message.state, {
       ...message.options,
-      color: message.color
+      color: message.color,
+      stopRequested: () => stopRequested
     });
     parentPort.postMessage({ id: message.id, move });
   } catch (error) {
