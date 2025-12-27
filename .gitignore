@@ -1,1 +1,5 @@
 dist
+node_modules/
+scripts/bench/quick-results/
+scripts/bench/quick-run-state.json
+*.log
