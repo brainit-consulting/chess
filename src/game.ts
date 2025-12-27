@@ -844,12 +844,13 @@ export class GameController {
       }
 
       const rawCoordinateMode = storage.getItem(STORAGE_KEYS.coordinateMode);
-      if (rawCoordinateMode === 'fixed-white' || rawCoordinateMode === 'pgn') {
-        coordinateMode = 'fixed-white';
-      } else if (rawCoordinateMode === 'fixed-black' || rawCoordinateMode === 'view') {
+      if (rawCoordinateMode === 'fixed-black') {
         coordinateMode = 'fixed-black';
       } else if (rawCoordinateMode === 'hidden') {
         coordinateMode = 'hidden';
+      } else if (rawCoordinateMode) {
+        // Treat legacy values like "pgn" or "view" as fixed-white.
+        coordinateMode = 'fixed-white';
       }
 
       const rawShowCoordinates = storage.getItem('chess.showCoordinates');

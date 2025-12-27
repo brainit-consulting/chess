@@ -534,26 +534,92 @@ export class SceneView {
     this.mappingValidated = true;
     const errors: string[] = [];
 
-    if (!isDarkSquare(0, 0)) {
+    const a1 = { file: 0, rank: 0 };
+    const d1 = { file: 3, rank: 0 };
+    const e1 = { file: 4, rank: 0 };
+    const d8 = { file: 3, rank: 7 };
+    const e8 = { file: 4, rank: 7 };
+
+    if (!isDarkSquare(a1.file, a1.rank)) {
       errors.push('a1 should be dark.');
     }
-    if (isDarkSquare(3, 0)) {
+    if (isDarkSquare(d1.file, d1.rank)) {
       errors.push('d1 should be light.');
     }
-    if (!isDarkSquare(4, 0)) {
+    if (!isDarkSquare(e1.file, e1.rank)) {
       errors.push('e1 should be dark.');
     }
+    if (!isDarkSquare(d8.file, d8.rank)) {
+      errors.push('d8 should be dark.');
+    }
 
-    const queenId = state.board[0]?.[3];
-    const kingId = state.board[0]?.[4];
-    const queen = queenId ? state.pieces.get(queenId) : null;
-    const king = kingId ? state.pieces.get(kingId) : null;
-    if (!queen || queen.type !== 'queen' || queen.color !== 'w') {
+    const whiteQueenId = state.board[d1.rank]?.[d1.file];
+    const whiteKingId = state.board[e1.rank]?.[e1.file];
+    const blackQueenId = state.board[d8.rank]?.[d8.file];
+    const blackKingId = state.board[e8.rank]?.[e8.file];
+    const whiteQueen = whiteQueenId ? state.pieces.get(whiteQueenId) : null;
+    const whiteKing = whiteKingId ? state.pieces.get(whiteKingId) : null;
+    const blackQueen = blackQueenId ? state.pieces.get(blackQueenId) : null;
+    const blackKing = blackKingId ? state.pieces.get(blackKingId) : null;
+
+    if (!whiteQueen || whiteQueen.type !== 'queen' || whiteQueen.color !== 'w') {
       errors.push('White queen should be on d1.');
     }
-    if (!king || king.type !== 'king' || king.color !== 'w') {
+    if (!whiteKing || whiteKing.type !== 'king' || whiteKing.color !== 'w') {
       errors.push('White king should be on e1.');
     }
+    if (!blackQueen || blackQueen.type !== 'queen' || blackQueen.color !== 'b') {
+      errors.push('Black queen should be on d8.');
+    }
+    if (!blackKing || blackKing.type !== 'king' || blackKing.color !== 'b') {
+      errors.push('Black king should be on e8.');
+    }
+
+    const colorLabel = (square: Square): string =>
+      isDarkSquare(square.file, square.rank) ? 'dark' : 'light';
+    const worldLabel = (square: Square): string => {
+      const pos = mapSquareToWorld(square, TILE_SIZE);
+      return `(${pos.x.toFixed(2)}, ${pos.y.toFixed(2)}, ${pos.z.toFixed(2)})`;
+    };
+
+    console.info(
+      '[BoardMapping] a1:',
+      colorLabel(a1),
+      'world',
+      worldLabel(a1)
+    );
+    console.info(
+      '[BoardMapping] d1:',
+      colorLabel(d1),
+      'world',
+      worldLabel(d1)
+    );
+    console.info(
+      '[BoardMapping] d8:',
+      colorLabel(d8),
+      'world',
+      worldLabel(d8)
+    );
+    console.info(
+      '[BoardMapping] White queen:',
+      whiteQueen ? 'd1' : 'missing',
+      `(${colorLabel(d1)})`
+    );
+    console.info(
+      '[BoardMapping] White king:',
+      whiteKing ? 'e1' : 'missing',
+      `(${colorLabel(e1)})`
+    );
+    console.info(
+      '[BoardMapping] Black queen:',
+      blackQueen ? 'd8' : 'missing',
+      `(${colorLabel(d8)})`
+    );
+    console.info(
+      '[BoardMapping] Black king:',
+      blackKing ? 'e8' : 'missing',
+      `(${colorLabel(e8)})`
+    );
 
     if (errors.length) {
       console.warn('[BoardMapping] Invariant check failed:', errors);
@@ -573,6 +639,7 @@ export class SceneView {
     group.add(this.createDebugLabel('a1 dark', { file: 0, rank: 0 }));
     group.add(this.createDebugLabel('d1 WQ', { file: 3, rank: 0 }));
     group.add(this.createDebugLabel('e1 WK', { file: 4, rank: 0 }));
+    group.add(this.createDebugLabel('d8 BQ', { file: 3, rank: 7 }));
     this.scene.add(group);
     this.debugOverlay = group;
   }
