@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { squareToWorld } from './boardMapping';
 
 const FILE_LABELS = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
 const RANK_LABELS = ['1', '2', '3', '4', '5', '6', '7', '8'];
@@ -56,18 +57,41 @@ export function setCoordinateOrientation(
   }
   const tileSize = group.userData.tileSize as number | undefined;
   const size = tileSize ?? 1;
-  const edgeOffset = (3.5 + LABEL_OFFSET) * size;
-  const fileZ = orientation === 'black' ? edgeOffset : -edgeOffset;
-  const rankX = orientation === 'black' ? edgeOffset : -edgeOffset;
+  const edgeOffset = LABEL_OFFSET * size;
+  const a1 = squareToWorld({ file: 0, rank: 0 }, size, LABEL_Y);
+  const b1 = squareToWorld({ file: 1, rank: 0 }, size, LABEL_Y);
+  const a2 = squareToWorld({ file: 0, rank: 1 }, size, LABEL_Y);
+  const fileDir = new THREE.Vector3(b1.x - a1.x, 0, b1.z - a1.z);
+  const rankDir = new THREE.Vector3(a2.x - a1.x, 0, a2.z - a1.z);
+  const fileUnit = fileDir.clone().normalize();
+  const rankUnit = rankDir.clone().normalize();
+  const bottomOffset = rankUnit.clone().multiplyScalar(
+    orientation === 'black' ? edgeOffset : -edgeOffset
+  );
+  const leftOffset = fileUnit.clone().multiplyScalar(
+    orientation === 'black' ? edgeOffset : -edgeOffset
+  );
+  const fileRank = orientation === 'black' ? 7 : 0;
+  const rankFile = orientation === 'black' ? 7 : 0;
 
   data.fileSprites.forEach((sprite, index) => {
     const labelIndex = orientation === 'black' ? 7 - index : index;
     updateLabelSprite(sprite, FILE_LABELS[labelIndex]);
-    sprite.position.set((index - 3.5) * size, LABEL_Y, fileZ);
+    const base = squareToWorld({ file: index, rank: fileRank }, size, LABEL_Y);
+    sprite.position.set(
+      base.x + bottomOffset.x,
+      LABEL_Y,
+      base.z + bottomOffset.z
+    );
   });
   data.rankSprites.forEach((sprite, index) => {
     updateLabelSprite(sprite, RANK_LABELS[index]);
-    sprite.position.set(rankX, LABEL_Y, (index - 3.5) * size);
+    const base = squareToWorld({ file: rankFile, rank: index }, size, LABEL_Y);
+    sprite.position.set(
+      base.x + leftOffset.x,
+      LABEL_Y,
+      base.z + leftOffset.z
+    );
   });
 }
 
