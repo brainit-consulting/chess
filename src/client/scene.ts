@@ -322,8 +322,16 @@ export class SceneView {
   }
 
   private buildBoard(): void {
-    const light = new THREE.MeshStandardMaterial({ color: '#e3d9c7' });
-    const dark = new THREE.MeshStandardMaterial({ color: '#7b6b5a' });
+    const light = new THREE.MeshStandardMaterial({
+      color: '#dcc1a0',
+      roughness: 0.78,
+      metalness: 0.12
+    });
+    const dark = new THREE.MeshStandardMaterial({
+      color: '#7a4a2e',
+      roughness: 0.82,
+      metalness: 0.14
+    });
 
     for (let rank = 0; rank < 8; rank += 1) {
       const row: THREE.Mesh[] = [];
