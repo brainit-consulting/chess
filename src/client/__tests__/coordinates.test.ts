@@ -25,8 +25,8 @@ describe('coordinate labels', () => {
       fileSprites: { userData: { label: string } }[];
       rankSprites: { userData: { label: string } }[];
     };
-    expect(data.fileSprites[0].userData.label).toBe('a');
-    expect(data.rankSprites[0].userData.label).toBe('1');
+    expect(data.fileSprites[0].userData.label).toBe('h');
+    expect(data.rankSprites[0].userData.label).toBe('8');
   });
 
   it('toggles visibility', () => {

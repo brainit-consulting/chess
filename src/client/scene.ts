@@ -102,7 +102,10 @@ export class SceneView {
     this.pieceSet = pieceSet;
     this.pieceProvider = PIECE_SET_PROVIDERS[this.pieceSet];
     this.readyPromise = this.loadPieceSet(this.pieceSet);
-    this.debugEnabled = import.meta.env.DEV && this.readDebugFlag();
+    this.debugEnabled = false;
+    if (import.meta.env.DEV && this.readDebugFlag()) {
+      this.setCoordinateDebugOverlay(true);
+    }
 
     window.addEventListener('resize', () => this.handleResize(container));
     window.addEventListener('keydown', (event) => this.cameraController.handleKey(event.key));
@@ -262,6 +265,15 @@ export class SceneView {
     this.applyCoordinateOrientation();
   }
 
+  setCoordinateDebugOverlay(enabled: boolean): void {
+    this.debugEnabled = enabled;
+    if (enabled) {
+      this.showDebugOverlay();
+      return;
+    }
+    this.clearDebugOverlay();
+  }
+
   nudgeTurnChange(): void {
     this.cameraController.nudgeTurn();
   }
@@ -340,11 +352,8 @@ export class SceneView {
         const material = isDark ? dark.clone() : light.clone();
         const geometry = new THREE.BoxGeometry(TILE_SIZE, 0.1, TILE_SIZE);
         const mesh = new THREE.Mesh(geometry, material);
-        mesh.position.set(
-          (file - 3.5) * TILE_SIZE,
-          -0.05,
-          (rank - 3.5) * TILE_SIZE
-        );
+        const pos = mapSquareToWorld({ file, rank }, TILE_SIZE, -0.05);
+        mesh.position.set(pos.x, pos.y, pos.z);
         mesh.userData = {
           pickType: 'square',
           square: { file, rank },
@@ -644,15 +653,58 @@ export class SceneView {
       return;
     }
     const group = new THREE.Group();
-    group.add(this.createDebugLabel('a1 dark', { file: 0, rank: 0 }));
-    group.add(this.createDebugLabel('d1 WQ', { file: 3, rank: 0 }));
-    group.add(this.createDebugLabel('e1 WK', { file: 4, rank: 0 }));
-    group.add(this.createDebugLabel('d8 BQ', { file: 3, rank: 7 }));
-    this.scene.add(group);
+    group.add(this.createCornerMarker('a1', { file: 0, rank: 0 }, '#6fd0ff'));
+    group.add(this.createCornerMarker('h1', { file: 7, rank: 0 }, '#6fffa6'));
+    group.add(this.createCornerMarker('a8', { file: 0, rank: 7 }, '#ffd46f'));
+    group.add(this.createCornerMarker('h8', { file: 7, rank: 7 }, '#ff8a8a'));
+    this.boardGroup.add(group);
     this.debugOverlay = group;
   }
 
-  private createDebugLabel(text: string, square: Square): THREE.Sprite {
+  private clearDebugOverlay(): void {
+    if (!this.debugOverlay) {
+      return;
+    }
+    this.boardGroup.remove(this.debugOverlay);
+    this.debugOverlay.traverse((child) => {
+      const mesh = child as THREE.Mesh;
+      if (mesh.geometry) {
+        mesh.geometry.dispose();
+      }
+      if (mesh.material) {
+        const material = mesh.material as THREE.Material | THREE.Material[];
+        if (Array.isArray(material)) {
+          material.forEach((item) => item.dispose());
+        } else {
+          material.dispose();
+        }
+      }
+    });
+    this.debugOverlay = null;
+  }
+
+  private createCornerMarker(text: string, square: Square, color: string): THREE.Group {
+    const group = new THREE.Group();
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(0.16, 0.22, 24),
+      new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.8
+      })
+    );
+    ring.rotation.x = -Math.PI / 2;
+    ring.renderOrder = 3;
+    ring.raycast = () => {};
+    const label = this.createCornerLabel(text);
+    const pos = this.squareToWorld(square);
+    ring.position.set(pos.x, pos.y + 0.03, pos.z);
+    label.position.set(pos.x, pos.y + 0.16, pos.z);
+    group.add(ring, label);
+    return group;
+  }
+
+  private createCornerLabel(text: string): THREE.Sprite {
     const texture = this.createDebugTexture(text);
     const material = new THREE.SpriteMaterial({
       map: texture,
@@ -661,10 +713,9 @@ export class SceneView {
       depthTest: false
     });
     const sprite = new THREE.Sprite(material);
-    sprite.scale.set(0.9, 0.9, 1);
-    const pos = this.squareToWorld(square);
-    sprite.position.set(pos.x, 0.25, pos.z);
+    sprite.scale.set(0.5, 0.5, 1);
     sprite.renderOrder = 3;
+    sprite.raycast = () => {};
     return sprite;
   }
 

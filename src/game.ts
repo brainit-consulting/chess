@@ -142,6 +142,7 @@ export class GameController {
   private humanColor: Color = 'w';
   private autoSnapHumanView = true;
   private coordinateMode: CoordinateMode = 'fixed-white';
+  private coordinateDebugEnabled = false;
   private hintMove: Move | null = null;
   private hintRequestId = 0;
   private hintPositionKey: string | null = null;
@@ -172,6 +173,7 @@ export class GameController {
     this.humanColor = preferences.humanColor;
     this.autoSnapHumanView = preferences.autoSnapHumanView;
     this.coordinateMode = preferences.coordinateMode;
+    this.coordinateDebugEnabled = this.loadCoordinateDebug();
     const soundEnabled = SoundManager.loadEnabled();
     this.sound = new SoundManager(soundEnabled);
     this.music = initMusic();
@@ -180,6 +182,7 @@ export class GameController {
       onCancel: () => this.clearSelection()
     }, this.pieceSet);
     this.scene.setCoordinateMode(this.coordinateMode);
+    this.scene.setCoordinateDebugOverlay(this.coordinateDebugEnabled);
     this.initAiWorker();
     this.ui = new GameUI(uiRoot, {
       onRestart: () => this.reset(),
@@ -209,6 +212,7 @@ export class GameController {
       onAnalyzerChange: (choice) => this.setAnalyzerChoice(choice),
       onAnalyzeGame: () => this.openAnalyzer(),
       onCoordinateModeChange: (mode) => this.setCoordinateMode(mode),
+      onToggleCoordinateDebug: (enabled) => this.setCoordinateDebug(enabled),
       onUiStateChange: (state) => this.handleUiStateChange(state)
     }, {
       mode: this.mode,
@@ -224,7 +228,8 @@ export class GameController {
       analyzerChoice: this.analyzerChoice,
       humanColor: this.humanColor,
       autoSnapHumanView: this.autoSnapHumanView,
-      coordinateMode: this.coordinateMode
+      coordinateMode: this.coordinateMode,
+      coordinateDebugEnabled: this.coordinateDebugEnabled
     });
     this.stats = new GameStats();
     this.stats.reset(this.state);
@@ -580,6 +585,15 @@ export class GameController {
     this.persistPreferences();
     this.ui.setCoordinateMode(mode);
     this.scene.setCoordinateMode(mode);
+  }
+
+  private setCoordinateDebug(enabled: boolean): void {
+    this.coordinateDebugEnabled = enabled;
+    const storage = this.getStorage();
+    if (storage) {
+      storage.setItem('chess.debugCoordinates', enabled.toString());
+    }
+    this.scene.setCoordinateDebugOverlay(enabled);
   }
 
   private setSoundEnabled(enabled: boolean): void {
@@ -1557,6 +1571,14 @@ export class GameController {
     } catch {
       return null;
     }
+  }
+
+  private loadCoordinateDebug(): boolean {
+    const storage = this.getStorage();
+    if (!storage) {
+      return false;
+    }
+    return storage.getItem('chess.debugCoordinates') === 'true';
   }
 }
 

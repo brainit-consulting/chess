@@ -11,7 +11,7 @@ import engineLogoUrl from '../../graphics/BrainITChessGameEngineLogo.png';
 
 const PLAYER_GUIDE_URL = `${import.meta.env.BASE_URL}player-user-guide.md`;
 const LIVE_URL = 'https://brainit-consulting.github.io/chess/';
-const APP_VERSION = 'v1.1.48';
+const APP_VERSION = 'v1.1.49';
 
 export type UiState = {
   visible: boolean;
@@ -44,6 +44,7 @@ type UIHandlers = {
   onAnalyzerChange: (choice: AnalyzerChoice) => void;
   onAnalyzeGame: () => void;
   onCoordinateModeChange: (mode: CoordinateMode) => void;
+  onToggleCoordinateDebug: (enabled: boolean) => void;
   onExportPlainHistory: () => void;
   onExportPlainHistoryHtml: () => void;
   onCopyPlainHistory: () => void;
@@ -65,6 +66,7 @@ type UIOptions = {
   humanColor?: Color;
   autoSnapHumanView?: boolean;
   coordinateMode?: CoordinateMode;
+  coordinateDebugEnabled?: boolean;
 };
 
 const UI_STATE_KEY = 'chess.uiState';
@@ -150,6 +152,8 @@ export class GameUI {
   private musicHintEl: HTMLDivElement;
   private coordinateModeRow: HTMLDivElement;
   private coordinateModeSelect: HTMLSelectElement;
+  private coordinateDebugRow: HTMLDivElement;
+  private coordinateDebugToggle: HTMLInputElement;
   private analyzerSelect: HTMLSelectElement;
   private analyzerButton: HTMLButtonElement;
   private helpAnalyzerLink: HTMLAnchorElement;
@@ -288,6 +292,7 @@ export class GameUI {
     const initialHumanColor = options.humanColor ?? 'w';
     const initialAutoSnap = options.autoSnapHumanView ?? true;
     const initialCoordinateMode = options.coordinateMode ?? 'fixed-white';
+    const initialCoordinateDebug = options.coordinateDebugEnabled ?? false;
     this.aiToggle.checked = initialAiEnabled;
     this.aiToggle.addEventListener('change', () => {
       const enabled = this.aiToggle.checked;
@@ -376,6 +381,24 @@ export class GameUI {
     });
 
     this.coordinateModeRow.append(coordinateModeLabel, this.coordinateModeSelect);
+
+    this.coordinateDebugRow = document.createElement('div');
+    this.coordinateDebugRow.className = 'control-row expand-only';
+
+    const coordinateDebugLabel = document.createElement('label');
+    coordinateDebugLabel.className = 'toggle';
+
+    this.coordinateDebugToggle = document.createElement('input');
+    this.coordinateDebugToggle.type = 'checkbox';
+    this.coordinateDebugToggle.checked = initialCoordinateDebug;
+    this.coordinateDebugToggle.addEventListener('change', () => {
+      this.handlers.onToggleCoordinateDebug(this.coordinateDebugToggle.checked);
+    });
+
+    const coordinateDebugText = document.createElement('span');
+    coordinateDebugText.textContent = 'Show Coordinate Debug Overlay';
+    coordinateDebugLabel.append(this.coordinateDebugToggle, coordinateDebugText);
+    this.coordinateDebugRow.append(coordinateDebugLabel);
 
     this.autoSnapRow = document.createElement('div');
     this.autoSnapRow.className = 'control-row expand-only';
@@ -664,6 +687,7 @@ export class GameUI {
       pieceSetRow,
       boardTitle,
       this.coordinateModeRow,
+      this.coordinateDebugRow,
       this.autoSnapRow,
       playerTitle,
       playerGrid,

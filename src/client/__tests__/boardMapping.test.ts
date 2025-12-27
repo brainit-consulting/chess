@@ -9,9 +9,11 @@ describe('board mapping', () => {
     expect(isDarkSquare(3, 7)).toBe(true);
   });
 
-  it('maps a1 to the lower-left corner in world space', () => {
-    const pos = squareToWorld({ file: 0, rank: 0 });
-    expect(pos.x).toBeLessThan(0);
-    expect(pos.z).toBeLessThan(0);
+  it('maps a1 to the white near-left corner in world space', () => {
+    const a1 = squareToWorld({ file: 0, rank: 0 });
+    const h1 = squareToWorld({ file: 7, rank: 0 });
+    const a8 = squareToWorld({ file: 0, rank: 7 });
+    expect(a1.x).toBeGreaterThan(h1.x);
+    expect(a1.z).toBeLessThan(a8.z);
   });
 });

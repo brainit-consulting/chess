@@ -12,7 +12,7 @@ export function squareToWorld(
   y = 0.02
 ): WorldPosition {
   return {
-    x: (square.file - 3.5) * tileSize,
+    x: (3.5 - square.file) * tileSize,
     y,
     z: (square.rank - 3.5) * tileSize
   };

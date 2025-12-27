@@ -8,6 +8,14 @@ Semantic Versioning.
 ## [Unreleased]
 ### Changed
 
+## [1.1.49] - 2025-12-27 09:19
+### Added
+- Coordinate debug overlay toggle to mark a1/h1/a8/h8 for visual verification.
+### Changed
+- Align board square mapping so a1 renders bottom-left in White View.
+- Fix fixed coordinate labels to anchor and order correctly in White/Black modes.
+- Update the in-UI version label to v1.1.49.
+
 ## [1.1.48] - 2025-12-26 17:13
 ### Added
 - Max-only null-move pruning with conservative endgame guards.
