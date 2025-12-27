@@ -11,7 +11,8 @@
     "export:chess-standard": "blender --background --python scripts/export_chess_standard.py",
     "preview": "vite preview",
     "test": "vitest",
-    "test:run": "vitest --run"
+    "test:run": "vitest --run",
+    "bench:quick": "tsx scripts/bench/quickVsStockfish.ts"
   },
   "dependencies": {
     "three": "^0.164.0"
@@ -19,6 +20,7 @@
   "devDependencies": {
     "@types/node": "^20.12.7",
     "gh-pages": "^6.3.0",
+    "tsx": "^4.21.0",
     "typescript": "^5.5.4",
     "vite": "^7.3.0",
     "vitest": "^4.0.16"

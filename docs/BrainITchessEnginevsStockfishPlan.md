@@ -65,6 +65,13 @@ Quick-and-Dirty Comparison (Directional Only)
   - W/D/L and Elo delta (high variance).
   - Average move time and obvious blunders (e.g., missed mate-in-1).
 
+Quick-run script (batch of 10)
+- Script: `scripts/bench/quickVsStockfish.ts`
+- Report: `docs/BrainITVsStockfishReport.md`
+- Run one batch (default 10 games), then re-run for the next batch:
+  - `npm run bench:quick -- --stockfish "C:\path\to\stockfish.exe" --batch 10 --movetime 100 --mode max`
+- Results are appended to the report between `<!-- REPORT:START -->` and `<!-- REPORT:END -->`.
+
 Sample Summary Template
 Run:
   Date:
