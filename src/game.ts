@@ -51,7 +51,7 @@ import {
 } from './history/plainEnglish';
 import { SoundManager } from './sound/soundManager';
 import { initMusic, MusicManager } from './audio/musicManager';
-import { CoordinateMode, GameMode, PieceSet } from './types';
+import { CoordinateMode, GameMode, PieceSet, SnapView } from './types';
 import { createGameSummary } from './gameSummary';
 import { buildPgn, buildSanLine, PgnMove } from './pgn/pgn';
 import { ANALYZER_OPTIONS, AnalyzerChoice, DEFAULT_ANALYZER } from './analyzer';
@@ -183,7 +183,7 @@ export class GameController {
     this.initAiWorker();
     this.ui = new GameUI(uiRoot, {
       onRestart: () => this.reset(),
-      onSnap: (view) => this.scene.snapView(view),
+      onSnap: (view) => this.applyView(view),
       onPromotionChoice: (type) => this.resolvePromotion(type),
       onToggleAi: (enabled) => this.setAiEnabled(enabled),
       onModeChange: (mode) => this.setMode(mode),
@@ -256,7 +256,7 @@ export class GameController {
 
   start(): void {
     void this.scene.ready().then(() => {
-      this.scene.snapView(this.getDefaultView());
+      this.applyView(this.getDefaultView());
       this.sync();
       this.maybeScheduleAiMove();
     });
@@ -661,7 +661,21 @@ export class GameController {
     if (this.mode !== 'hvai' || !this.autoSnapHumanView) {
       return;
     }
-    this.scene.snapView(this.getDefaultView());
+    this.applyView(this.getDefaultView());
+  }
+
+  private applyView(view: SnapView): void {
+    this.scene.snapView(view);
+    if (view !== 'white' && view !== 'black') {
+      return;
+    }
+    if (this.coordinateMode === 'hidden') {
+      return;
+    }
+    const targetMode = view === 'white' ? 'fixed-white' : 'fixed-black';
+    if (this.coordinateMode !== targetMode) {
+      this.setCoordinateMode(targetMode);
+    }
   }
 
   private startAiVsAi(): void {
