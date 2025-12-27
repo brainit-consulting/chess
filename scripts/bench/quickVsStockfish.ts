@@ -52,6 +52,12 @@ type BatchResult = {
   engineStopLatencyAvg: number;
   avgEngineMs: number;
   avgStockfishMs: number;
+  engineMoveCount: number;
+  engineTimedOutMoves: number;
+  engineNonTimeoutTotalMs: number;
+  engineTimeoutTotalMs: number;
+  engineNonTimeoutMaxMs: number;
+  engineTimeoutMaxMs: number;
 };
 
 type TerminationTrigger =
@@ -64,6 +70,14 @@ type TerminationTrigger =
   | 'stockfish_timeout'
   | 'early_draw'
   | 'apply_move_error';
+
+type MoveTiming = {
+  ply: number;
+  color: Color;
+  source: 'engine' | 'stockfish';
+  ms: number;
+  timedOut: boolean;
+};
 
 type GameLog = {
   gameId: number;
@@ -81,6 +95,7 @@ type GameLog = {
     reason?: string;
     message?: string;
   };
+  moveTimings: MoveTiming[];
   result?: string;
   outcome?: 'win' | 'loss' | 'draw';
 };
@@ -128,7 +143,7 @@ const DEFAULT_THREADS = 1;
 const DEFAULT_HASH_MB = 64;
 const DEFAULT_MAX_PLIES = 200;
 const DEFAULT_STOCKFISH_LADDER = '100,50,20,10,5';
-const ENGINE_TIMEOUT_GRACE_MS = 40;
+const ENGINE_TIMEOUT_GRACE_MS = 20;
 const STOCKFISH_TIMEOUT_SLACK_MS = 20;
 const MIN_PLIES_FOR_DRAW = 2;
 const REPORT_WARNING_MIN_PLIES = 10;
@@ -201,6 +216,12 @@ async function main(): Promise<void> {
   const engineStopLatencies: number[] = [];
   let engineOverheadCount = 0;
   let engineTimeouts = 0;
+  let engineMoveCount = 0;
+  let engineTimedOutMoves = 0;
+  let engineNonTimeoutTotalMs = 0;
+  let engineTimeoutTotalMs = 0;
+  let engineNonTimeoutMaxMs = 0;
+  let engineTimeoutMaxMs = 0;
   let stockfishTimeouts = 0;
   let batchPlies = 0;
   const endReasons: Record<string, number> = {
@@ -247,6 +268,17 @@ async function main(): Promise<void> {
         },
         onEngineTimeout: () => {
           engineTimeouts += 1;
+        },
+        onEngineMoveTiming: (ms, timedOut) => {
+          engineMoveCount += 1;
+          if (timedOut) {
+            engineTimedOutMoves += 1;
+            engineTimeoutTotalMs += ms;
+            engineTimeoutMaxMs = Math.max(engineTimeoutMaxMs, ms);
+          } else {
+            engineNonTimeoutTotalMs += ms;
+            engineNonTimeoutMaxMs = Math.max(engineNonTimeoutMaxMs, ms);
+          }
         },
         onStockfishTimeout: () => {
           stockfishTimeouts += 1;
@@ -308,7 +340,13 @@ async function main(): Promise<void> {
     engineOverheadCount,
     engineStopLatencies,
     engineTimes,
-    stockfishTimes
+    stockfishTimes,
+    engineMoveCount,
+    engineTimedOutMoves,
+    engineNonTimeoutTotalMs,
+    engineTimeoutTotalMs,
+    engineNonTimeoutMaxMs,
+    engineTimeoutMaxMs
   });
 
   state.batches.push(batchStats);
@@ -339,6 +377,7 @@ async function runSingleGame(options: {
   stockfishTimes: number[];
   onEngineStopLatency: (latency: number | null) => void;
   onEngineTimeout: () => void;
+  onEngineMoveTiming: (ms: number, timedOut: boolean) => void;
   onStockfishTimeout: () => void;
 }): Promise<{
   result: string;
@@ -350,6 +389,7 @@ async function runSingleGame(options: {
 }> {
   const state = createInitialState();
   const pgnMoves: PgnMove[] = [];
+  const moveTimings: MoveTiming[] = [];
   let lastMoveUci: string | null = null;
   let lastMoveSan: string | null = null;
   const openingResult = applyOpening(state, options.opening, pgnMoves);
@@ -374,6 +414,7 @@ async function runSingleGame(options: {
             finalFen: stateToFen(state),
             lastMoveUci,
             lastMoveSan,
+            moveTimings,
             termination: {
               trigger: 'early_draw',
               status: status.status,
@@ -404,6 +445,7 @@ async function runSingleGame(options: {
             finalFen: stateToFen(state),
             lastMoveUci,
             lastMoveSan,
+            moveTimings,
             termination: {
               trigger: 'engine_status',
               status: status.status,
@@ -448,12 +490,25 @@ async function runSingleGame(options: {
           finalFen: stateToFen(state),
           lastMoveUci,
           lastMoveSan,
+          moveTimings,
           termination: {
             trigger: move.trigger ?? 'missing_bestmove',
             message: move.message
           }
         });
       }
+
+      if (move.source === 'engine') {
+        options.onEngineMoveTiming(move.elapsedMs, move.timedOut);
+      }
+
+      moveTimings.push({
+        ply: plies + 1,
+        color: state.activeColor,
+        source: move.source,
+        ms: move.elapsedMs,
+        timedOut: move.timedOut
+      });
 
       const san = buildSan(state, move.move);
       pgnMoves.push({ moveNumber: state.fullmoveNumber, color: state.activeColor, san });
@@ -470,6 +525,7 @@ async function runSingleGame(options: {
           finalFen: stateToFen(state),
           lastMoveUci,
           lastMoveSan,
+          moveTimings,
           termination: {
             trigger: 'apply_move_error',
             message: 'Active color did not switch after applyMove.'
@@ -506,6 +562,7 @@ async function runSingleGame(options: {
       finalFen: stateToFen(state),
       lastMoveUci,
       lastMoveSan,
+      moveTimings,
       termination: {
         trigger: 'ply_cap',
         message: `Reached ply cap (${options.maxPlies}).`
@@ -532,6 +589,9 @@ async function pickEngineMove(
   trigger?: TerminationTrigger;
   message?: string;
   worker: Worker;
+  elapsedMs: number;
+  timedOut: boolean;
+  source: 'engine';
 }> {
   const start = performance.now();
   const seed = Math.floor(rng() * 1000000000);
@@ -552,18 +612,36 @@ async function pickEngineMove(
   );
   const elapsed = performance.now() - start;
   timings.push(elapsed);
+  const timedOut = result.timedOut;
   if (result.error) {
-    return { move: null, trigger: 'engine_worker_error', message: result.error, worker: result.worker };
+    return {
+      move: null,
+      trigger: 'engine_worker_error',
+      message: result.error,
+      worker: result.worker,
+      elapsedMs: elapsed,
+      timedOut,
+      source: 'engine'
+    };
   }
   if (!result.move) {
     return {
       move: null,
       trigger: 'missing_bestmove',
       message: 'Engine returned no move.',
-      worker: result.worker
+      worker: result.worker,
+      elapsedMs: elapsed,
+      timedOut,
+      source: 'engine'
     };
   }
-  return { move: result.move, worker: result.worker };
+  return {
+    move: result.move,
+    worker: result.worker,
+    elapsedMs: elapsed,
+    timedOut,
+    source: 'engine'
+  };
 }
 
 async function pickStockfishMove(
@@ -571,7 +649,14 @@ async function pickStockfishMove(
   options: { stockfishMovetimeMs: number; stockfish: StockfishClient },
   timings: number[],
   onTimeout: () => void
-): Promise<{ move: Move | null; trigger?: TerminationTrigger; message?: string }> {
+): Promise<{
+  move: Move | null;
+  trigger?: TerminationTrigger;
+  message?: string;
+  elapsedMs: number;
+  timedOut: boolean;
+  source: 'stockfish';
+}> {
   const fen = stateToFen(state);
   const start = performance.now();
   const timeoutMs = options.stockfishMovetimeMs + STOCKFISH_TIMEOUT_SLACK_MS;
@@ -595,7 +680,10 @@ async function pickStockfishMove(
     return {
       move: null,
       trigger: timedOut ? 'stockfish_timeout' : 'missing_bestmove',
-      message: timedOut ? 'Stockfish timed out before bestmove.' : 'Stockfish returned no bestmove.'
+      message: timedOut ? 'Stockfish timed out before bestmove.' : 'Stockfish returned no bestmove.',
+      elapsedMs: elapsed,
+      timedOut,
+      source: 'stockfish'
     };
   }
   const move = uciToMove(state, best);
@@ -603,10 +691,13 @@ async function pickStockfishMove(
     return {
       move: null,
       trigger: 'invalid_bestmove',
-      message: `Stockfish bestmove not legal: ${best}`
+      message: `Stockfish bestmove not legal: ${best}`,
+      elapsedMs: elapsed,
+      timedOut,
+      source: 'stockfish'
     };
   }
-  return { move };
+  return { move, elapsedMs: elapsed, timedOut, source: 'stockfish' };
 }
 
 function finalizeGame(
@@ -670,6 +761,7 @@ async function writeGameError(args: {
           finalFen: 'unknown',
           lastMoveUci: null,
           lastMoveSan: null,
+          moveTimings: [],
           termination: {
             trigger: 'missing_bestmove',
             message: args.error instanceof Error ? args.error.message : String(args.error)
@@ -975,6 +1067,12 @@ function buildBatchResult(args: {
   engineStopLatencies: number[];
   engineTimes: number[];
   stockfishTimes: number[];
+  engineMoveCount: number;
+  engineTimedOutMoves: number;
+  engineNonTimeoutTotalMs: number;
+  engineTimeoutTotalMs: number;
+  engineNonTimeoutMaxMs: number;
+  engineTimeoutMaxMs: number;
 }): BatchResult {
   const games = args.wins + args.draws + args.losses;
   const score = games > 0 ? (args.wins + args.draws * 0.5) / games : 0;
@@ -1000,7 +1098,13 @@ function buildBatchResult(args: {
     engineOverheadCount: args.engineOverheadCount,
     engineStopLatencyAvg: average(args.engineStopLatencies),
     avgEngineMs: average(args.engineTimes),
-    avgStockfishMs: average(args.stockfishTimes)
+    avgStockfishMs: average(args.stockfishTimes),
+    engineMoveCount: args.engineMoveCount,
+    engineTimedOutMoves: args.engineTimedOutMoves,
+    engineNonTimeoutTotalMs: args.engineNonTimeoutTotalMs,
+    engineTimeoutTotalMs: args.engineTimeoutTotalMs,
+    engineNonTimeoutMaxMs: args.engineNonTimeoutMaxMs,
+    engineTimeoutMaxMs: args.engineTimeoutMaxMs
   };
 }
 
@@ -1079,6 +1183,7 @@ function buildReportBody(state: RunState, config: RunConfig): string {
       ? 'Elo delta: Outside estimation range (shutout).'
       : `Elo delta: ${formatElo(elo)} (95% CI ${formatElo(low)} to ${formatElo(high)})`;
   const summary = summarizeEndReasons(state.batches);
+  const timingSummary = summarizeEngineTimings(state.batches);
   const lines = [
     `Last updated: ${state.updatedAt}`,
     `Series: ${state.seriesLabel ?? 'unspecified'}`,
@@ -1095,6 +1200,11 @@ function buildReportBody(state: RunState, config: RunConfig): string {
     `Avg plies per game: ${summary.avgPlies.toFixed(1)}`,
     `End reasons: mate=${summary.mate}, stalemate=${summary.stalemate}, repetition=${summary.repetition}, ` +
       `50-move=${summary.fiftyMove}, other=${summary.other}`,
+    `Timed out moves: ${timingSummary.timedOutMoves}/${timingSummary.moveCount}`,
+    `Avg ms (non-timeout): ${timingSummary.avgNonTimeoutMs.toFixed(1)}, ` +
+      `Avg ms (timeout): ${timingSummary.avgTimeoutMs.toFixed(1)}`,
+    `Max ms (non-timeout): ${timingSummary.maxNonTimeoutMs.toFixed(1)}, ` +
+      `Max ms (timeout): ${timingSummary.maxTimeoutMs.toFixed(1)}`,
     ''
   ];
 
@@ -1106,16 +1216,30 @@ function buildReportBody(state: RunState, config: RunConfig): string {
   if (state.batches.length > 0) {
     lines.push('Batch history:');
     lines.push(
-      'Batch | Games | W | D | L | Score | Elo | BrainIT ms (target/avg) | Stockfish ms (target/avg) | Timeouts | Stop Latency (avg ms) | Overhead'
+      'Batch | Games | W | D | L | Score | Elo | BrainIT ms (target/avg) | Stockfish ms (target/avg) | Timeouts | Timed-out moves | Avg ms (ok/timeout) | Max ms (ok/timeout) | Stop Latency (avg ms) | Overhead'
     );
-    lines.push('--- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | ---');
+    lines.push('--- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | ---');
     for (const batch of state.batches) {
+      const engineMoveCount = batch.engineMoveCount ?? 0;
+      const engineTimedOutMoves = batch.engineTimedOutMoves ?? 0;
+      const engineNonTimeoutTotalMs = batch.engineNonTimeoutTotalMs ?? 0;
+      const engineTimeoutTotalMs = batch.engineTimeoutTotalMs ?? 0;
+      const engineNonTimeoutMaxMs = batch.engineNonTimeoutMaxMs ?? 0;
+      const engineTimeoutMaxMs = batch.engineTimeoutMaxMs ?? 0;
+      const nonTimeoutMoves = Math.max(0, engineMoveCount - engineTimedOutMoves);
+      const avgNonTimeoutMs =
+        nonTimeoutMoves > 0 ? engineNonTimeoutTotalMs / nonTimeoutMoves : 0;
+      const avgTimeoutMs =
+        engineTimedOutMoves > 0 ? engineTimeoutTotalMs / engineTimedOutMoves : 0;
       lines.push(
         `${batch.batchIndex} | ${batch.games} | ${batch.wins} | ${batch.draws} | ${batch.losses} | ` +
           `${batch.score.toFixed(3)} | ${batch.eloDelta === null ? 'n/a' : formatElo(batch.eloDelta)} | ` +
           `${batch.engineTargetMs}/${batch.avgEngineMs.toFixed(1)} | ` +
           `${batch.stockfishTargetMs}/${batch.avgStockfishMs.toFixed(1)} | ` +
           `B:${batch.engineTimeouts} SF:${batch.stockfishTimeouts} | ` +
+          `${engineTimedOutMoves}/${engineMoveCount} | ` +
+          `${avgNonTimeoutMs.toFixed(1)}/${avgTimeoutMs.toFixed(1)} | ` +
+          `${engineNonTimeoutMaxMs.toFixed(1)}/${engineTimeoutMaxMs.toFixed(1)} | ` +
           `${batch.engineStopLatencyAvg.toFixed(1)} | ${batch.engineOverheadCount}`
       );
     }
@@ -1166,6 +1290,41 @@ function summarizeEndReasons(batches: BatchResult[]): {
   };
 }
 
+function summarizeEngineTimings(batches: BatchResult[]): {
+  moveCount: number;
+  timedOutMoves: number;
+  avgNonTimeoutMs: number;
+  avgTimeoutMs: number;
+  maxNonTimeoutMs: number;
+  maxTimeoutMs: number;
+} {
+  let moveCount = 0;
+  let timedOutMoves = 0;
+  let nonTimeoutTotalMs = 0;
+  let timeoutTotalMs = 0;
+  let maxNonTimeoutMs = 0;
+  let maxTimeoutMs = 0;
+
+  for (const batch of batches) {
+    moveCount += batch.engineMoveCount ?? 0;
+    timedOutMoves += batch.engineTimedOutMoves ?? 0;
+    nonTimeoutTotalMs += batch.engineNonTimeoutTotalMs ?? 0;
+    timeoutTotalMs += batch.engineTimeoutTotalMs ?? 0;
+    maxNonTimeoutMs = Math.max(maxNonTimeoutMs, batch.engineNonTimeoutMaxMs ?? 0);
+    maxTimeoutMs = Math.max(maxTimeoutMs, batch.engineTimeoutMaxMs ?? 0);
+  }
+
+  const nonTimeoutMoves = Math.max(0, moveCount - timedOutMoves);
+  return {
+    moveCount,
+    timedOutMoves,
+    avgNonTimeoutMs: nonTimeoutMoves > 0 ? nonTimeoutTotalMs / nonTimeoutMoves : 0,
+    avgTimeoutMs: timedOutMoves > 0 ? timeoutTotalMs / timedOutMoves : 0,
+    maxNonTimeoutMs,
+    maxTimeoutMs
+  };
+}
+
 function createEngineWorker(): Worker {
   return new Worker(new URL('./engineWorker.cjs', import.meta.url));
 }
@@ -1184,12 +1343,13 @@ async function runEngineWithTimeout(
   graceMs: number,
   onStopLatency: (latency: number | null) => void,
   onTimeout: () => void
-): Promise<{ move: Move | null; error?: string; worker: Worker }> {
+): Promise<{ move: Move | null; error?: string; worker: Worker; timedOut: boolean }> {
   let activeWorker = worker;
   const requestId = Math.floor(Math.random() * 1e9);
   let stopSentAt: number | null = null;
+  let timedOut = false;
 
-  const result = await new Promise<{ move: Move | null; error?: string; worker: Worker }>(
+  const result = await new Promise<{ move: Move | null; error?: string; worker: Worker; timedOut: boolean }>(
     (resolve) => {
     const stopTimer = setTimeout(() => {
       stopSentAt = performance.now();
@@ -1198,10 +1358,11 @@ async function runEngineWithTimeout(
 
     const timeout = setTimeout(() => {
       onTimeout();
+      timedOut = true;
       activeWorker.terminate();
       activeWorker = createEngineWorker();
       onStopLatency(null);
-      resolve({ move: fallbackMove(state), worker: activeWorker });
+      resolve({ move: fallbackMove(state), worker: activeWorker, timedOut });
     }, targetMs + graceMs);
 
     activeWorker.once('message', (response: { id: number; move: Move | null; error?: string }) => {
@@ -1215,7 +1376,7 @@ async function runEngineWithTimeout(
       } else {
         onStopLatency(null);
       }
-      resolve({ move: response.move, error: response.error, worker: activeWorker });
+      resolve({ move: response.move, error: response.error, worker: activeWorker, timedOut });
     });
 
     activeWorker.once('error', (error) => {
@@ -1227,7 +1388,8 @@ async function runEngineWithTimeout(
       resolve({
         move: null,
         error: error instanceof Error ? error.message : String(error),
-        worker: activeWorker
+        worker: activeWorker,
+        timedOut
       });
     });
 
