@@ -103,6 +103,7 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
 
   const now = options.now ?? defaultNow;
   const start = options.maxTimeMs ? now() : 0;
+  let nodeCounter = 0;
   const shouldStop = () => {
     if (options.stopRequested && options.stopRequested()) {
       return true;
@@ -112,6 +113,16 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
     }
     return now() - start >= options.maxTimeMs;
   };
+  const shouldStopChecked =
+    options.maxTimeMs !== undefined || options.stopRequested
+      ? () => {
+          nodeCounter += 1;
+          if ((nodeCounter & 255) !== 0) {
+            return false;
+          }
+          return shouldStop();
+        }
+      : undefined;
 
   const ordering = options.maxThinking
     ? options.ordering ?? createOrderingState(options.depth + 4)
@@ -152,7 +163,8 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
       options.maxThinking ?? false,
       1,
       options.tt,
-      ordering
+      ordering,
+      shouldStopChecked
     );
     let score = baseScore;
 
@@ -525,7 +537,8 @@ function scoreRootMoves(
       options.maxThinking ?? false,
       1,
       options.tt,
-      options.ordering
+      options.ordering,
+      undefined
     );
     let score = baseScore;
 
@@ -595,8 +608,12 @@ function alphaBeta(
   maxThinking: boolean,
   ply: number,
   tt?: Map<string, TTEntry>,
-  ordering?: OrderingState
+  ordering?: OrderingState,
+  stopChecker?: () => boolean
 ): number {
+  if (stopChecker && stopChecker()) {
+    return evaluateState(state, maximizingColor, { maxThinking });
+  }
   const legalMoves = getAllLegalMoves(state, currentColor);
   const alphaOrig = alpha;
   const betaOrig = beta;
@@ -671,7 +688,8 @@ function alphaBeta(
       maxThinking,
       ply + 1,
       tt,
-      ordering
+      ordering,
+      stopChecker
     );
     if (maximizing) {
       if (nullScore >= beta) {
@@ -712,7 +730,8 @@ function alphaBeta(
         maxThinking,
         ply + 1,
         tt,
-        ordering
+        ordering,
+        stopChecker
       );
       if (reduction > 0 && reducedDepth < depth - 1 && nextScore > alpha) {
         nextScore = alphaBeta(
@@ -726,7 +745,8 @@ function alphaBeta(
           maxThinking,
           ply + 1,
           tt,
-          ordering
+          ordering,
+          stopChecker
         );
       }
       if (nextScore > value) {
@@ -775,7 +795,8 @@ function alphaBeta(
       maxThinking,
       ply + 1,
       tt,
-      ordering
+      ordering,
+      stopChecker
     );
     if (reduction > 0 && reducedDepth < depth - 1 && nextScore < beta) {
       nextScore = alphaBeta(
@@ -789,7 +810,8 @@ function alphaBeta(
         maxThinking,
         ply + 1,
         tt,
-        ordering
+        ordering,
+        stopChecker
       );
     }
     if (nextScore < value) {
