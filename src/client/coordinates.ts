@@ -61,6 +61,8 @@ export function setCoordinateOrientation(
   const a1 = squareToWorld({ file: 0, rank: 0 }, size, LABEL_Y);
   const b1 = squareToWorld({ file: 1, rank: 0 }, size, LABEL_Y);
   const a2 = squareToWorld({ file: 0, rank: 1 }, size, LABEL_Y);
+  const a8 = squareToWorld({ file: 0, rank: 7 }, size, LABEL_Y);
+  const h1 = squareToWorld({ file: 7, rank: 0 }, size, LABEL_Y);
   const fileDir = new THREE.Vector3(b1.x - a1.x, 0, b1.z - a1.z);
   const rankDir = new THREE.Vector3(a2.x - a1.x, 0, a2.z - a1.z);
   const fileUnit = fileDir.clone().normalize();
@@ -71,13 +73,16 @@ export function setCoordinateOrientation(
   const leftOffset = fileUnit.clone().multiplyScalar(
     orientation === 'black' ? edgeOffset : -edgeOffset
   );
-  const fileRank = orientation === 'black' ? 7 : 0;
-  const rankFile = orientation === 'black' ? 7 : 0;
+  const fileAnchor = orientation === 'black' ? a8 : a1;
+  const rankAnchor = orientation === 'black' ? h1 : a1;
 
   data.fileSprites.forEach((sprite, index) => {
-    const labelIndex = orientation === 'black' ? 7 - index : index;
-    updateLabelSprite(sprite, FILE_LABELS[labelIndex]);
-    const base = squareToWorld({ file: index, rank: fileRank }, size, LABEL_Y);
+    updateLabelSprite(sprite, FILE_LABELS[index]);
+    const base = {
+      x: fileAnchor.x + fileDir.x * index,
+      y: LABEL_Y,
+      z: fileAnchor.z + fileDir.z * index
+    };
     sprite.position.set(
       base.x + bottomOffset.x,
       LABEL_Y,
@@ -86,7 +91,11 @@ export function setCoordinateOrientation(
   });
   data.rankSprites.forEach((sprite, index) => {
     updateLabelSprite(sprite, RANK_LABELS[index]);
-    const base = squareToWorld({ file: rankFile, rank: index }, size, LABEL_Y);
+    const base = {
+      x: rankAnchor.x + rankDir.x * index,
+      y: LABEL_Y,
+      z: rankAnchor.z + rankDir.z * index
+    };
     sprite.position.set(
       base.x + leftOffset.x,
       LABEL_Y,
