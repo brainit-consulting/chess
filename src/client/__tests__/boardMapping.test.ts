@@ -6,6 +6,7 @@ describe('board mapping', () => {
     expect(isDarkSquare(0, 0)).toBe(true);
     expect(isDarkSquare(3, 0)).toBe(false);
     expect(isDarkSquare(4, 0)).toBe(true);
+    expect(isDarkSquare(3, 7)).toBe(true);
   });
 
   it('maps a1 to the lower-left corner in world space', () => {

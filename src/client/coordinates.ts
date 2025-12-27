@@ -42,6 +42,7 @@ export function createCoordinateGroup(tileSize: number): THREE.Group {
 
   const data: CoordinateSprites = { fileSprites, rankSprites };
   group.userData.coordinates = data;
+  group.userData.tileSize = tileSize;
   return group;
 }
 
@@ -53,14 +54,20 @@ export function setCoordinateOrientation(
   if (!data) {
     return;
   }
-  const fileLabels = orientation === 'black' ? [...FILE_LABELS].reverse() : FILE_LABELS;
-  const rankLabels = orientation === 'black' ? [...RANK_LABELS].reverse() : RANK_LABELS;
+  const tileSize = group.userData.tileSize as number | undefined;
+  const size = tileSize ?? 1;
+  const edgeOffset = (3.5 + LABEL_OFFSET) * size;
+  const fileZ = orientation === 'black' ? edgeOffset : -edgeOffset;
+  const rankX = orientation === 'black' ? edgeOffset : -edgeOffset;
 
   data.fileSprites.forEach((sprite, index) => {
-    updateLabelSprite(sprite, fileLabels[index]);
+    const labelIndex = orientation === 'black' ? 7 - index : index;
+    updateLabelSprite(sprite, FILE_LABELS[labelIndex]);
+    sprite.position.set((index - 3.5) * size, LABEL_Y, fileZ);
   });
   data.rankSprites.forEach((sprite, index) => {
-    updateLabelSprite(sprite, rankLabels[index]);
+    updateLabelSprite(sprite, RANK_LABELS[index]);
+    sprite.position.set(rankX, LABEL_Y, (index - 3.5) * size);
   });
 }
 

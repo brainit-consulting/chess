@@ -94,7 +94,7 @@ export class SceneView {
     this.scene.add(this.markersGroup);
     this.coordinateGroup = createCoordinateGroup(TILE_SIZE);
     this.applyCoordinateOrientation();
-    this.scene.add(this.coordinateGroup);
+    this.boardGroup.add(this.coordinateGroup);
 
     this.addLights();
     this.buildBoard();
