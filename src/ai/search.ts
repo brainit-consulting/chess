@@ -251,36 +251,48 @@ export function findBestMoveTimed(
         aspirationMaxRetries,
         shouldStop,
         (alpha, beta) =>
-          scoreRootMoves(state, color, {
-            depth,
-            rng: options.rng,
-            legalMoves,
-            playForWin: options.playForWin,
-            recentPositions: options.recentPositions,
-            repetitionPenalty: options.repetitionPenalty,
-            topMoveWindow: options.topMoveWindow,
-            fairnessWindow: options.fairnessWindow,
-            maxThinking: options.maxThinking,
-            tt,
-            ordering
-          }, { alpha, beta }),
+          scoreRootMoves(
+            state,
+            color,
+            {
+              depth,
+              rng: options.rng,
+              legalMoves,
+              playForWin: options.playForWin,
+              recentPositions: options.recentPositions,
+              repetitionPenalty: options.repetitionPenalty,
+              topMoveWindow: options.topMoveWindow,
+              fairnessWindow: options.fairnessWindow,
+              maxThinking: options.maxThinking,
+              tt,
+              ordering
+            },
+            { alpha, beta },
+            shouldStop
+          ),
         (result) => result.score
       );
       scored = { move: outcome.result.move, score: outcome.result.score };
     } else {
-      const result = scoreRootMoves(state, color, {
-        depth,
-        rng: options.rng,
-        legalMoves,
-        playForWin: options.playForWin,
-        recentPositions: options.recentPositions,
-        repetitionPenalty: options.repetitionPenalty,
-        topMoveWindow: options.topMoveWindow,
-        fairnessWindow: options.fairnessWindow,
-        maxThinking: options.maxThinking,
-        tt,
-        ordering
-      });
+      const result = scoreRootMoves(
+        state,
+        color,
+        {
+          depth,
+          rng: options.rng,
+          legalMoves,
+          playForWin: options.playForWin,
+          recentPositions: options.recentPositions,
+          repetitionPenalty: options.repetitionPenalty,
+          topMoveWindow: options.topMoveWindow,
+          fairnessWindow: options.fairnessWindow,
+          maxThinking: options.maxThinking,
+          tt,
+          ordering
+        },
+        undefined,
+        shouldStop
+      );
       scored = { move: result.move, score: result.score };
     }
 
@@ -390,6 +402,12 @@ export function findBestMoveTimedDebug(
 
   const now = options.now ?? defaultNow;
   const start = now();
+  const shouldStop = () => {
+    if (options.stopRequested && options.stopRequested()) {
+      return true;
+    }
+    return now() - start >= options.maxTimeMs;
+  };
   const tt = options.maxThinking ? options.tt ?? new Map<string, TTEntry>() : undefined;
   const ordering = options.maxThinking
     ? options.ordering ?? createOrderingState(options.maxDepth + 4)
@@ -422,39 +440,51 @@ export function findBestMoveTimedDebug(
         prevScore,
         aspirationWindow,
         aspirationMaxRetries,
-        () => now() - start >= options.maxTimeMs,
+        shouldStop,
         (alpha, beta) =>
-          scoreRootMoves(state, color, {
-            depth,
-            rng: options.rng,
-            legalMoves,
-            playForWin: options.playForWin,
-            recentPositions: options.recentPositions,
-            repetitionPenalty: options.repetitionPenalty,
-            topMoveWindow: options.topMoveWindow,
-            fairnessWindow: options.fairnessWindow,
-            maxThinking: options.maxThinking,
-            tt,
-            ordering
-          }, { alpha, beta }),
+          scoreRootMoves(
+            state,
+            color,
+            {
+              depth,
+              rng: options.rng,
+              legalMoves,
+              playForWin: options.playForWin,
+              recentPositions: options.recentPositions,
+              repetitionPenalty: options.repetitionPenalty,
+              topMoveWindow: options.topMoveWindow,
+              fairnessWindow: options.fairnessWindow,
+              maxThinking: options.maxThinking,
+              tt,
+              ordering
+            },
+            { alpha, beta },
+            shouldStop
+          ),
         (result) => result.score
       );
       aspirationRetries += outcome.retries;
       scored = outcome.result;
     } else {
-      scored = scoreRootMoves(state, color, {
-        depth,
-        rng: options.rng,
-        legalMoves,
-        playForWin: options.playForWin,
-        recentPositions: options.recentPositions,
-        repetitionPenalty: options.repetitionPenalty,
-        topMoveWindow: options.topMoveWindow,
-        fairnessWindow: options.fairnessWindow,
-        maxThinking: options.maxThinking,
-        tt,
-        ordering
-      });
+      scored = scoreRootMoves(
+        state,
+        color,
+        {
+          depth,
+          rng: options.rng,
+          legalMoves,
+          playForWin: options.playForWin,
+          recentPositions: options.recentPositions,
+          repetitionPenalty: options.repetitionPenalty,
+          topMoveWindow: options.topMoveWindow,
+          fairnessWindow: options.fairnessWindow,
+          maxThinking: options.maxThinking,
+          tt,
+          ordering
+        },
+        undefined,
+        shouldStop
+      );
     }
     if (!scored) {
       scored = {
@@ -473,19 +503,25 @@ export function findBestMoveTimedDebug(
   }
 
   if (!bestMove) {
-    const scored = scoreRootMoves(state, color, {
-      depth: 1,
-      rng: options.rng,
-      legalMoves,
-      playForWin: options.playForWin,
-      recentPositions: options.recentPositions,
-      repetitionPenalty: options.repetitionPenalty,
-      topMoveWindow: options.topMoveWindow,
-      fairnessWindow: options.fairnessWindow,
-      maxThinking: options.maxThinking,
-      tt,
-      ordering
-    });
+    const scored = scoreRootMoves(
+      state,
+      color,
+      {
+        depth: 1,
+        rng: options.rng,
+        legalMoves,
+        playForWin: options.playForWin,
+        recentPositions: options.recentPositions,
+        repetitionPenalty: options.repetitionPenalty,
+        topMoveWindow: options.topMoveWindow,
+        fairnessWindow: options.fairnessWindow,
+        maxThinking: options.maxThinking,
+        tt,
+        ordering
+      },
+      undefined,
+      shouldStop
+    );
     bestMove = scored.move;
     bestScore = scored.score;
     scoredMoves = scored.scoredMoves;
@@ -509,7 +545,8 @@ function scoreRootMoves(
   state: GameState,
   color: Color,
   options: SearchOptions,
-  window?: { alpha: number; beta: number }
+  window?: { alpha: number; beta: number },
+  shouldStop?: () => boolean
 ): { move: Move | null; score: number | null; scoredMoves: MateProbeScoredMove[] } {
   const ordered = orderMoves(state, options.legalMoves ?? [], color, options.rng, {
     preferred: options.maxThinking && options.tt
@@ -527,7 +564,12 @@ function scoreRootMoves(
   const topMoveWindow = options.topMoveWindow ?? DEFAULT_TOP_MOVE_WINDOW;
   const fairnessWindow = options.fairnessWindow ?? DEFAULT_FAIRNESS_WINDOW;
 
+  let bestMove: Move | null = ordered[0] ?? null;
+  let bestScore: number | null = null;
   for (const move of ordered) {
+    if (shouldStop && shouldStop()) {
+      return { move: bestMove, score: bestScore, scoredMoves };
+    }
     const next = cloneState(state);
     next.activeColor = color;
     applyMove(next, move);
@@ -544,7 +586,7 @@ function scoreRootMoves(
       1,
       options.tt,
       options.ordering,
-      undefined
+      shouldStop
     );
     let score = baseScore;
 
@@ -563,6 +605,10 @@ function scoreRootMoves(
       mateInPly: mateInfo?.mateInPly ?? null,
       mateInMoves: mateInfo?.mateInMoves ?? null
     });
+    if (bestScore === null || score > bestScore) {
+      bestScore = score;
+      bestMove = move;
+    }
   }
 
   if (scoredMoves.length === 0) {
@@ -718,6 +764,9 @@ function alphaBeta(
     let value = -Infinity;
     let bestMove: Move | undefined;
     for (let index = 0; index < ordered.length; index += 1) {
+      if (stopChecker && stopChecker()) {
+        return value;
+      }
       const move = ordered[index];
       const next = cloneState(state);
       next.activeColor = currentColor;
@@ -786,6 +835,9 @@ function alphaBeta(
   let value = Infinity;
   let bestMove: Move | undefined;
   for (let index = 0; index < ordered.length; index += 1) {
+    if (stopChecker && stopChecker()) {
+      return value;
+    }
     const move = ordered[index];
     const next = cloneState(state);
     next.activeColor = currentColor;
@@ -1075,6 +1127,9 @@ function quiescence(
   if (maximizing) {
     let value = standPat;
     for (const move of ordered) {
+      if (stopChecker && stopChecker()) {
+        return value;
+      }
       const next = cloneState(state);
       next.activeColor = currentColor;
       applyMove(next, move);
@@ -1105,6 +1160,9 @@ function quiescence(
 
   let value = standPat;
   for (const move of ordered) {
+    if (stopChecker && stopChecker()) {
+      return value;
+    }
     const next = cloneState(state);
     next.activeColor = currentColor;
     applyMove(next, move);
