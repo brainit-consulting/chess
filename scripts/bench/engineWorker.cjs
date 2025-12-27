@@ -8,20 +8,40 @@ if (!parentPort) {
 }
 
 let stopRequested = false;
+let activeId = null;
 
 parentPort.on('message', (message) => {
   if (message && message.kind === 'stop') {
-    stopRequested = true;
+    if (activeId !== null && message.id === activeId) {
+      stopRequested = true;
+    }
     return;
   }
   try {
+    activeId = message.id ?? null;
     stopRequested = false;
+    let stopSeen = false;
     const move = chooseMove(message.state, {
       ...message.options,
       color: message.color,
-      stopRequested: () => stopRequested
+      stopRequested: () => {
+        if (stopRequested) {
+          stopSeen = true;
+          return true;
+        }
+        return false;
+      }
     });
-    parentPort.postMessage({ id: message.id, move });
+    const debug = process.env.BENCH_DEBUG === '1';
+    const meta = debug
+      ? {
+          usedTimedHard:
+            message.options?.difficulty === 'hard' && message.options?.maxTimeMs != null,
+          maxTimeMs: message.options?.maxTimeMs ?? null,
+          stopRequested: stopSeen
+        }
+      : undefined;
+    parentPort.postMessage({ id: message.id, move, meta });
   } catch (error) {
     parentPort.postMessage({
       id: message.id,

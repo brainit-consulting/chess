@@ -54,6 +54,22 @@ export function chooseMove(state: GameState, options: AiOptions = {}): Move | nu
 
   const depth = options.depthOverride ?? DEPTH_BY_DIFFICULTY[difficulty];
   const maxTimeMs = difficulty === 'hard' ? options.maxTimeMs : undefined;
+  if (difficulty === 'hard' && maxTimeMs !== undefined) {
+    if (typeof process !== 'undefined' && process.env?.BENCH_DEBUG === '1') {
+      console.log('TIMED_HARD_USED');
+    }
+    return findBestMoveTimed(state, color, {
+      maxDepth: depth,
+      maxTimeMs,
+      rng,
+      legalMoves,
+      playForWin: options.playForWin,
+      recentPositions: options.recentPositions,
+      maxThinking: false,
+      stopRequested: options.stopRequested
+    });
+  }
+
   return findBestMove(state, color, {
     depth,
     rng,

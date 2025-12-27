@@ -601,7 +601,7 @@ async function pickEngineMove(
     {
       color: state.activeColor,
       difficulty: options.mode,
-      maxTimeMs: options.mode === 'max' ? options.movetimeMs : undefined,
+      maxTimeMs: options.movetimeMs,
       maxDepth: options.mode === 'max' ? MAX_THINKING_DEPTH_CAP : undefined,
       seed
     },
@@ -1343,13 +1343,26 @@ async function runEngineWithTimeout(
   graceMs: number,
   onStopLatency: (latency: number | null) => void,
   onTimeout: () => void
-): Promise<{ move: Move | null; error?: string; worker: Worker; timedOut: boolean }> {
+): Promise<{
+  move: Move | null;
+  error?: string;
+  worker: Worker;
+  timedOut: boolean;
+  meta?: { [key: string]: unknown };
+}> {
   let activeWorker = worker;
   const requestId = Math.floor(Math.random() * 1e9);
   let stopSentAt: number | null = null;
   let timedOut = false;
+  const debug = typeof process !== 'undefined' && process.env?.BENCH_DEBUG === '1';
 
-  const result = await new Promise<{ move: Move | null; error?: string; worker: Worker; timedOut: boolean }>(
+  const result = await new Promise<{
+    move: Move | null;
+    error?: string;
+    worker: Worker;
+    timedOut: boolean;
+    meta?: { [key: string]: unknown };
+  }>(
     (resolve) => {
     const stopTimer = setTimeout(() => {
       stopSentAt = performance.now();
@@ -1365,7 +1378,14 @@ async function runEngineWithTimeout(
       resolve({ move: fallbackMove(state), worker: activeWorker, timedOut });
     }, targetMs + graceMs);
 
-    activeWorker.once('message', (response: { id: number; move: Move | null; error?: string }) => {
+    activeWorker.once(
+      'message',
+      (response: {
+        id: number;
+        move: Move | null;
+        error?: string;
+        meta?: { [key: string]: unknown };
+      }) => {
       if (response.id !== requestId) {
         return;
       }
@@ -1376,7 +1396,16 @@ async function runEngineWithTimeout(
       } else {
         onStopLatency(null);
       }
-      resolve({ move: response.move, error: response.error, worker: activeWorker, timedOut });
+      if (debug && response.meta) {
+        console.log('[BENCH_DEBUG] engine meta', response.meta);
+      }
+      resolve({
+        move: response.move,
+        error: response.error,
+        worker: activeWorker,
+        timedOut,
+        meta: response.meta
+      });
     });
 
     activeWorker.once('error', (error) => {

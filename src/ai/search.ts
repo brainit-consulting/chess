@@ -217,6 +217,12 @@ export function findBestMoveTimed(
 
   const now = options.now ?? defaultNow;
   const start = now();
+  const shouldStop = () => {
+    if (options.stopRequested && options.stopRequested()) {
+      return true;
+    }
+    return now() - start >= options.maxTimeMs;
+  };
   let best: Move | null = null;
   let prevScore: number | null = null;
   const tt = options.maxThinking ? options.tt ?? new Map<string, TTEntry>() : undefined;
@@ -230,7 +236,7 @@ export function findBestMoveTimed(
     options.aspirationMaxRetries ?? DEFAULT_ASPIRATION_MAX_RETRIES;
 
   for (let depth = 1; depth <= options.maxDepth; depth += 1) {
-    if (now() - start >= options.maxTimeMs) {
+    if (shouldStop()) {
       break;
     }
     if (ordering && depth > 1) {
@@ -243,7 +249,7 @@ export function findBestMoveTimed(
         prevScore,
         aspirationWindow,
         aspirationMaxRetries,
-        () => now() - start >= options.maxTimeMs,
+        shouldStop,
         (alpha, beta) =>
           scoreRootMoves(state, color, {
             depth,
