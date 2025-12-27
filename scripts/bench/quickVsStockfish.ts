@@ -88,6 +88,7 @@ type GameLog = {
 type RunState = {
   startedAt: string;
   updatedAt: string;
+  seriesLabel?: string;
   config: {
     stockfishPath: string;
     movetimeMs: number;
@@ -131,6 +132,7 @@ const ENGINE_TIMEOUT_GRACE_MS = 40;
 const STOCKFISH_TIMEOUT_SLACK_MS = 20;
 const MIN_PLIES_FOR_DRAW = 2;
 const REPORT_WARNING_MIN_PLIES = 10;
+const DEFAULT_SERIES_LABEL = 'Post-fix baseline series';
 
 const OPENINGS: string[][] = [
   ['e2e4', 'e7e5', 'g1f3', 'b8c6', 'f1c4', 'g8f6'],
@@ -173,7 +175,7 @@ async function main(): Promise<void> {
     maxPlies: args.maxPlies ?? DEFAULT_MAX_PLIES
   };
 
-  const state = await loadRunState(config, args.reset);
+  const state = await loadRunState(config, args.reset, args.seriesLabel);
   await fs.mkdir(RESULTS_DIR, { recursive: true });
 
   if (config.batchSize <= 0) {
@@ -355,12 +357,88 @@ async function runSingleGame(options: {
   lastMoveUci = openingResult.lastMoveUci;
   lastMoveSan = openingResult.lastMoveSan;
   const rng = createSeededRng(options.seed);
+  let engineWorker = createEngineWorker();
 
-  while (plies < options.maxPlies) {
-    const status = getGameStatus(state);
-    if (status.status === 'checkmate' || status.status === 'stalemate' || status.status === 'draw') {
-      if (plies < MIN_PLIES_FOR_DRAW && status.status !== 'checkmate') {
-        throw new BenchmarkError('Game ended before minimum plies.', {
+  try {
+    while (plies < options.maxPlies) {
+      const status = getGameStatus(state);
+      if (status.status === 'checkmate' || status.status === 'stalemate' || status.status === 'draw') {
+        if (plies < MIN_PLIES_FOR_DRAW && status.status !== 'checkmate') {
+          throw new BenchmarkError('Game ended before minimum plies.', {
+            gameId: options.gameId,
+            mode: options.mode,
+            engineColor: options.engineColor,
+            engineLabel: options.engineLabel,
+            opening: options.opening,
+            plies,
+            finalFen: stateToFen(state),
+            lastMoveUci,
+            lastMoveSan,
+            termination: {
+              trigger: 'early_draw',
+              status: status.status,
+              reason: status.reason
+            }
+          });
+        }
+        const endReason = categorizeEndReason(status.status, status.reason);
+        const final = finalizeGame(
+          state,
+          status.status,
+          status.winner,
+          pgnMoves,
+          options.engineColor,
+          options.engineLabel
+        );
+        return {
+          ...final,
+          plies,
+          endReason,
+          log: {
+            gameId: options.gameId,
+            mode: options.mode,
+            engineColor: options.engineColor,
+            engineLabel: options.engineLabel,
+            opening: options.opening,
+            plies,
+            finalFen: stateToFen(state),
+            lastMoveUci,
+            lastMoveSan,
+            termination: {
+              trigger: 'engine_status',
+              status: status.status,
+              reason: status.reason
+            },
+            result: final.result,
+            outcome: final.outcome
+          }
+        };
+      }
+
+      const move =
+        state.activeColor === options.engineColor
+          ? await pickEngineMove(
+              state,
+              options,
+              rng,
+              options.engineTimes,
+              options.onEngineStopLatency,
+              options.onEngineTimeout,
+              engineWorker
+            )
+          : await pickStockfishMove(
+              state,
+              options,
+              options.stockfishTimes,
+              options.onStockfishTimeout
+            );
+
+      if (move.worker) {
+        engineWorker = move.worker;
+      }
+
+      if (!move.move) {
+        throw new BenchmarkError('Move selection failed.', {
           gameId: options.gameId,
           mode: options.mode,
           engineColor: options.engineColor,
@@ -371,26 +449,18 @@ async function runSingleGame(options: {
           lastMoveUci,
           lastMoveSan,
           termination: {
-            trigger: 'early_draw',
-            status: status.status,
-            reason: status.reason
+            trigger: move.trigger ?? 'missing_bestmove',
+            message: move.message
           }
         });
       }
-      const endReason = categorizeEndReason(status.status, status.reason);
-      const final = finalizeGame(
-        state,
-        status.status,
-        status.winner,
-        pgnMoves,
-        options.engineColor,
-        options.engineLabel
-      );
-      return {
-        ...final,
-        plies,
-        endReason,
-        log: {
+
+      const san = buildSan(state, move.move);
+      pgnMoves.push({ moveNumber: state.fullmoveNumber, color: state.activeColor, san });
+      const previousColor = state.activeColor;
+      applyMove(state, move.move);
+      if (state.activeColor === previousColor) {
+        throw new BenchmarkError('Active color did not switch after move.', {
           gameId: options.gameId,
           mode: options.mode,
           engineColor: options.engineColor,
@@ -401,75 +471,17 @@ async function runSingleGame(options: {
           lastMoveUci,
           lastMoveSan,
           termination: {
-            trigger: 'engine_status',
-            status: status.status,
-            reason: status.reason
-          },
-          result: final.result,
-          outcome: final.outcome
-        }
-      };
+            trigger: 'apply_move_error',
+            message: 'Active color did not switch after applyMove.'
+          }
+        });
+      }
+      plies += 1;
+      lastMoveUci = moveToUci(move.move);
+      lastMoveSan = san;
     }
-
-    const move =
-      state.activeColor === options.engineColor
-        ? await pickEngineMove(
-            state,
-            options,
-            rng,
-            options.engineTimes,
-            options.onEngineStopLatency,
-            options.onEngineTimeout
-          )
-        : await pickStockfishMove(
-            state,
-            options,
-            options.stockfishTimes,
-            options.onStockfishTimeout
-          );
-
-    if (!move.move) {
-      throw new BenchmarkError('Move selection failed.', {
-        gameId: options.gameId,
-        mode: options.mode,
-        engineColor: options.engineColor,
-        engineLabel: options.engineLabel,
-        opening: options.opening,
-        plies,
-        finalFen: stateToFen(state),
-        lastMoveUci,
-        lastMoveSan,
-        termination: {
-          trigger: move.trigger ?? 'missing_bestmove',
-          message: move.message
-        }
-      });
-    }
-
-    const san = buildSan(state, move.move);
-    pgnMoves.push({ moveNumber: state.fullmoveNumber, color: state.activeColor, san });
-    const previousColor = state.activeColor;
-    applyMove(state, move.move);
-    if (state.activeColor === previousColor) {
-      throw new BenchmarkError('Active color did not switch after move.', {
-        gameId: options.gameId,
-        mode: options.mode,
-        engineColor: options.engineColor,
-        engineLabel: options.engineLabel,
-        opening: options.opening,
-        plies,
-        finalFen: stateToFen(state),
-        lastMoveUci,
-        lastMoveSan,
-        termination: {
-          trigger: 'apply_move_error',
-          message: 'Active color did not switch after applyMove.'
-        }
-      });
-    }
-    plies += 1;
-    lastMoveUci = moveToUci(move.move);
-    lastMoveSan = san;
+  } finally {
+    engineWorker.terminate();
   }
 
   const final = finalizeGame(
@@ -513,11 +525,18 @@ async function pickEngineMove(
   rng: () => number,
   timings: number[],
   onStopLatency: (latency: number | null) => void,
-  onTimeout: () => void
-): Promise<{ move: Move | null; trigger?: TerminationTrigger; message?: string }> {
+  onTimeout: () => void,
+  worker: Worker
+): Promise<{
+  move: Move | null;
+  trigger?: TerminationTrigger;
+  message?: string;
+  worker: Worker;
+}> {
   const start = performance.now();
   const seed = Math.floor(rng() * 1000000000);
   const result = await runEngineWithTimeout(
+    worker,
     state,
     {
       color: state.activeColor,
@@ -534,12 +553,17 @@ async function pickEngineMove(
   const elapsed = performance.now() - start;
   timings.push(elapsed);
   if (result.error) {
-    return { move: null, trigger: 'engine_worker_error', message: result.error };
+    return { move: null, trigger: 'engine_worker_error', message: result.error, worker: result.worker };
   }
   if (!result.move) {
-    return { move: null, trigger: 'missing_bestmove', message: 'Engine returned no move.' };
+    return {
+      move: null,
+      trigger: 'missing_bestmove',
+      message: 'Engine returned no move.',
+      worker: result.worker
+    };
   }
-  return { move: result.move };
+  return { move: result.move, worker: result.worker };
 }
 
 async function pickStockfishMove(
@@ -818,6 +842,7 @@ function parseArgs(argv: string[]): {
   threads?: number;
   hashMb?: number;
   maxPlies?: number;
+  seriesLabel?: string;
   reset?: boolean;
 } {
   const result: {
@@ -828,6 +853,7 @@ function parseArgs(argv: string[]): {
     threads?: number;
     hashMb?: number;
     maxPlies?: number;
+    seriesLabel?: string;
     reset?: boolean;
   } = { stockfishPath: null };
   for (let i = 0; i < argv.length; i += 1) {
@@ -865,12 +891,19 @@ function parseArgs(argv: string[]): {
       i += 1;
     } else if (arg === '--reset') {
       result.reset = true;
+    } else if (arg === '--series-label' || arg === '--label') {
+      result.seriesLabel = argv[i + 1] ?? '';
+      i += 1;
     }
   }
   return result;
 }
 
-async function loadRunState(config: RunConfig, reset?: boolean): Promise<RunState> {
+async function loadRunState(
+  config: RunConfig,
+  reset?: boolean,
+  seriesLabel?: string
+): Promise<RunState> {
   if (!reset) {
     try {
       const raw = await fs.readFile(STATE_PATH, 'utf8');
@@ -900,6 +933,7 @@ async function loadRunState(config: RunConfig, reset?: boolean): Promise<RunStat
   return {
     startedAt: now,
     updatedAt: now,
+    seriesLabel: seriesLabel?.trim() || DEFAULT_SERIES_LABEL,
     config: {
       stockfishPath: config.stockfishPath,
       movetimeMs: config.movetimeMs,
@@ -1047,6 +1081,7 @@ function buildReportBody(state: RunState, config: RunConfig): string {
   const summary = summarizeEndReasons(state.batches);
   const lines = [
     `Last updated: ${state.updatedAt}`,
+    `Series: ${state.seriesLabel ?? 'unspecified'}`,
     '',
     `Config: BrainIT ${config.mode} @ ${config.movetimeMs}ms | Stockfish movetime ${lastRung}ms`,
     `Stockfish: ${config.stockfishPath}`,
@@ -1131,7 +1166,12 @@ function summarizeEndReasons(batches: BatchResult[]): {
   };
 }
 
+function createEngineWorker(): Worker {
+  return new Worker(new URL('./engineWorker.cjs', import.meta.url));
+}
+
 async function runEngineWithTimeout(
+  worker: Worker,
   state: GameState,
   options: {
     color: Color;
@@ -1144,48 +1184,54 @@ async function runEngineWithTimeout(
   graceMs: number,
   onStopLatency: (latency: number | null) => void,
   onTimeout: () => void
-): Promise<{ move: Move | null; error?: string }> {
-  const workerPath = new URL('./engineWorker.cjs', import.meta.url);
-  const worker = new Worker(workerPath);
+): Promise<{ move: Move | null; error?: string; worker: Worker }> {
+  let activeWorker = worker;
   const requestId = Math.floor(Math.random() * 1e9);
   let stopSentAt: number | null = null;
 
-  const result = await new Promise<{ move: Move | null; error?: string }>((resolve) => {
+  const result = await new Promise<{ move: Move | null; error?: string; worker: Worker }>(
+    (resolve) => {
     const stopTimer = setTimeout(() => {
       stopSentAt = performance.now();
-      worker.postMessage({ kind: 'stop', id: requestId });
+      activeWorker.postMessage({ kind: 'stop', id: requestId });
     }, targetMs);
 
     const timeout = setTimeout(() => {
       onTimeout();
-      worker.terminate();
-      resolve({ move: fallbackMove(state) });
+      activeWorker.terminate();
+      activeWorker = createEngineWorker();
+      onStopLatency(null);
+      resolve({ move: fallbackMove(state), worker: activeWorker });
     }, targetMs + graceMs);
 
-    worker.once('message', (response: { id: number; move: Move | null; error?: string }) => {
+    activeWorker.once('message', (response: { id: number; move: Move | null; error?: string }) => {
       if (response.id !== requestId) {
         return;
       }
       clearTimeout(stopTimer);
       clearTimeout(timeout);
-      worker.terminate();
       if (stopSentAt !== null) {
         onStopLatency(Math.max(0, performance.now() - stopSentAt));
       } else {
         onStopLatency(null);
       }
-      resolve({ move: response.move, error: response.error });
+      resolve({ move: response.move, error: response.error, worker: activeWorker });
     });
 
-    worker.once('error', (error) => {
+    activeWorker.once('error', (error) => {
       clearTimeout(stopTimer);
       clearTimeout(timeout);
-      worker.terminate();
+      activeWorker.terminate();
+      activeWorker = createEngineWorker();
       onStopLatency(null);
-      resolve({ move: null, error: error instanceof Error ? error.message : String(error) });
+      resolve({
+        move: null,
+        error: error instanceof Error ? error.message : String(error),
+        worker: activeWorker
+      });
     });
 
-    worker.postMessage({
+    activeWorker.postMessage({
       id: requestId,
       state,
       color: options.color,
