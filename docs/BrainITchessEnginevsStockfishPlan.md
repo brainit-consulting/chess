@@ -1,4 +1,4 @@
-# BrainIT Chess Engine vs Stockfish Benchmark Plan
+# Scorpion Chess Engine vs Stockfish Benchmark Plan
 
 Purpose
 - Measure current playing strength against Stockfish without changing our engine.
@@ -6,7 +6,7 @@ Purpose
 
 Constraints
 - Treat our engine as a black box (no tuning, no depth/heuristic changes).
-- Use existing difficulty modes as-is (Easy/Medium/Hard).
+- Use existing difficulty modes as-is (Easy/Medium/Hard/Max Thinking).
 - Stockfish can be configured for fairness (time, depth, threads, hash).
 - Same hardware for both engines during a run.
 
@@ -16,8 +16,8 @@ Best-Practice Methodology
   - 12-24 opening seeds (4-8 ply).
   - Cap total ply (200-240) -> adjudicate draw.
 - Time control:
-  - Prefer fixed depth for Stockfish to mirror our fixed-depth engine.
-  - Alternative: fixed movetime if we want wall-clock parity.
+  - Prefer fixed movetime for parity (recommended for the current harness).
+  - Alternative: fixed depth if you want deterministic depth on Stockfish.
 - Draw rules:
   - Enforce threefold repetition, 50-move, insufficient material.
   - Optional: adjudicate draw if both sides are > +7.0 or < -7.0 for N plies
@@ -34,7 +34,7 @@ Implementation Plan (Node-based Harness)
   - Track time per move and total game time.
   - Persist game PGNs and summary stats (JSON/CSV).
 - Engine adapters:
-  - Our engine adapter: call chooseMove(state, { difficulty }).
+  - Our engine adapter: call chooseMove(state, { difficulty, maxTimeMs }).
   - Stockfish adapter: UCI driver over local binary or wasm.
 - Logging:
   - PGN per game.
@@ -69,13 +69,13 @@ Quick-run script (batch of 10)
 - Script: `scripts/bench/quickVsStockfish.ts`
 - Report: `docs/BrainITVsStockfishReport.md`
 - Run one batch (default 10 games), then re-run for the next batch:
-  - `npm run bench:quick -- --stockfish "C:\path\to\stockfish.exe" --batch 10 --movetime 100 --mode max`
+  - `npm run bench:quick -- --stockfish "C:\path\to\stockfish.exe" --batch 10 --movetime 200 --mode hard`
 - Results are appended to the report between `<!-- REPORT:START -->` and `<!-- REPORT:END -->`.
 
 Sample Summary Template
 Run:
   Date:
-  Engines: BrainIT (Hard) vs Stockfish (depth=6, Threads=1, Hash=64)
+  Engines: Scorpion (Hard) vs Stockfish (depth=6, Threads=1, Hash=64)
   Games: 200 (100 openings x 2 colors)
 Results:
   W / D / L:
@@ -90,3 +90,7 @@ Decisions Needed
 - Stockfish backend: local binary path vs wasm.
 - Preferred time control: depth vs movetime.
 - OK to add dev dependency for runner (e.g., tsx).
+
+Current timing notes
+- Gameplay Hard uses depth 3 with a UI time cap (~800ms) for responsiveness.
+- Max Thinking uses iterative deepening with a hard 10s cap.

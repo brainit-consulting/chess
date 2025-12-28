@@ -20,7 +20,7 @@ Semantic Versioning.
 - Timed hard search checks now propagate through alpha-beta and quiescence for clean early exits.
 - Benchmark harness: clean up per-request worker listeners to prevent MaxListeners warnings.
 - Quick-run state handling now auto-resets on invalid/empty state and writes atomically.
-- BrainIT vs Stockfish report notes the series reset after a corrupted run-state file.
+- Scorpion vs Stockfish report notes the series reset after a corrupted run-state file.
 
 ## [1.1.49] - 2025-12-27 09:19
 ### Added
@@ -175,8 +175,8 @@ Semantic Versioning.
 
 ## [1.1.28] - 2025-12-24
 ### Added
-- Show the BrainIT Chess Game Engine logo in the left panel header.
-- Show the BrainIT Chess Game Analyzer logo in the game-over modal near the Analyze Game button.
+- Show the Scorpion Chess Engine logo in the left panel header.
+- Show the Scorpion Chess Analyzer logo in the game-over modal near the Analyze Game button.
 - Link the header engine logo to brainitconsulting.com.
 ### Changed
 - Update the in-UI version label to v1.1.28.
@@ -203,7 +203,7 @@ Semantic Versioning.
 ### Changed
 - Update the in-UI version label to v1.1.24.
 - Add Stockfish backend resource notes for benchmarking setup.
-- Add benchmark plan document for BrainIT vs Stockfish comparisons.
+- Add benchmark plan document for Scorpion vs Stockfish comparisons.
 
 ## [1.1.23] - 2025-12-24
 ### Fixed

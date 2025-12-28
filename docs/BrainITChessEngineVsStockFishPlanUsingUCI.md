@@ -1,12 +1,14 @@
-# BrainIT Chess Engine vs Stockfish — Plan Using UCI (Phased)
+# Scorpion Chess Engine vs Stockfish - Plan Using UCI (Phased)
 
-This document is a step-by-step implementation plan to benchmark **BrainITChessEngine** against **Stockfish** using the **UCI (Universal Chess Interface)** protocol, and produce an estimated **Elo** rating via automated self-play matches.
+This document is a step-by-step implementation plan to benchmark **Scorpion Chess Engine** against **Stockfish** using the **UCI (Universal Chess Interface)** protocol, and produce an estimated **Elo** rating via automated self-play matches.
+
+Note: This is a future-facing plan. The current benchmark harness uses a Node runner that calls the engine directly and does not require Scorpion to be UCI-compliant.
 
 Primary UCI spec reference:
 - UCI Protocol (April 2006 copy): https://backscattering.de/chess/uci/
 
 Stockfish UCI reference:
-- Stockfish “UCI & Commands”: https://official-stockfish.github.io/docs/stockfish-wiki/UCI-%26-Commands.html
+- Stockfish "UCI & Commands": https://official-stockfish.github.io/docs/stockfish-wiki/UCI-%26-Commands.html
 
 Match runner reference:
 - cutechess-cli (engine match runner): https://www.chessprogramming.org/Cutechess-cli
@@ -16,7 +18,7 @@ Match runner reference:
 
 ## Goals
 
-1) Make BrainITChessEngine UCI-compliant (or UCI-enough).
+1) Make Scorpion Chess Engine UCI-compliant (or UCI-enough).
 2) Run automated matches vs Stockfish.
 3) Log PGNs and results.
 4) Fit an Elo estimate using the logistic Elo model.
@@ -27,7 +29,7 @@ Non-goals:
 
 ---
 
-## Phase 0 — Benchmark Conditions
+## Phase 0 - Benchmark Conditions
 
 Freeze:
 - Time control (e.g. 5+0, 3+0, or movetime)
@@ -38,7 +40,7 @@ Freeze:
 
 ---
 
-## Phase 1 — Minimal UCI Handshake
+## Phase 1 - Minimal UCI Handshake
 
 Reference: https://backscattering.de/chess/uci/
 
@@ -50,7 +52,7 @@ Engine must reply with:
 
 ---
 
-## Phase 2 — Position Parsing
+## Phase 2 - Position Parsing
 
 Support:
 - position startpos moves ...
@@ -60,7 +62,7 @@ Apply moves sequentially and preserve legality.
 
 ---
 
-## Phase 3 — Search + bestmove
+## Phase 3 - Search + bestmove
 
 Support:
 - go movetime <ms>
@@ -70,7 +72,7 @@ Return:
 
 ---
 
-## Phase 4 — setoption
+## Phase 4 - setoption
 
 Safely parse:
 - Hash
@@ -80,12 +82,12 @@ Ignore unknown options.
 
 ---
 
-## Phase 5 — cutechess-cli Matches
+## Phase 5 - cutechess-cli Matches
 
 Example:
 
 cutechess-cli \
-  -engine name=BrainIT cmd=./BrainITChessEngine proto=uci \
+  -engine name=Scorpion cmd=./ScorpionChessEngine proto=uci \
   -engine name=Stockfish cmd=./stockfish proto=uci \
   -each tc=5+0 \
   -games 100 -repeat \
@@ -94,7 +96,7 @@ cutechess-cli \
 
 ---
 
-## Phase 6 — Elo Estimation
+## Phase 6 - Elo Estimation
 
 Score:
 - Win = 1
@@ -108,7 +110,7 @@ Fit R across opponents.
 
 ---
 
-## Phase 7 — Codex Execution Plan
+## Phase 7 - Codex Execution Plan
 
 7A: UCI hello world  
 7B: Legal move loop  

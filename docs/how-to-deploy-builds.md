@@ -8,7 +8,7 @@ Live site (project pages):
 
 ---
 
-## What “deploy” means here
+## What "deploy" means here
 
 When you push to `main`, GitHub Actions will:
 
@@ -29,21 +29,21 @@ You should have a workflow file at:
 
 - `.github/workflows/pages.yml`
 
-If you ever need to recreate it, use the standard “Vite → GitHub Pages” pattern:
+If you ever need to recreate it, use the standard "Vite -> GitHub Pages" pattern:
 - Build with Node
 - Upload artifact from `./dist`
 - Deploy to Pages
 
 ---
 
-### 2) Set GitHub Pages source to “GitHub Actions”
+### 2) Set GitHub Pages source to "GitHub Actions"
 
 In GitHub:
 
-1. Go to **Repo → Settings → Pages**
-2. Under **Build and deployment → Source**, select **GitHub Actions**
+1. Go to **Repo -> Settings -> Pages**
+2. Under **Build and deployment -> Source**, select **GitHub Actions**
 
-This is required. If you use “Deploy from a branch”, the Actions deploy step may fail with “Not Found”.
+This is required. If you use "Deploy from a branch", the Actions deploy step may fail with "Not Found".
 
 ---
 
@@ -73,7 +73,7 @@ export default defineConfig({
 
 ### 4) Ensure runtime asset paths respect the base URL
 
-If you load assets manually (OBJ/PNG/etc), don’t hardcode `/assets/...`.
+If you load assets manually (OBJ/PNG/etc), don't hardcode `/assets/...`.
 
 Use:
 
@@ -104,9 +104,9 @@ git push origin main
 
 2. Watch the workflow:
 
-- GitHub → **Actions**
+- GitHub -> **Actions**
 - Open workflow: **Deploy Pages**
-- Wait for green check ✅
+- Wait for green check
 
 3. Visit the site:
 
@@ -118,14 +118,14 @@ git push origin main
 
 Sometimes you want to force a redeploy (e.g., after changing Pages settings).
 
-### Option A — Re-run the workflow in GitHub UI
+### Option A - Re-run the workflow in GitHub UI
 
-1. GitHub → **Actions**
+1. GitHub -> **Actions**
 2. Select **Deploy Pages**
 3. Pick the most recent run
 4. Click **Re-run jobs** (or **Re-run all jobs**)
 
-### Option B — Make a “no-op” commit
+### Option B - Make a "no-op" commit
 
 ```bash
 git commit --allow-empty -m "chore: trigger pages deploy"
@@ -134,24 +134,24 @@ git push
 
 ---
 
-## How to verify it’s actually deploying the right build
+## How to verify it's actually deploying the right build
 
 ### 1) Check the Pages deployment status
 
-- GitHub → Repo → **Actions**
+- GitHub -> Repo -> **Actions**
 - The deploy workflow run should be green
 - The deploy step should reference Pages / artifact upload
 
-### 2) Check the “Deployments” panel
+### 2) Check the "Deployments" panel
 
-- GitHub → Repo → **Environments** (or the “Deployments” sidebar)
+- GitHub -> Repo -> **Environments** (or the "Deployments" sidebar)
 - Look for a Pages environment entry
 
 ### 3) Browser checks
 
 Open the live site and confirm:
 
-- No missing assets (DevTools → Network → filter `404`)
+- No missing assets (DevTools -> Network -> filter `404`)
 - Board renders and pieces load
 - AI toggle works
 
@@ -159,11 +159,11 @@ Open the live site and confirm:
 
 ## Common issues & fixes
 
-### Issue: “HttpError: Not Found” during Deploy Pages
-**Cause:** Pages is not set to “GitHub Actions” as the source.
+### Issue: "HttpError: Not Found" during Deploy Pages
+**Cause:** Pages is not set to "GitHub Actions" as the source.
 
 **Fix:**
-- Repo → Settings → Pages → Source → **GitHub Actions**
+- Repo -> Settings -> Pages -> Source -> **GitHub Actions**
 - Then re-run the Deploy Pages workflow
 
 ---
@@ -188,11 +188,11 @@ Common causes:
 
 ---
 
-### Issue: Workflow doesn’t run on push
+### Issue: Workflow doesn't run on push
 Check:
 - `.github/workflows/pages.yml` exists on `main`
 - The workflow triggers include `on: push: branches: [main]`
-- Actions are enabled for the repo (Settings → Actions)
+- Actions are enabled for the repo (Settings -> Actions)
 
 ---
 
@@ -220,17 +220,16 @@ git tag v1.2.0
 git push origin v1.2.0
 ```
 
-Tags don’t deploy by themselves (unless workflow triggers on tags), but they help you track releases.
+Tags don't deploy by themselves (unless workflow triggers on tags), but they help you track releases.
 
 ---
 
 ## Files involved
 
-Typical files you’ll touch for Pages deployments:
+Typical files you'll touch for Pages deployments:
 
 - `.github/workflows/pages.yml` (Actions workflow)
 - `vite.config.ts` (base path)
 - Any asset loader modules (use `import.meta.env.BASE_URL`)
 - `.gitignore` (ensure `dist/` is ignored)
 - `README.md` (include the live URL)
-

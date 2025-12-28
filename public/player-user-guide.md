@@ -1,6 +1,6 @@
-# 3D Chess - Player User Guide
+# Scorpion 3D Chess - Player User Guide
 
-Welcome to **3D Chess**! This guide covers current modes, controls, and features.
+Welcome to **Scorpion 3D Chess**! This guide covers current modes, controls, and features.
 
 ---
 
@@ -33,7 +33,7 @@ https://brainit-consulting.github.io/chess/
 ### Human vs AI
 
 - You play against the computer.
-- Choose AI difficulty (Easy / Medium / Hard).
+- Choose AI difficulty (Easy / Medium / Hard / Max Thinking).
 - Choose **Play as White** or **Play as Black**.
 - You can switch sides mid-game if you want.
 
@@ -50,11 +50,16 @@ https://brainit-consulting.github.io/chess/
 ### Coordinates
 
 - **Show Coordinates** toggles labels on or off.
-- **Coordinate Mode** controls label orientation:
-  - **PGN (fixed)**: labels stay in standard PGN orientation (a1 is always White's left rook). This matches move history and PGN exports.
-  - **View (rotate)**: labels rotate with the camera so a1 stays at the bottom-left of your screen.
+- **Coordinate Display** controls label perspective:
+  - **Fixed (White)**: a1 is bottom-left, files a-h left-to-right, ranks 1-8 bottom-to-top.
+  - **Fixed (Black)**: a8 is bottom-left, files a-h left-to-right from Black's side, ranks 8-1 bottom-to-top.
+  - **Hidden**: no labels.
+- Labels are board-attached and do not change meaning when the camera rotates.
 
-Tip: If you compare the board to the Game History, use **PGN (fixed)**.
+### Coordinate Debug Overlay (optional)
+
+- **Show Coordinate Debug Overlay** marks a1/h1/a8/h8.
+- Use this if you are verifying orientation.
 
 ### Auto-snap to your side
 
@@ -76,7 +81,13 @@ Tip: If you compare the board to the Game History, use **PGN (fixed)**.
 
 - **Easy**: simple, non-optimal moves.
 - **Medium**: balanced play.
-- **Hard**: strongest default setting.
+- **Hard**: depth-3 search with a gameplay time cap (~800ms).
+- **Max Thinking**: iterative deepening with a 10s cap for deeper analysis.
+
+### Force Move Now (Max Thinking only)
+
+- Appears only while the AI is thinking in Max Thinking.
+- Forces the current best move immediately.
 
 ### AI Move Delay
 
@@ -172,7 +183,8 @@ The game remembers:
 - Hint Mode
 - Play as (Human vs AI)
 - Piece set
-- Coordinate mode and Show Coordinates
+- Coordinate display and Show Coordinates
+- Coordinate debug overlay
 - Auto-snap to your side
 - Analyzer choice
 - Sound and Music settings
@@ -185,7 +197,7 @@ The game remembers:
 - Use **AI vs AI + Play for Win** to study openings and endgames.
 - Slow down AI move delay while learning.
 - Top-Down view is ideal for analysis.
-- Use **PGN (fixed)** coordinates when comparing to Game History.
+- Use **Fixed (White)** coordinates when comparing to Game History.
 
 ---
 

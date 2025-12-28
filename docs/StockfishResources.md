@@ -1,4 +1,4 @@
-# Stockfish Resources
+# Stockfish Resources (Scorpion Benchmarks)
 
 You asked where to get the Stockfish backend. These are the clean, correct
 options, in order of practicality.
@@ -76,7 +76,7 @@ local Stockfish binary is the most honest apples-to-apples reference.
 ## What I recommend you answer Codex with (copy-paste)
 
 ```
-Let's use a local Stockfish binary.
+Let's use a local Stockfish binary for Scorpion benchmarks.
 
 - I'll download Stockfish from https://stockfishchess.org/download/
 - Assume a UCI-compatible local binary (Threads=1, Hash=64).
@@ -85,7 +85,7 @@ Let's use a local Stockfish binary.
 Adding tsx as a dev dependency for the harness is OK.
 Prefer fixed movetime first (e.g. 50/100/250 ms), then depth if needed.
 
-Please keep our engine completely unchanged.
+Please keep the Scorpion engine completely unchanged.
 ```
 
 ---
@@ -97,7 +97,7 @@ You are doing this the right way:
 - Measuring, not tuning
 - Stockfish as an external baseline
 - Directional results first
-- Clean baseline at v1.1.45
+- Clean baseline at v1.1.52
 
 Once the harness exists, we can interpret the Elo deltas safely and plan future
 engine improvements without contaminating the benchmark.

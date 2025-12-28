@@ -1,10 +1,10 @@
-# Understand the modes of the BrainIT Chess Engine
+# Understand the modes of the Scorpion Chess Engine
 
-This document explains how the BrainIT Chess Engine difficulty modes behave today and how they compare.
+This document explains how the Scorpion Chess Engine difficulty modes behave today and how they compare.
 
 ## Quick answer: which mode is strongest?
 
-Yes: **Max Thinking** is the strongest setting in the current codebase. It is designed to search deeper than **Hard** by using a time budget with iterative deepening. Hard is a fixed depth search (depth 3), while Max Thinking searches multiple depths until time runs out (up to a depth cap).
+Yes: **Max Thinking** is the strongest setting in the current codebase. It searches deeper than **Hard** by using iterative deepening with a time budget and a hard cap. Hard is a fixed-depth search (depth 3), while Max Thinking searches multiple depths until time runs out (up to a depth cap).
 
 That makes Max Thinking stronger in most positions, at the cost of more compute time per move.
 
@@ -16,28 +16,35 @@ All modes share:
 - Same alpha-beta search core.
 - Same Play-for-Win rules in AI vs AI (if enabled).
 
-Max Thinking adds extra evaluation terms (listed below), while Easy/Medium/Hard keep the baseline evaluation.
+Max Thinking adds extra evaluation terms and search upgrades, while Easy/Medium/Hard keep the baseline evaluation.
 
 ## Difficulty comparison (current implementation)
 
-Source: `src/ai/ai.ts` and `src/ai/search.ts`.
+Source: `src/ai/ai.ts`, `src/ai/search.ts`, and `src/game.ts`.
 
 | Mode | Search type | Default depth/time | Notes |
 | --- | --- | --- | --- |
 | Easy | Fixed depth | depth 1 | Fast, intentionally weak. |
 | Medium | Fixed depth | depth 2 | Balanced speed/strength. |
-| Hard | Fixed depth | depth 3 | Strongest fixed-depth mode. |
-| Max Thinking | Timed iterative deepening | time budget with cap | Strongest overall; adds extra evaluation terms and keeps searching until time runs out. |
+| Hard | Fixed depth | depth 3 + gameplay time cap | Strongest fixed-depth mode; gameplay budget keeps moves responsive. |
+| Max Thinking | Timed iterative deepening | time budget with cap | Strongest overall; adds extra evaluation terms and search upgrades. |
 
 ### Max Thinking defaults
 
-These are currently defined in `src/ai/ai.ts` and applied in `src/game.ts`:
+These are defined in `src/ai/ai.ts` and applied by `src/game.ts`:
 
 - **Max depth cap**: `MAX_THINKING_DEPTH_CAP = 7`
-- **Human vs AI movetime**: `MAX_THINKING_HUMAN_VS_AI_MS = 1000`
-- **AI vs AI movetime**: `MAX_THINKING_AI_VS_AI_MS = 700`
+- **Max time cap**: `MAX_THINKING_CAP_MS = 10000` (10 seconds)
 
-Max Thinking runs iterative deepening from depth 1 up to the cap and returns the best fully completed depth inside the time budget.
+Max Thinking runs iterative deepening from depth 1 up to the cap and returns the best fully completed depth inside the time budget. The UI also offers **Force Move Now** to stop early and play the current best move.
+
+### Hard gameplay budget
+
+Hard remains depth-3, but gameplay is time-capped in the app for responsiveness:
+
+- **Hard gameplay cap**: `HARD_THINKING_MS = 800` (defined in `src/game.ts`)
+
+The benchmark harness can pass a different maxTimeMs for Hard when measuring performance.
 
 ## Max Thinking evaluation extras
 
@@ -87,14 +94,14 @@ Play-for-Win uses a repetition penalty and fairness window during move selection
 
 - **Easy**: fastest, most forgiving.
 - **Medium**: good for casual play.
-- **Hard**: strongest fixed-depth mode; consistent move time.
+- **Hard**: strongest fixed-depth mode; consistent move time in gameplay.
 - **Max Thinking**: strongest overall; best for serious practice or engine-vs-engine games.
 
 ## Key code references (current)
 
 - Difficulty enum and Max Thinking defaults: `src/ai/ai.ts`
 - Timed search loop: `findBestMoveTimed` in `src/ai/search.ts`
-- Per-mode time budget selection: `scheduleAiMove` in `src/game.ts`
+- Gameplay time caps: `HARD_THINKING_MS` and Max Thinking caps in `src/game.ts`
 
 ## Summary
 

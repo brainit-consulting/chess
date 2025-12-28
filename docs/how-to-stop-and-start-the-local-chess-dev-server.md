@@ -12,9 +12,9 @@ If you see logs like `[vite] page reload` or the terminal says it's waiting for 
 4. You can safely close the terminal
 
 Stopping the dev server:
-- ✅ Does NOT affect GitHub Pages
-- ✅ Does NOT affect releases or tags
-- ✅ Does NOT affect the repository
+- Does NOT affect GitHub Pages
+- Does NOT affect releases or tags
+- Does NOT affect the repository
 
 It only stops the local server on your machine.
 
@@ -48,4 +48,4 @@ npm run test
 - Start dev server: **npm run dev**
 - Safe to stop anytime when you're done working
 
-Happy hacking ♟️
+Happy hacking.
