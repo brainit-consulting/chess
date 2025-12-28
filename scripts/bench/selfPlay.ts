@@ -35,6 +35,40 @@ type SideTimings = {
   moveCount: number;
 };
 
+type TimingTotals = {
+  totalMs: number;
+  maxMs: number;
+  timeouts: number;
+  moveCount: number;
+};
+
+type SegmentSummary = {
+  games: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  avgPlies: number;
+  repetitionRate: number;
+  endReasons: Record<string, number>;
+  timing: {
+    hard: SideTimings;
+    max: SideTimings;
+  };
+};
+
+type SegmentTotals = {
+  games: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  plies: number;
+  endReasons: Record<string, number>;
+  timing: {
+    hard: TimingTotals;
+    max: TimingTotals;
+  };
+};
+
 type GameLog = {
   gameId: number;
   round: number;
@@ -92,11 +126,12 @@ type RunSummary = {
     draws: number;
     losses: number;
     avgPlies: number;
+    repetitionRate: number;
     endReasons: Record<string, number>;
   };
-  splits: {
-    hardAsWhite: { wins: number; draws: number; losses: number };
-    hardAsBlack: { wins: number; draws: number; losses: number };
+  segments: {
+    hardAsWhite: SegmentSummary;
+    hardAsBlack: SegmentSummary;
   };
   timing: {
     hard: SideTimings;
@@ -109,6 +144,7 @@ const DEFAULT_HARD_MS = 800;
 const DEFAULT_MAX_MS = 10000;
 const DEFAULT_MAX_PLIES = 200;
 const DEFAULT_BASE_SEED = 1000;
+const DEFAULT_SWAP = true;
 const ENGINE_TIMEOUT_GRACE_MS = 80;
 const MIN_PLIES_FOR_DRAW = 2;
 
@@ -116,15 +152,29 @@ const REPORT_PATH = path.resolve('benchmarks/selfplay/SelfPlayReport.md');
 const ROOT_OUTPUT_DIR = path.resolve('benchmarks/selfplay');
 
 const OPENINGS: string[][] = [
-  ['e2e4', 'e7e5', 'g1f3', 'b8c6', 'f1c4', 'g8f6'],
+  ['e2e4', 'e7e5', 'g1f3', 'b8c6', 'f1b5', 'a7a6'],
+  ['e2e4', 'e7e5', 'g1f3', 'b8c6', 'f1c4', 'f8c5'],
+  ['e2e4', 'c7c5', 'g1f3', 'd7d6', 'd2d4', 'c5d4'],
   ['d2d4', 'd7d5', 'c2c4', 'e7e6', 'b1c3', 'g8f6'],
   ['c2c4', 'e7e5', 'b1c3', 'g8f6', 'g2g3', 'd7d5'],
   ['g1f3', 'd7d5', 'g2g3', 'g8f6', 'f1g2', 'e7e6'],
-  ['e2e4', 'c7c5', 'g1f3', 'd7d6', 'd2d4', 'c5d4'],
-  ['d2d4', 'g8f6', 'c2c4', 'e7e6', 'b1c3', 'd7d5'],
   ['e2e4', 'e7e6', 'd2d4', 'd7d5', 'b1c3', 'f8b4'],
   ['e2e4', 'c7c6', 'd2d4', 'd7d5', 'b1c3', 'd5e4'],
-  ['c2c4', 'e7e6', 'b1c3', 'd7d5', 'd2d4', 'g8f6'],
+  ['d2d4', 'g8f6', 'c2c4', 'e7e6', 'b1c3', 'f8b4'],
+  ['d2d4', 'g8f6', 'c2c4', 'g7g6', 'b1c3', 'f8g7'],
+  ['d2d4', 'g8f6', 'c2c4', 'c7c5', 'd4d5', 'e7e6'],
+  ['e2e4', 'c7c5', 'g1f3', 'e7e6', 'd2d4', 'c5d4'],
+  ['e2e4', 'e7e5', 'f1c4', 'b8c6', 'd2d3', 'g8f6'],
+  ['e2e4', 'e7e5', 'g1f3', 'b8c6', 'd2d4', 'e5d4'],
+  ['d2d4', 'd7d5', 'g1f3', 'g8f6', 'c2c4', 'c7c6'],
+  ['c2c4', 'g8f6', 'b1c3', 'e7e5', 'g2g3', 'f8b4'],
+  ['e2e4', 'c7c5', 'g1f3', 'b8c6', 'd2d4', 'c5d4'],
+  ['e2e4', 'e7e5', 'g1f3', 'b8c6', 'f1b5', 'g8f6'],
+  ['d2d4', 'g8f6', 'c2c4', 'e7e6', 'g1f3', 'd7d5'],
+  ['e2e4', 'e7e5', 'g1f3', 'd7d6', 'd2d4', 'g8f6'],
+  ['e2e4', 'g8f6', 'e4e5', 'f6d5', 'd2d4', 'd7d6'],
+  ['d2d4', 'g8f6', 'c2c4', 'e7e6', 'g1f3', 'b7b6'],
+  ['e2e4', 'e7e5', 'b1c3', 'g8f6', 'f1c4', 'f8b4'],
   ['e2e4', 'd7d6', 'd2d4', 'g8f6', 'b1c3', 'g7g6']
 ];
 
@@ -148,7 +198,7 @@ async function main(): Promise<void> {
     hardMs: args.hardMs ?? DEFAULT_HARD_MS,
     maxMs: args.maxMs ?? DEFAULT_MAX_MS,
     maxPlies: args.maxPlies ?? DEFAULT_MAX_PLIES,
-    swap: args.swap ?? false,
+    swap: args.swap ?? DEFAULT_SWAP,
     outDir,
     baseSeed: args.baseSeed ?? DEFAULT_BASE_SEED
   };
@@ -157,32 +207,25 @@ async function main(): Promise<void> {
   await fs.mkdir(ROOT_OUTPUT_DIR, { recursive: true });
 
   const runStart = new Date().toISOString();
-  const allGameLogs: GameLog[] = [];
-  const endReasons: Record<string, number> = {
-    mate: 0,
-    stalemate: 0,
-    repetition: 0,
-    fiftyMove: 0,
-    other: 0
-  };
+  const endReasons = createEndReasonCounts();
   let totalPlies = 0;
   let wins = 0;
   let draws = 0;
   let losses = 0;
-  const splits = {
-    hardAsWhite: { wins: 0, draws: 0, losses: 0 },
-    hardAsBlack: { wins: 0, draws: 0, losses: 0 }
+  const segmentTotals = {
+    hardAsWhite: createSegmentTotals(),
+    hardAsBlack: createSegmentTotals()
   };
   const timingTotals = {
-    hard: { totalMs: 0, maxMs: 0, timeouts: 0, moveCount: 0 },
-    max: { totalMs: 0, maxMs: 0, timeouts: 0, moveCount: 0 }
+    hard: createTimingTotals(),
+    max: createTimingTotals()
   };
 
   const rounds = buildRounds(config.batchSize, config.swap);
   for (let index = 0; index < rounds.length; index += 1) {
     const round = rounds[index];
     const gameId = index + 1;
-    const opening = OPENINGS[index % OPENINGS.length];
+    const opening = pickOpening(config.baseSeed, gameId);
     const seed = config.baseSeed + index;
 
     const result = await runSingleGame({
@@ -196,37 +239,20 @@ async function main(): Promise<void> {
       seed
     });
 
-    allGameLogs.push(result.log);
     totalPlies += result.plies;
     endReasons[result.endReason] = (endReasons[result.endReason] ?? 0) + 1;
+    const segment = round.white === 'hard' ? segmentTotals.hardAsWhite : segmentTotals.hardAsBlack;
+    updateSegmentTotals(segment, result);
     if (result.outcome === 'win') {
       wins += 1;
-      if (round.white === 'hard') {
-        splits.hardAsWhite.wins += 1;
-      } else {
-        splits.hardAsBlack.wins += 1;
-      }
     } else if (result.outcome === 'loss') {
       losses += 1;
-      if (round.white === 'hard') {
-        splits.hardAsWhite.losses += 1;
-      } else {
-        splits.hardAsBlack.losses += 1;
-      }
     } else {
       draws += 1;
-      if (round.white === 'hard') {
-        splits.hardAsWhite.draws += 1;
-      } else {
-        splits.hardAsBlack.draws += 1;
-      }
     }
 
     for (const side of ['hard', 'max'] as const) {
-      timingTotals[side].totalMs += result.timings[side].avgMs * result.timings[side].moveCount;
-      timingTotals[side].maxMs = Math.max(timingTotals[side].maxMs, result.timings[side].maxMs);
-      timingTotals[side].timeouts += result.timings[side].timeouts;
-      timingTotals[side].moveCount += result.timings[side].moveCount;
+      updateTimingTotals(timingTotals[side], result.timings[side]);
     }
 
     const gameSlug = gameId.toString().padStart(4, '0');
@@ -254,7 +280,7 @@ async function main(): Promise<void> {
     losses,
     totalPlies,
     endReasons,
-    splits,
+    segmentTotals,
     timingTotals
   });
 
@@ -564,22 +590,23 @@ function buildSummary(args: {
   losses: number;
   totalPlies: number;
   endReasons: Record<string, number>;
-  splits: {
-    hardAsWhite: { wins: number; draws: number; losses: number };
-    hardAsBlack: { wins: number; draws: number; losses: number };
+  segmentTotals: {
+    hardAsWhite: SegmentTotals;
+    hardAsBlack: SegmentTotals;
   };
   timingTotals: {
-    hard: { totalMs: number; maxMs: number; timeouts: number; moveCount: number };
-    max: { totalMs: number; maxMs: number; timeouts: number; moveCount: number };
+    hard: TimingTotals;
+    max: TimingTotals;
   };
 }): RunSummary {
   const games = args.wins + args.draws + args.losses;
-  const hardAvg = args.timingTotals.hard.moveCount
-    ? args.timingTotals.hard.totalMs / args.timingTotals.hard.moveCount
-    : 0;
-  const maxAvg = args.timingTotals.max.moveCount
-    ? args.timingTotals.max.totalMs / args.timingTotals.max.moveCount
-    : 0;
+  const hardAvg = averageFromTotals(args.timingTotals.hard);
+  const maxAvg = averageFromTotals(args.timingTotals.max);
+  const repetitionRate = calculateRepetitionRate(args.endReasons, games);
+  const segments = {
+    hardAsWhite: finalizeSegment(args.segmentTotals.hardAsWhite),
+    hardAsBlack: finalizeSegment(args.segmentTotals.hardAsBlack)
+  };
 
   return {
     runId: args.runId,
@@ -601,12 +628,10 @@ function buildSummary(args: {
       draws: args.draws,
       losses: args.losses,
       avgPlies: games > 0 ? args.totalPlies / games : 0,
+      repetitionRate,
       endReasons: args.endReasons
     },
-    splits: {
-      hardAsWhite: args.splits.hardAsWhite,
-      hardAsBlack: args.splits.hardAsBlack
-    },
+    segments,
     timing: {
       hard: {
         avgMs: hardAvg,
@@ -622,6 +647,99 @@ function buildSummary(args: {
       }
     }
   };
+}
+
+function createTimingTotals(): TimingTotals {
+  return { totalMs: 0, maxMs: 0, timeouts: 0, moveCount: 0 };
+}
+
+function createEndReasonCounts(): Record<string, number> {
+  return {
+    mate: 0,
+    stalemate: 0,
+    repetition: 0,
+    fiftyMove: 0,
+    other: 0
+  };
+}
+
+function createSegmentTotals(): SegmentTotals {
+  return {
+    games: 0,
+    wins: 0,
+    draws: 0,
+    losses: 0,
+    plies: 0,
+    endReasons: createEndReasonCounts(),
+    timing: {
+      hard: createTimingTotals(),
+      max: createTimingTotals()
+    }
+  };
+}
+
+function updateTimingTotals(totals: TimingTotals, timing: SideTimings): void {
+  totals.totalMs += timing.avgMs * timing.moveCount;
+  totals.maxMs = Math.max(totals.maxMs, timing.maxMs);
+  totals.timeouts += timing.timeouts;
+  totals.moveCount += timing.moveCount;
+}
+
+function updateSegmentTotals(
+  segment: SegmentTotals,
+  result: { outcome: 'win' | 'loss' | 'draw'; plies: number; endReason: string; timings: { hard: SideTimings; max: SideTimings } }
+): void {
+  segment.games += 1;
+  segment.plies += result.plies;
+  segment.endReasons[result.endReason] = (segment.endReasons[result.endReason] ?? 0) + 1;
+  if (result.outcome === 'win') {
+    segment.wins += 1;
+  } else if (result.outcome === 'loss') {
+    segment.losses += 1;
+  } else {
+    segment.draws += 1;
+  }
+  updateTimingTotals(segment.timing.hard, result.timings.hard);
+  updateTimingTotals(segment.timing.max, result.timings.max);
+}
+
+function finalizeSegment(segment: SegmentTotals): SegmentSummary {
+  const games = segment.games;
+  return {
+    games,
+    wins: segment.wins,
+    draws: segment.draws,
+    losses: segment.losses,
+    avgPlies: games > 0 ? segment.plies / games : 0,
+    repetitionRate: calculateRepetitionRate(segment.endReasons, games),
+    endReasons: segment.endReasons,
+    timing: {
+      hard: {
+        avgMs: averageFromTotals(segment.timing.hard),
+        maxMs: segment.timing.hard.maxMs,
+        timeouts: segment.timing.hard.timeouts,
+        moveCount: segment.timing.hard.moveCount
+      },
+      max: {
+        avgMs: averageFromTotals(segment.timing.max),
+        maxMs: segment.timing.max.maxMs,
+        timeouts: segment.timing.max.timeouts,
+        moveCount: segment.timing.max.moveCount
+      }
+    }
+  };
+}
+
+function averageFromTotals(totals: TimingTotals): number {
+  return totals.moveCount > 0 ? totals.totalMs / totals.moveCount : 0;
+}
+
+function calculateRepetitionRate(endReasons: Record<string, number>, games: number): number {
+  if (games === 0) {
+    return 0;
+  }
+  const reps = endReasons.repetition ?? 0;
+  return (reps / games) * 100;
 }
 
 function summarizeTimings(moveTimings: MoveTiming[]): { hard: SideTimings; max: SideTimings } {
@@ -720,6 +838,8 @@ function parseArgs(argv: string[]): {
       i += 1;
     } else if (arg === '--swap') {
       result.swap = true;
+    } else if (arg === '--no-swap') {
+      result.swap = false;
     } else if (arg === '--outDir') {
       result.outDir = argv[i + 1];
       i += 1;
@@ -782,6 +902,8 @@ function buildReportBody(summary: RunSummary): string {
   const end = totals.endReasons;
   const hard = summary.timing.hard;
   const max = summary.timing.max;
+  const hardSegment = summary.segments.hardAsWhite;
+  const maxSegment = summary.segments.hardAsBlack;
   const lines = [
     `Last updated: ${summary.finishedAt}`,
     `Config: hardMs=${summary.config.hardMs}, maxMs=${summary.config.maxMs}, batch=${summary.config.batchSize}, swap=${summary.config.swap}`,
@@ -789,19 +911,35 @@ function buildReportBody(summary: RunSummary): string {
     `Base seed: ${summary.config.baseSeed}`,
     `Output: ${summary.config.outDir}`,
     `Cumulative: ${totals.wins}-${totals.draws}-${totals.losses} (${totals.games} games)`,
-    `Hard as White: ${summary.splits.hardAsWhite.wins}-${summary.splits.hardAsWhite.draws}-${summary.splits.hardAsWhite.losses}`,
-    `Hard as Black: ${summary.splits.hardAsBlack.wins}-${summary.splits.hardAsBlack.draws}-${summary.splits.hardAsBlack.losses}`,
     `Avg plies per game: ${avgPlies}`,
     `End reasons: mate=${end.mate}, stalemate=${end.stalemate}, repetition=${end.repetition}, 50-move=${end.fiftyMove}, other=${end.other}`,
+    `Repetition rate: ${totals.repetitionRate.toFixed(1)}%`,
     `Timing (Hard): avg=${hard.avgMs.toFixed(1)}ms, max=${hard.maxMs.toFixed(1)}ms, timeouts=${hard.timeouts}`,
     `Timing (Max): avg=${max.avgMs.toFixed(1)}ms, max=${max.maxMs.toFixed(1)}ms, timeouts=${max.timeouts}`,
     '',
+    ...formatSegmentLines('Hard as White vs Max', hardSegment),
+    '',
+    ...formatSegmentLines('Max as White vs Hard', maxSegment),
+    '',
     'Notes:',
     '- Deterministic base seed used; move-level seeds derived from a fixed RNG.',
+    '- Opening suite: fixed UCI sequences applied before engine play; selection is seed-based.',
     '- SAN generation uses engine move legality; if SAN is missing for any move, check meta JSON.',
     ''
   ];
   return lines.join('\n');
+}
+
+function formatSegmentLines(label: string, segment: SegmentSummary): string[] {
+  const end = segment.endReasons;
+  return [
+    `${label}: ${segment.wins}-${segment.draws}-${segment.losses} (${segment.games} games)`,
+    `Avg plies: ${segment.avgPlies.toFixed(1)}`,
+    `End reasons: mate=${end.mate}, stalemate=${end.stalemate}, repetition=${end.repetition}, 50-move=${end.fiftyMove}, other=${end.other}`,
+    `Repetition rate: ${segment.repetitionRate.toFixed(1)}%`,
+    `Timing (Hard): avg=${segment.timing.hard.avgMs.toFixed(1)}ms, max=${segment.timing.hard.maxMs.toFixed(1)}ms, timeouts=${segment.timing.hard.timeouts}`,
+    `Timing (Max): avg=${segment.timing.max.avgMs.toFixed(1)}ms, max=${segment.timing.max.maxMs.toFixed(1)}ms, timeouts=${segment.timing.max.timeouts}`
+  ];
 }
 
 function buildRunReadme(): string {
@@ -812,14 +950,16 @@ function buildRunReadme(): string {
     '',
     '## How to run',
     '- npm run bench:selfplay',
-    '- Optional: --batch 10 --hardMs 800 --maxMs 10000 --swap --outDir <path> --seed 1000',
+    '- Optional: --batch 10 --hardMs 800 --maxMs 10000 --swap/--no-swap --outDir <path> --seed 1000',
     '',
     '## Metrics',
-    '- W/D/L: results from Hard (white default) vs Max (black default).',
-    '- Color splits: Hard-as-White vs Hard-as-Black when using --swap.',
+    '- W/D/L: results from Hard vs Max across all games.',
+    '- Segments: Hard-as-White vs Max and Max-as-White vs Hard when using --swap.',
+    '- Repetition rate: percent of games ending by repetition.',
     '- Avg plies: total plies / games.',
     '- End reasons: mate, stalemate, repetition, 50-move, other.',
     '- Timing: per-side average and max move time, with timeout counts.',
+    '- Openings: fixed UCI sequence applied before engine play; selection is seed-based.',
     ''
   ].join('\n');
 }
@@ -886,6 +1026,14 @@ function parseSquare(value: string): { file: number; rank: number } | null {
     return null;
   }
   return { file, rank };
+}
+
+function pickOpening(baseSeed: number, gameId: number): string[] {
+  if (OPENINGS.length === 0) {
+    return [];
+  }
+  const index = Math.abs(baseSeed + gameId - 1) % OPENINGS.length;
+  return OPENINGS[index];
 }
 
 function applyOpening(
