@@ -12,7 +12,8 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:run": "vitest --run",
-    "bench:quick": "tsx scripts/bench/quickVsStockfish.ts"
+    "bench:quick": "tsx scripts/bench/quickVsStockfish.ts",
+    "bench:selfplay": "tsx scripts/bench/selfPlay.ts"
   },
   "dependencies": {
     "three": "^0.164.0"

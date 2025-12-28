@@ -1,0 +1,55 @@
+{
+  "runId": "20251228-141458",
+  "startedAt": "2025-12-28T19:14:58.741Z",
+  "finishedAt": "2025-12-28T19:17:55.476Z",
+  "commitSha": "75064c050c0ea00c80d6e2202c3e920d02759820",
+  "config": {
+    "batchSize": 10,
+    "hardMs": 800,
+    "maxMs": 2000,
+    "maxPlies": 200,
+    "swap": false,
+    "baseSeed": 1000,
+    "outDir": "H:\\chess\\benchmarks\\selfplay\\run-20251228-141458"
+  },
+  "totals": {
+    "games": 10,
+    "wins": 0,
+    "draws": 10,
+    "losses": 0,
+    "avgPlies": 17.9,
+    "endReasons": {
+      "mate": 0,
+      "stalemate": 0,
+      "repetition": 10,
+      "fiftyMove": 0,
+      "other": 0
+    }
+  },
+  "splits": {
+    "hardAsWhite": {
+      "wins": 0,
+      "draws": 10,
+      "losses": 0
+    },
+    "hardAsBlack": {
+      "wins": 0,
+      "draws": 0,
+      "losses": 0
+    }
+  },
+  "timing": {
+    "hard": {
+      "avgMs": 886.5031333333333,
+      "maxMs": 897.1152000000002,
+      "timeouts": 60,
+      "moveCount": 60
+    },
+    "max": {
+      "avgMs": 2087.566262711866,
+      "maxMs": 2098.8374000000003,
+      "timeouts": 59,
+      "moveCount": 59
+    }
+  }
+}
