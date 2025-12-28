@@ -12,6 +12,7 @@ import {
   createInitialState,
   getAllLegalMoves,
   getGameStatus,
+  getPieceAt,
   getPositionKey
 } from '../../src/rules';
 import { buildSan, buildSanLine, PgnMove } from '../../src/pgn/pgn';
@@ -51,6 +52,9 @@ type SegmentSummary = {
   losses: number;
   avgPlies: number;
   repetitionRate: number;
+  mateRate: number;
+  avgCapturesPerGame: number;
+  avgPawnMovesPerGame: number;
   earlyRepetitionCount: number;
   avgRepetitionPly: number;
   endReasons: Record<string, number>;
@@ -67,6 +71,8 @@ type SegmentTotals = {
   losses: number;
   plies: number;
   endReasons: Record<string, number>;
+  captures: number;
+  pawnMoves: number;
   repetitionEvents: number;
   repetitionPliesSum: number;
   earlyRepetitionCount: number;
@@ -102,6 +108,8 @@ type GameLog = {
   result: string;
   outcome: 'win' | 'loss' | 'draw';
   endReason: string;
+  captures: number;
+  pawnMoves: number;
   repetitionDiagnostics?: {
     repetitionFoldDetected: number;
     repetitionPly: number;
@@ -144,6 +152,9 @@ type RunSummary = {
     losses: number;
     avgPlies: number;
     repetitionRate: number;
+    mateRate: number;
+    avgCapturesPerGame: number;
+    avgPawnMovesPerGame: number;
     earlyRepetitionCount: number;
     avgRepetitionPly: number;
     endReasons: Record<string, number>;
@@ -252,6 +263,8 @@ async function main(): Promise<void> {
   let wins = 0;
   let draws = 0;
   let losses = 0;
+  let totalCaptures = 0;
+  let totalPawnMoves = 0;
   const segmentTotals = {
     hardAsWhite: createSegmentTotals(),
     hardAsBlack: createSegmentTotals()
@@ -304,6 +317,8 @@ async function main(): Promise<void> {
     }
 
     totalPlies += result.plies;
+    totalCaptures += result.captures;
+    totalPawnMoves += result.pawnMoves;
     endReasons[result.endReason] = (endReasons[result.endReason] ?? 0) + 1;
     updateSegmentTotals(segment, result);
     if (result.outcome === 'win') {
@@ -345,6 +360,8 @@ async function main(): Promise<void> {
     draws,
     losses,
     totalPlies,
+    totalCaptures,
+    totalPawnMoves,
     endReasons,
     segmentTotals,
     repetitionTotals,
@@ -385,6 +402,8 @@ async function runSingleGame(options: {
   pgn: string;
   plies: number;
   endReason: string;
+  captures: number;
+  pawnMoves: number;
   repetitionDiagnostics?: {
     repetitionFoldDetected: number;
     repetitionPly: number;
@@ -398,13 +417,20 @@ async function runSingleGame(options: {
   const pgnMoves: PgnMove[] = [];
   const moveTimings: MoveTiming[] = [];
   const moveHistoryUci: string[] = [];
+  const moveStats = { captures: 0, pawnMoves: 0 };
   let lastMoveUci: string | null = null;
   let lastMoveSan: string | null = null;
   let plies = 0;
   let startFen = options.startFen ?? null;
 
   if (!options.startFen && options.opening && options.opening.length > 0) {
-    const openingResult = applyOpening(state, options.opening, pgnMoves, moveHistoryUci);
+    const openingResult = applyOpening(
+      state,
+      options.opening,
+      pgnMoves,
+      moveHistoryUci,
+      moveStats
+    );
     plies = openingResult.plies;
     lastMoveUci = openingResult.lastMoveUci;
     lastMoveSan = openingResult.lastMoveSan;
@@ -439,6 +465,8 @@ async function runSingleGame(options: {
           ...final,
           plies,
           endReason,
+          captures: moveStats.captures,
+          pawnMoves: moveStats.pawnMoves,
           repetitionDiagnostics,
           timings,
           log: {
@@ -466,6 +494,8 @@ async function runSingleGame(options: {
             result: final.result,
             outcome: final.outcome,
             endReason,
+            captures: moveStats.captures,
+            pawnMoves: moveStats.pawnMoves,
             repetitionDiagnostics,
             timings
           }
@@ -501,6 +531,7 @@ async function runSingleGame(options: {
 
       const san = buildSan(state, moveResult.move);
       pgnMoves.push({ moveNumber: state.fullmoveNumber, color: state.activeColor, san });
+      updateMoveStats(state, moveResult.move, moveStats);
       const previousColor = state.activeColor;
       applyMove(state, moveResult.move);
       if (state.activeColor === previousColor) {
@@ -531,6 +562,8 @@ async function runSingleGame(options: {
     ...final,
     plies,
     endReason: 'other',
+    captures: moveStats.captures,
+    pawnMoves: moveStats.pawnMoves,
     timings,
     log: {
       gameId: options.gameId,
@@ -557,6 +590,8 @@ async function runSingleGame(options: {
       result: final.result,
       outcome: final.outcome,
       endReason: 'other',
+      captures: moveStats.captures,
+      pawnMoves: moveStats.pawnMoves,
       timings
     }
   };
@@ -683,6 +718,8 @@ function buildSummary(args: {
   draws: number;
   losses: number;
   totalPlies: number;
+  totalCaptures: number;
+  totalPawnMoves: number;
   endReasons: Record<string, number>;
   segmentTotals: {
     hardAsWhite: SegmentTotals;
@@ -702,6 +739,9 @@ function buildSummary(args: {
   const hardAvg = averageFromTotals(args.timingTotals.hard);
   const maxAvg = averageFromTotals(args.timingTotals.max);
   const repetitionRate = calculateRepetitionRate(args.endReasons, games);
+  const mateRate = calculateRate(args.endReasons.mate ?? 0, games);
+  const avgCapturesPerGame = games > 0 ? args.totalCaptures / games : 0;
+  const avgPawnMovesPerGame = games > 0 ? args.totalPawnMoves / games : 0;
   const repetitionAvg =
     args.repetitionTotals.repetitionEvents > 0
       ? args.repetitionTotals.repetitionPliesSum / args.repetitionTotals.repetitionEvents
@@ -733,6 +773,9 @@ function buildSummary(args: {
       losses: args.losses,
       avgPlies: games > 0 ? args.totalPlies / games : 0,
       repetitionRate,
+      mateRate,
+      avgCapturesPerGame,
+      avgPawnMovesPerGame,
       earlyRepetitionCount: args.repetitionTotals.earlyRepetitionCount,
       avgRepetitionPly: repetitionAvg,
       endReasons: args.endReasons
@@ -777,6 +820,8 @@ function createSegmentTotals(): SegmentTotals {
     losses: 0,
     plies: 0,
     endReasons: createEndReasonCounts(),
+    captures: 0,
+    pawnMoves: 0,
     repetitionEvents: 0,
     repetitionPliesSum: 0,
     earlyRepetitionCount: 0,
@@ -809,10 +854,14 @@ function updateSegmentTotals(
     plies: number;
     endReason: string;
     timings: { hard: SideTimings; max: SideTimings };
+    captures: number;
+    pawnMoves: number;
   }
 ): void {
   segment.games += 1;
   segment.plies += result.plies;
+  segment.captures += result.captures;
+  segment.pawnMoves += result.pawnMoves;
   segment.endReasons[result.endReason] = (segment.endReasons[result.endReason] ?? 0) + 1;
   if (result.outcome === 'win') {
     segment.wins += 1;
@@ -845,6 +894,9 @@ function finalizeSegment(segment: SegmentTotals): SegmentSummary {
   const games = segment.games;
   const repetitionAvg =
     segment.repetitionEvents > 0 ? segment.repetitionPliesSum / segment.repetitionEvents : 0;
+  const mateRate = calculateRate(segment.endReasons.mate ?? 0, games);
+  const avgCapturesPerGame = games > 0 ? segment.captures / games : 0;
+  const avgPawnMovesPerGame = games > 0 ? segment.pawnMoves / games : 0;
   return {
     games,
     wins: segment.wins,
@@ -852,6 +904,9 @@ function finalizeSegment(segment: SegmentTotals): SegmentSummary {
     losses: segment.losses,
     avgPlies: games > 0 ? segment.plies / games : 0,
     repetitionRate: calculateRepetitionRate(segment.endReasons, games),
+    mateRate,
+    avgCapturesPerGame,
+    avgPawnMovesPerGame,
     earlyRepetitionCount: segment.earlyRepetitionCount,
     avgRepetitionPly: repetitionAvg,
     endReasons: segment.endReasons,
@@ -874,6 +929,13 @@ function finalizeSegment(segment: SegmentTotals): SegmentSummary {
 
 function averageFromTotals(totals: TimingTotals): number {
   return totals.moveCount > 0 ? totals.totalMs / totals.moveCount : 0;
+}
+
+function calculateRate(count: number, games: number): number {
+  if (games === 0) {
+    return 0;
+  }
+  return (count / games) * 100;
 }
 
 function calculateRepetitionRate(endReasons: Record<string, number>, games: number): number {
@@ -1040,7 +1102,7 @@ function buildRepetitionDiagnostics(
   const key = getPositionKey(state);
   const count = state.positionCounts?.get(key) ?? 0;
   return {
-    repetitionFoldDetected: count >= 3 ? 3 : 2,
+    repetitionFoldDetected: Math.min(3, Math.max(2, count)),
     repetitionPly: plies,
     lastMovesUci: moveHistoryUci.slice(-6),
     repeatedFen: stateToFen(state)
@@ -1081,7 +1143,8 @@ function buildReportBody(summary: RunSummary): string {
     `Cumulative: ${totals.wins}-${totals.draws}-${totals.losses} (${totals.games} games)`,
     `Avg plies per game: ${avgPlies}`,
     `End reasons: mate=${end.mate}, stalemate=${end.stalemate}, repetition=${end.repetition}, 50-move=${end.fiftyMove}, other=${end.other}`,
-    `Repetition rate: ${totals.repetitionRate.toFixed(1)}%`,
+    `Repetition rate: ${totals.repetitionRate.toFixed(1)}% | Mate rate: ${totals.mateRate.toFixed(1)}%`,
+    `Decisiveness: avg captures=${totals.avgCapturesPerGame.toFixed(1)}, avg pawn moves=${totals.avgPawnMovesPerGame.toFixed(1)}`,
     `Early repetition count (<${EARLY_REPETITION_PLY} ply): ${totals.earlyRepetitionCount}`,
     `Avg repetition ply: ${totals.avgRepetitionPly.toFixed(1)}`,
     `Timing (Hard): avg=${hard.avgMs.toFixed(1)}ms, max=${hard.maxMs.toFixed(1)}ms, timeouts=${hard.timeouts}`,
@@ -1096,6 +1159,7 @@ function buildReportBody(summary: RunSummary): string {
     '- Opening suite: fixed UCI sequences applied before engine play; selection is seed-based.',
     '- FEN suite: FENs are derived from curated UCI sequences and selected by seed.',
     '- Early repetition rerolls are counted in repetition diagnostics but not in W/D/L totals.',
+    '- Decisiveness metrics (captures/pawn moves) include opening or FEN start moves.',
     '- Segment W/D/L lines are reported from Hard\'s perspective.',
     '- SAN generation uses engine move legality; if SAN is missing for any move, check meta JSON.',
     ''
@@ -1109,7 +1173,8 @@ function formatSegmentLines(label: string, segment: SegmentSummary): string[] {
     `${label}: ${segment.wins}-${segment.draws}-${segment.losses} (${segment.games} games)`,
     `Avg plies: ${segment.avgPlies.toFixed(1)}`,
     `End reasons: mate=${end.mate}, stalemate=${end.stalemate}, repetition=${end.repetition}, 50-move=${end.fiftyMove}, other=${end.other}`,
-    `Repetition rate: ${segment.repetitionRate.toFixed(1)}%`,
+    `Repetition rate: ${segment.repetitionRate.toFixed(1)}% | Mate rate: ${segment.mateRate.toFixed(1)}%`,
+    `Decisiveness: avg captures=${segment.avgCapturesPerGame.toFixed(1)}, avg pawn moves=${segment.avgPawnMovesPerGame.toFixed(1)}`,
     `Early repetition count (<${EARLY_REPETITION_PLY} ply): ${segment.earlyRepetitionCount}`,
     `Avg repetition ply: ${segment.avgRepetitionPly.toFixed(1)}`,
     `Timing (Hard): avg=${segment.timing.hard.avgMs.toFixed(1)}ms, max=${segment.timing.hard.maxMs.toFixed(1)}ms, timeouts=${segment.timing.hard.timeouts}`,
@@ -1131,6 +1196,7 @@ function buildRunReadme(): string {
     '- W/D/L: results from Hard vs Max across all games.',
     '- Segments: Hard-as-White vs Max and Max-as-White vs Hard when using --swap.',
     '- Repetition rate: percent of games ending by repetition.',
+    '- Decisiveness: avg captures/game, avg pawn moves/game, mate/repetition rates.',
     '- Early repetition count: repetition games that end before ply 30 (rerolls included).',
     '- Avg repetition ply: average ply of repetition endings (rerolls included).',
     '- Avg plies: total plies / games.',
@@ -1231,6 +1297,20 @@ function selectStartPosition(
     return { fen: pickFen(config.baseSeed, gameId, attempt), opening: null };
   }
   return { fen: null, opening: pickOpening(config.baseSeed, gameId, attempt) };
+}
+
+function updateMoveStats(
+  state: GameState,
+  move: Move,
+  stats: { captures: number; pawnMoves: number }
+): void {
+  const piece = getPieceAt(state, move.from);
+  if (piece?.type === 'pawn') {
+    stats.pawnMoves += 1;
+  }
+  if (move.capturedId !== undefined || move.isEnPassant) {
+    stats.captures += 1;
+  }
 }
 
 function buildFenSuite(sequences: string[][]): string[] {
@@ -1346,7 +1426,8 @@ function applyOpening(
   state: GameState,
   opening: string[],
   moves: PgnMove[],
-  moveHistoryUci: string[]
+  moveHistoryUci: string[],
+  moveStats: { captures: number; pawnMoves: number }
 ): { plies: number; lastMoveUci: string | null; lastMoveSan: string | null } {
   let plies = 0;
   let lastMoveUci: string | null = null;
@@ -1358,6 +1439,7 @@ function applyOpening(
     }
     const san = buildSan(state, move);
     moves.push({ moveNumber: state.fullmoveNumber, color: state.activeColor, san });
+    updateMoveStats(state, move, moveStats);
     applyMove(state, move);
     plies += 1;
     lastMoveUci = uci;
