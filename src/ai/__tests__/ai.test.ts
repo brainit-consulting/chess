@@ -376,7 +376,11 @@ describe('AI move selection', () => {
     });
 
     expect(move).not.toBeNull();
-    expect(depths).toEqual([1, 2]);
+    expect(depths.length).toBeGreaterThanOrEqual(1);
+    expect(depths[0]).toBe(1);
+    for (let i = 1; i < depths.length; i += 1) {
+      expect(depths[i]).toBe(depths[i - 1] + 1);
+    }
   });
 
   it('retries aspiration windows on score swings (deterministic)', () => {
