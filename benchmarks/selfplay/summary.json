@@ -1,28 +1,31 @@
 {
-  "runId": "20251228-144230",
-  "startedAt": "2025-12-28T19:42:30.750Z",
-  "finishedAt": "2025-12-28T19:48:20.020Z",
-  "commitSha": "84a1520258c79d6447b639be85020063b9911d5a",
+  "runId": "20251228-162509",
+  "startedAt": "2025-12-28T21:25:09.578Z",
+  "finishedAt": "2025-12-28T22:02:18.591Z",
+  "commitSha": "bb8e3589214c24de67e224968c45d5e4c1e97769",
   "config": {
     "batchSize": 10,
     "hardMs": 800,
     "maxMs": 2000,
     "maxPlies": 200,
     "swap": true,
+    "fenSuite": true,
     "baseSeed": 1000,
-    "outDir": "H:\\chess\\benchmarks\\selfplay\\run-20251228-144230"
+    "outDir": "H:\\chess\\benchmarks\\selfplay\\run-20251228-162509"
   },
   "totals": {
     "games": 20,
-    "wins": 0,
-    "draws": 20,
+    "wins": 2,
+    "draws": 18,
     "losses": 0,
-    "avgPlies": 17.8,
-    "repetitionRate": 100,
+    "avgPlies": 63.8,
+    "repetitionRate": 90,
+    "earlyRepetitionCount": 12,
+    "avgRepetitionPly": 43.766666666666666,
     "endReasons": {
-      "mate": 0,
+      "mate": 2,
       "stalemate": 0,
-      "repetition": 20,
+      "repetition": 18,
       "fiftyMove": 0,
       "other": 0
     }
@@ -30,75 +33,79 @@
   "segments": {
     "hardAsWhite": {
       "games": 10,
-      "wins": 0,
-      "draws": 10,
+      "wins": 1,
+      "draws": 9,
       "losses": 0,
-      "avgPlies": 17.6,
-      "repetitionRate": 100,
+      "avgPlies": 57.1,
+      "repetitionRate": 90,
+      "earlyRepetitionCount": 4,
+      "avgRepetitionPly": 41.84615384615385,
       "endReasons": {
-        "mate": 0,
+        "mate": 1,
         "stalemate": 0,
-        "repetition": 10,
+        "repetition": 9,
         "fiftyMove": 0,
         "other": 0
       },
       "timing": {
         "hard": {
-          "avgMs": 887.8503800000013,
-          "maxMs": 895.9048999999941,
-          "timeouts": 60,
-          "moveCount": 60
+          "avgMs": 871.9461210344833,
+          "maxMs": 903.4624999999942,
+          "timeouts": 238,
+          "moveCount": 290
         },
         "max": {
-          "avgMs": 2088.4247071428567,
-          "maxMs": 2096.6454000000012,
-          "timeouts": 56,
-          "moveCount": 56
+          "avgMs": 2073.355171174374,
+          "maxMs": 2099.5148000000045,
+          "timeouts": 229,
+          "moveCount": 281
         }
       }
     },
     "hardAsBlack": {
       "games": 10,
-      "wins": 0,
-      "draws": 10,
+      "wins": 1,
+      "draws": 9,
       "losses": 0,
-      "avgPlies": 18,
-      "repetitionRate": 100,
+      "avgPlies": 70.5,
+      "repetitionRate": 90,
+      "earlyRepetitionCount": 8,
+      "avgRepetitionPly": 45.23529411764706,
       "endReasons": {
-        "mate": 0,
+        "mate": 1,
         "stalemate": 0,
-        "repetition": 10,
+        "repetition": 9,
         "fiftyMove": 0,
         "other": 0
       },
       "timing": {
         "hard": {
-          "avgMs": 886.05146,
-          "maxMs": 899.329700000002,
-          "timeouts": 60,
-          "moveCount": 60
+          "avgMs": 842.7763968481329,
+          "maxMs": 897.250299999956,
+          "timeouts": 248,
+          "moveCount": 349
         },
         "max": {
-          "avgMs": 2085.646628333334,
-          "maxMs": 2098.263200000045,
-          "timeouts": 60,
-          "moveCount": 60
+          "avgMs": 2062.593324719099,
+          "maxMs": 2097.2282999998424,
+          "timeouts": 257,
+          "moveCount": 356
         }
       }
     }
   },
   "timing": {
     "hard": {
-      "avgMs": 886.9509200000007,
-      "maxMs": 899.329700000002,
-      "timeouts": 120,
-      "moveCount": 120
+      "avgMs": 856.0146128325487,
+      "maxMs": 903.4624999999942,
+      "timeouts": 486,
+      "moveCount": 639
     },
     "max": {
-      "avgMs": 2086.987769827586,
-      "maxMs": 2098.263200000045,
-      "timeouts": 116,
-      "moveCount": 116
+      "avgMs": 2067.3407012558846,
+      "maxMs": 2099.5148000000045,
+      "timeouts": 486,
+      "moveCount": 637
     }
   }
 }

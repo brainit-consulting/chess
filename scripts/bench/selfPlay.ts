@@ -11,7 +11,8 @@ import {
   applyMove,
   createInitialState,
   getAllLegalMoves,
-  getGameStatus
+  getGameStatus,
+  getPositionKey
 } from '../../src/rules';
 import { buildSan, buildSanLine, PgnMove } from '../../src/pgn/pgn';
 import { MAX_THINKING_DEPTH_CAP } from '../../src/ai/ai';
@@ -24,6 +25,7 @@ type RunConfig = {
   maxMs: number;
   maxPlies: number;
   swap: boolean;
+  fenSuite: boolean;
   outDir?: string;
   baseSeed: number;
 };
@@ -49,6 +51,8 @@ type SegmentSummary = {
   losses: number;
   avgPlies: number;
   repetitionRate: number;
+  earlyRepetitionCount: number;
+  avgRepetitionPly: number;
   endReasons: Record<string, number>;
   timing: {
     hard: SideTimings;
@@ -63,6 +67,9 @@ type SegmentTotals = {
   losses: number;
   plies: number;
   endReasons: Record<string, number>;
+  repetitionEvents: number;
+  repetitionPliesSum: number;
+  earlyRepetitionCount: number;
   timing: {
     hard: TimingTotals;
     max: TimingTotals;
@@ -78,6 +85,9 @@ type GameLog = {
   maxMs: number;
   whiteLabel: string;
   blackLabel: string;
+  fenSuite: boolean;
+  startFen: string | null;
+  openingMoves: string[] | null;
   seed: number;
   plies: number;
   finalFen: string;
@@ -92,6 +102,12 @@ type GameLog = {
   result: string;
   outcome: 'win' | 'loss' | 'draw';
   endReason: string;
+  repetitionDiagnostics?: {
+    repetitionFoldDetected: number;
+    repetitionPly: number;
+    lastMovesUci: string[];
+    repeatedFen: string;
+  };
   timings: {
     hard: SideTimings;
     max: SideTimings;
@@ -117,6 +133,7 @@ type RunSummary = {
     maxMs: number;
     maxPlies: number;
     swap: boolean;
+    fenSuite: boolean;
     baseSeed: number;
     outDir: string;
   };
@@ -127,6 +144,8 @@ type RunSummary = {
     losses: number;
     avgPlies: number;
     repetitionRate: number;
+    earlyRepetitionCount: number;
+    avgRepetitionPly: number;
     endReasons: Record<string, number>;
   };
   segments: {
@@ -145,8 +164,11 @@ const DEFAULT_MAX_MS = 10000;
 const DEFAULT_MAX_PLIES = 200;
 const DEFAULT_BASE_SEED = 1000;
 const DEFAULT_SWAP = true;
+const DEFAULT_FEN_SUITE = true;
 const ENGINE_TIMEOUT_GRACE_MS = 80;
 const MIN_PLIES_FOR_DRAW = 2;
+const EARLY_REPETITION_PLY = 30;
+const MAX_REROLLS = 3;
 
 const REPORT_PATH = path.resolve('benchmarks/selfplay/SelfPlayReport.md');
 const ROOT_OUTPUT_DIR = path.resolve('benchmarks/selfplay');
@@ -186,6 +208,23 @@ const PROMO_MAP: Record<string, PieceType> = {
   n: 'knight'
 };
 
+const FEN_SEED_OPENINGS: string[][] = [
+  ['e2e4', 'e7e5', 'f2f4', 'e5f4', 'g1f3', 'g7g5', 'h2h4', 'g5g4'],
+  ['d2d4', 'd7d5', 'c2c4', 'd5c4', 'e2e3', 'b7b5', 'a2a4', 'c7c6'],
+  ['e2e4', 'c7c5', 'b2b4', 'c5b4', 'a2a3', 'b4a3', 'b1c3', 'd7d6'],
+  ['e2e4', 'c7c6', 'd2d4', 'd7d5', 'e4d5', 'c6d5', 'c2c4', 'g8f6'],
+  ['e2e4', 'd7d5', 'e4d5', 'd8d5', 'b1c3', 'd5a5', 'd2d4', 'c7c6'],
+  ['e2e4', 'e7e5', 'g1f3', 'b8c6', 'f1b5', 'a7a6', 'b5c6', 'd7c6'],
+  ['e2e4', 'e7e5', 'd2d4', 'e5d4', 'c2c3', 'd4c3', 'b1c3', 'd7d5'],
+  ['e2e4', 'e7e6', 'd2d4', 'd7d5', 'e4e5', 'c7c5', 'c2c3', 'b8c6'],
+  ['d2d4', 'f7f5', 'c2c4', 'g8f6', 'b1c3', 'e7e6', 'g1f3', 'f8b4'],
+  ['d2d4', 'g8f6', 'c2c4', 'g7g6', 'b1c3', 'f8g7', 'e2e4', 'd7d6'],
+  ['e2e4', 'g8f6', 'e4e5', 'f6d5', 'd2d4', 'd7d6', 'g1f3', 'g7g6'],
+  ['d2d4', 'd7d5', 'c2c4', 'c7c6', 'b1c3', 'g8f6', 'c4d5', 'c6d5']
+];
+
+const FEN_SUITE = buildFenSuite(FEN_SEED_OPENINGS);
+
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   const runId = args.runId ?? formatRunId(new Date());
@@ -199,6 +238,7 @@ async function main(): Promise<void> {
     maxMs: args.maxMs ?? DEFAULT_MAX_MS,
     maxPlies: args.maxPlies ?? DEFAULT_MAX_PLIES,
     swap: args.swap ?? DEFAULT_SWAP,
+    fenSuite: args.fenSuite ?? DEFAULT_FEN_SUITE,
     outDir,
     baseSeed: args.baseSeed ?? DEFAULT_BASE_SEED
   };
@@ -216,6 +256,7 @@ async function main(): Promise<void> {
     hardAsWhite: createSegmentTotals(),
     hardAsBlack: createSegmentTotals()
   };
+  const repetitionTotals = createRepetitionTotals();
   const timingTotals = {
     hard: createTimingTotals(),
     max: createTimingTotals()
@@ -225,23 +266,45 @@ async function main(): Promise<void> {
   for (let index = 0; index < rounds.length; index += 1) {
     const round = rounds[index];
     const gameId = index + 1;
-    const opening = pickOpening(config.baseSeed, gameId);
-    const seed = config.baseSeed + index;
+    const segment = round.white === 'hard' ? segmentTotals.hardAsWhite : segmentTotals.hardAsBlack;
+    const baseSeed = config.baseSeed + index;
+    let attempt = 0;
+    let result: Awaited<ReturnType<typeof runSingleGame>>;
+    let rerolled = false;
 
-    const result = await runSingleGame({
-      gameId,
-      round: round.round,
-      opening,
-      white: round.white,
-      hardMs: config.hardMs,
-      maxMs: config.maxMs,
-      maxPlies: config.maxPlies,
-      seed
-    });
+    while (true) {
+      const start = selectStartPosition(config, gameId, attempt);
+      result = await runSingleGame({
+        gameId,
+        round: round.round,
+        opening: start.opening,
+        startFen: start.fen,
+        fenSuite: config.fenSuite,
+        white: round.white,
+        hardMs: config.hardMs,
+        maxMs: config.maxMs,
+        maxPlies: config.maxPlies,
+        seed: baseSeed + attempt
+      });
+
+      const repetitionPly = result.repetitionDiagnostics?.repetitionPly;
+      if (result.endReason === 'repetition' && repetitionPly !== undefined) {
+        const isEarly = repetitionPly < EARLY_REPETITION_PLY;
+        recordRepetitionStats(segment, repetitionTotals, repetitionPly, isEarly);
+        if (isEarly && config.fenSuite && attempt < MAX_REROLLS) {
+          attempt += 1;
+          rerolled = true;
+          console.log(
+            `Game ${gameId.toString().padStart(4, '0')} early repetition at ply ${repetitionPly}; reroll ${attempt}/${MAX_REROLLS}`
+          );
+          continue;
+        }
+      }
+      break;
+    }
 
     totalPlies += result.plies;
     endReasons[result.endReason] = (endReasons[result.endReason] ?? 0) + 1;
-    const segment = round.white === 'hard' ? segmentTotals.hardAsWhite : segmentTotals.hardAsBlack;
     updateSegmentTotals(segment, result);
     if (result.outcome === 'win') {
       wins += 1;
@@ -266,6 +329,9 @@ async function main(): Promise<void> {
       JSON.stringify(result.log, null, 2),
       'utf8'
     );
+    if (rerolled) {
+      console.log(`Game ${gameSlug}: accepted after reroll (${result.result})`);
+    }
     console.log(`Game ${gameSlug}: ${result.result} (${result.outcome})`);
   }
 
@@ -281,6 +347,7 @@ async function main(): Promise<void> {
     totalPlies,
     endReasons,
     segmentTotals,
+    repetitionTotals,
     timingTotals
   });
 
@@ -304,7 +371,9 @@ async function main(): Promise<void> {
 async function runSingleGame(options: {
   gameId: number;
   round: number;
-  opening: string[];
+  opening: string[] | null;
+  startFen: string | null;
+  fenSuite: boolean;
   white: EngineSide;
   hardMs: number;
   maxMs: number;
@@ -316,18 +385,31 @@ async function runSingleGame(options: {
   pgn: string;
   plies: number;
   endReason: string;
+  repetitionDiagnostics?: {
+    repetitionFoldDetected: number;
+    repetitionPly: number;
+    lastMovesUci: string[];
+    repeatedFen: string;
+  };
   log: GameLog;
   timings: { hard: SideTimings; max: SideTimings };
 }> {
-  const state = createInitialState();
+  const state = options.startFen ? createStateFromFen(options.startFen) : createInitialState();
   const pgnMoves: PgnMove[] = [];
   const moveTimings: MoveTiming[] = [];
+  const moveHistoryUci: string[] = [];
   let lastMoveUci: string | null = null;
   let lastMoveSan: string | null = null;
-  const openingResult = applyOpening(state, options.opening, pgnMoves);
-  let plies = openingResult.plies;
-  lastMoveUci = openingResult.lastMoveUci;
-  lastMoveSan = openingResult.lastMoveSan;
+  let plies = 0;
+  let startFen = options.startFen ?? null;
+
+  if (!options.startFen && options.opening && options.opening.length > 0) {
+    const openingResult = applyOpening(state, options.opening, pgnMoves, moveHistoryUci);
+    plies = openingResult.plies;
+    lastMoveUci = openingResult.lastMoveUci;
+    lastMoveSan = openingResult.lastMoveSan;
+    startFen = stateToFen(state);
+  }
   const rng = createSeededRng(options.seed);
   let engineWorker = createEngineWorker();
   const startedAt = new Date().toISOString();
@@ -340,6 +422,8 @@ async function runSingleGame(options: {
           throw new Error('Game ended before minimum plies.');
         }
         const endReason = categorizeEndReason(status.status, status.reason);
+        const repetitionDiagnostics =
+          endReason === 'repetition' ? buildRepetitionDiagnostics(state, plies, moveHistoryUci) : undefined;
         const final = finalizeGame(
           state,
           status.status,
@@ -355,6 +439,7 @@ async function runSingleGame(options: {
           ...final,
           plies,
           endReason,
+          repetitionDiagnostics,
           timings,
           log: {
             gameId: options.gameId,
@@ -365,6 +450,9 @@ async function runSingleGame(options: {
             maxMs: options.maxMs,
             whiteLabel: labelForSide(options.white),
             blackLabel: labelForSide(options.white === 'hard' ? 'max' : 'hard'),
+            fenSuite: options.fenSuite,
+            startFen,
+            openingMoves: options.opening ?? null,
             seed: options.seed,
             plies,
             finalFen: stateToFen(state),
@@ -378,6 +466,7 @@ async function runSingleGame(options: {
             result: final.result,
             outcome: final.outcome,
             endReason,
+            repetitionDiagnostics,
             timings
           }
         };
@@ -418,7 +507,9 @@ async function runSingleGame(options: {
         throw new Error('Active color did not switch after move.');
       }
       plies += 1;
-      lastMoveUci = moveToUci(moveResult.move);
+      const moveUci = moveToUci(moveResult.move);
+      moveHistoryUci.push(moveUci);
+      lastMoveUci = moveUci;
       lastMoveSan = san;
     }
   } finally {
@@ -450,6 +541,9 @@ async function runSingleGame(options: {
       maxMs: options.maxMs,
       whiteLabel: labelForSide(options.white),
       blackLabel: labelForSide(options.white === 'hard' ? 'max' : 'hard'),
+      fenSuite: options.fenSuite,
+      startFen,
+      openingMoves: options.opening ?? null,
       seed: options.seed,
       plies,
       finalFen: stateToFen(state),
@@ -594,6 +688,11 @@ function buildSummary(args: {
     hardAsWhite: SegmentTotals;
     hardAsBlack: SegmentTotals;
   };
+  repetitionTotals: {
+    repetitionEvents: number;
+    repetitionPliesSum: number;
+    earlyRepetitionCount: number;
+  };
   timingTotals: {
     hard: TimingTotals;
     max: TimingTotals;
@@ -603,6 +702,10 @@ function buildSummary(args: {
   const hardAvg = averageFromTotals(args.timingTotals.hard);
   const maxAvg = averageFromTotals(args.timingTotals.max);
   const repetitionRate = calculateRepetitionRate(args.endReasons, games);
+  const repetitionAvg =
+    args.repetitionTotals.repetitionEvents > 0
+      ? args.repetitionTotals.repetitionPliesSum / args.repetitionTotals.repetitionEvents
+      : 0;
   const segments = {
     hardAsWhite: finalizeSegment(args.segmentTotals.hardAsWhite),
     hardAsBlack: finalizeSegment(args.segmentTotals.hardAsBlack)
@@ -619,6 +722,7 @@ function buildSummary(args: {
       maxMs: args.config.maxMs,
       maxPlies: args.config.maxPlies,
       swap: args.config.swap,
+      fenSuite: args.config.fenSuite,
       baseSeed: args.config.baseSeed,
       outDir: args.config.outDir ?? ROOT_OUTPUT_DIR
     },
@@ -629,6 +733,8 @@ function buildSummary(args: {
       losses: args.losses,
       avgPlies: games > 0 ? args.totalPlies / games : 0,
       repetitionRate,
+      earlyRepetitionCount: args.repetitionTotals.earlyRepetitionCount,
+      avgRepetitionPly: repetitionAvg,
       endReasons: args.endReasons
     },
     segments,
@@ -671,11 +777,22 @@ function createSegmentTotals(): SegmentTotals {
     losses: 0,
     plies: 0,
     endReasons: createEndReasonCounts(),
+    repetitionEvents: 0,
+    repetitionPliesSum: 0,
+    earlyRepetitionCount: 0,
     timing: {
       hard: createTimingTotals(),
       max: createTimingTotals()
     }
   };
+}
+
+function createRepetitionTotals(): {
+  repetitionEvents: number;
+  repetitionPliesSum: number;
+  earlyRepetitionCount: number;
+} {
+  return { repetitionEvents: 0, repetitionPliesSum: 0, earlyRepetitionCount: 0 };
 }
 
 function updateTimingTotals(totals: TimingTotals, timing: SideTimings): void {
@@ -687,7 +804,12 @@ function updateTimingTotals(totals: TimingTotals, timing: SideTimings): void {
 
 function updateSegmentTotals(
   segment: SegmentTotals,
-  result: { outcome: 'win' | 'loss' | 'draw'; plies: number; endReason: string; timings: { hard: SideTimings; max: SideTimings } }
+  result: {
+    outcome: 'win' | 'loss' | 'draw';
+    plies: number;
+    endReason: string;
+    timings: { hard: SideTimings; max: SideTimings };
+  }
 ): void {
   segment.games += 1;
   segment.plies += result.plies;
@@ -703,8 +825,26 @@ function updateSegmentTotals(
   updateTimingTotals(segment.timing.max, result.timings.max);
 }
 
+function recordRepetitionStats(
+  segment: SegmentTotals,
+  totals: { repetitionEvents: number; repetitionPliesSum: number; earlyRepetitionCount: number },
+  repetitionPly: number,
+  isEarly: boolean
+): void {
+  segment.repetitionEvents += 1;
+  segment.repetitionPliesSum += repetitionPly;
+  totals.repetitionEvents += 1;
+  totals.repetitionPliesSum += repetitionPly;
+  if (isEarly) {
+    segment.earlyRepetitionCount += 1;
+    totals.earlyRepetitionCount += 1;
+  }
+}
+
 function finalizeSegment(segment: SegmentTotals): SegmentSummary {
   const games = segment.games;
+  const repetitionAvg =
+    segment.repetitionEvents > 0 ? segment.repetitionPliesSum / segment.repetitionEvents : 0;
   return {
     games,
     wins: segment.wins,
@@ -712,6 +852,8 @@ function finalizeSegment(segment: SegmentTotals): SegmentSummary {
     losses: segment.losses,
     avgPlies: games > 0 ? segment.plies / games : 0,
     repetitionRate: calculateRepetitionRate(segment.endReasons, games),
+    earlyRepetitionCount: segment.earlyRepetitionCount,
+    avgRepetitionPly: repetitionAvg,
     endReasons: segment.endReasons,
     timing: {
       hard: {
@@ -807,6 +949,7 @@ function parseArgs(argv: string[]): {
   maxMs?: number;
   maxPlies?: number;
   swap?: boolean;
+  fenSuite?: boolean;
   outDir?: string;
   baseSeed?: number;
   runId?: string;
@@ -817,6 +960,7 @@ function parseArgs(argv: string[]): {
     maxMs?: number;
     maxPlies?: number;
     swap?: boolean;
+    fenSuite?: boolean;
     outDir?: string;
     baseSeed?: number;
     runId?: string;
@@ -840,6 +984,10 @@ function parseArgs(argv: string[]): {
       result.swap = true;
     } else if (arg === '--no-swap') {
       result.swap = false;
+    } else if (arg === '--fenSuite') {
+      result.fenSuite = true;
+    } else if (arg === '--no-fenSuite') {
+      result.fenSuite = false;
     } else if (arg === '--outDir') {
       result.outDir = argv[i + 1];
       i += 1;
@@ -879,6 +1027,26 @@ function categorizeEndReason(status: string, reason?: string): string {
   return 'other';
 }
 
+function buildRepetitionDiagnostics(
+  state: GameState,
+  plies: number,
+  moveHistoryUci: string[]
+): {
+  repetitionFoldDetected: number;
+  repetitionPly: number;
+  lastMovesUci: string[];
+  repeatedFen: string;
+} {
+  const key = getPositionKey(state);
+  const count = state.positionCounts?.get(key) ?? 0;
+  return {
+    repetitionFoldDetected: count >= 3 ? 3 : 2,
+    repetitionPly: plies,
+    lastMovesUci: moveHistoryUci.slice(-6),
+    repeatedFen: stateToFen(state)
+  };
+}
+
 async function updateReport(summary: RunSummary): Promise<void> {
   const text = await fs.readFile(REPORT_PATH, 'utf8');
   const start = '<!-- REPORT:START -->';
@@ -906,7 +1074,7 @@ function buildReportBody(summary: RunSummary): string {
   const maxSegment = summary.segments.hardAsBlack;
   const lines = [
     `Last updated: ${summary.finishedAt}`,
-    `Config: hardMs=${summary.config.hardMs}, maxMs=${summary.config.maxMs}, batch=${summary.config.batchSize}, swap=${summary.config.swap}`,
+    `Config: hardMs=${summary.config.hardMs}, maxMs=${summary.config.maxMs}, batch=${summary.config.batchSize}, swap=${summary.config.swap}, fenSuite=${summary.config.fenSuite}`,
     `Commit: ${summary.commitSha}`,
     `Base seed: ${summary.config.baseSeed}`,
     `Output: ${summary.config.outDir}`,
@@ -914,6 +1082,8 @@ function buildReportBody(summary: RunSummary): string {
     `Avg plies per game: ${avgPlies}`,
     `End reasons: mate=${end.mate}, stalemate=${end.stalemate}, repetition=${end.repetition}, 50-move=${end.fiftyMove}, other=${end.other}`,
     `Repetition rate: ${totals.repetitionRate.toFixed(1)}%`,
+    `Early repetition count (<${EARLY_REPETITION_PLY} ply): ${totals.earlyRepetitionCount}`,
+    `Avg repetition ply: ${totals.avgRepetitionPly.toFixed(1)}`,
     `Timing (Hard): avg=${hard.avgMs.toFixed(1)}ms, max=${hard.maxMs.toFixed(1)}ms, timeouts=${hard.timeouts}`,
     `Timing (Max): avg=${max.avgMs.toFixed(1)}ms, max=${max.maxMs.toFixed(1)}ms, timeouts=${max.timeouts}`,
     '',
@@ -924,6 +1094,9 @@ function buildReportBody(summary: RunSummary): string {
     'Notes:',
     '- Deterministic base seed used; move-level seeds derived from a fixed RNG.',
     '- Opening suite: fixed UCI sequences applied before engine play; selection is seed-based.',
+    '- FEN suite: FENs are derived from curated UCI sequences and selected by seed.',
+    '- Early repetition rerolls are counted in repetition diagnostics but not in W/D/L totals.',
+    '- Segment W/D/L lines are reported from Hard\'s perspective.',
     '- SAN generation uses engine move legality; if SAN is missing for any move, check meta JSON.',
     ''
   ];
@@ -937,6 +1110,8 @@ function formatSegmentLines(label: string, segment: SegmentSummary): string[] {
     `Avg plies: ${segment.avgPlies.toFixed(1)}`,
     `End reasons: mate=${end.mate}, stalemate=${end.stalemate}, repetition=${end.repetition}, 50-move=${end.fiftyMove}, other=${end.other}`,
     `Repetition rate: ${segment.repetitionRate.toFixed(1)}%`,
+    `Early repetition count (<${EARLY_REPETITION_PLY} ply): ${segment.earlyRepetitionCount}`,
+    `Avg repetition ply: ${segment.avgRepetitionPly.toFixed(1)}`,
     `Timing (Hard): avg=${segment.timing.hard.avgMs.toFixed(1)}ms, max=${segment.timing.hard.maxMs.toFixed(1)}ms, timeouts=${segment.timing.hard.timeouts}`,
     `Timing (Max): avg=${segment.timing.max.avgMs.toFixed(1)}ms, max=${segment.timing.max.maxMs.toFixed(1)}ms, timeouts=${segment.timing.max.timeouts}`
   ];
@@ -950,16 +1125,19 @@ function buildRunReadme(): string {
     '',
     '## How to run',
     '- npm run bench:selfplay',
-    '- Optional: --batch 10 --hardMs 800 --maxMs 10000 --swap/--no-swap --outDir <path> --seed 1000',
+    '- Optional: --batch 10 --hardMs 800 --maxMs 10000 --swap/--no-swap --fenSuite/--no-fenSuite --outDir <path> --seed 1000',
     '',
     '## Metrics',
     '- W/D/L: results from Hard vs Max across all games.',
     '- Segments: Hard-as-White vs Max and Max-as-White vs Hard when using --swap.',
     '- Repetition rate: percent of games ending by repetition.',
+    '- Early repetition count: repetition games that end before ply 30 (rerolls included).',
+    '- Avg repetition ply: average ply of repetition endings (rerolls included).',
     '- Avg plies: total plies / games.',
     '- End reasons: mate, stalemate, repetition, 50-move, other.',
     '- Timing: per-side average and max move time, with timeout counts.',
     '- Openings: fixed UCI sequence applied before engine play; selection is seed-based.',
+    '- FEN suite: start positions derived from curated UCI sequences; selection is seed-based.',
     ''
   ].join('\n');
 }
@@ -1028,18 +1206,147 @@ function parseSquare(value: string): { file: number; rank: number } | null {
   return { file, rank };
 }
 
-function pickOpening(baseSeed: number, gameId: number): string[] {
+function pickOpening(baseSeed: number, gameId: number, attempt: number): string[] {
   if (OPENINGS.length === 0) {
     return [];
   }
-  const index = Math.abs(baseSeed + gameId - 1) % OPENINGS.length;
+  const index = Math.abs(baseSeed + gameId - 1 + attempt) % OPENINGS.length;
   return OPENINGS[index];
+}
+
+function pickFen(baseSeed: number, gameId: number, attempt: number): string | null {
+  if (FEN_SUITE.length === 0) {
+    return null;
+  }
+  const index = Math.abs(baseSeed + gameId - 1 + attempt) % FEN_SUITE.length;
+  return FEN_SUITE[index];
+}
+
+function selectStartPosition(
+  config: RunConfig,
+  gameId: number,
+  attempt: number
+): { fen: string | null; opening: string[] | null } {
+  if (config.fenSuite && FEN_SUITE.length > 0) {
+    return { fen: pickFen(config.baseSeed, gameId, attempt), opening: null };
+  }
+  return { fen: null, opening: pickOpening(config.baseSeed, gameId, attempt) };
+}
+
+function buildFenSuite(sequences: string[][]): string[] {
+  const fens: string[] = [];
+  for (const sequence of sequences) {
+    const state = createInitialState();
+    let valid = true;
+    for (const uci of sequence) {
+      const move = uciToMove(state, uci);
+      if (!move) {
+        valid = false;
+        break;
+      }
+      applyMove(state, move);
+    }
+    if (valid) {
+      fens.push(stateToFen(state));
+    }
+  }
+  return fens;
+}
+
+function createStateFromFen(fen: string): GameState {
+  const parts = fen.trim().split(/\s+/);
+  if (parts.length < 4) {
+    throw new Error(`Invalid FEN: ${fen}`);
+  }
+  const [boardPart, activeColorRaw, castlingRaw, enPassantRaw, halfmoveRaw, fullmoveRaw] = parts;
+  const board = Array.from({ length: 8 }, () => Array(8).fill(null)) as (number | null)[][];
+  const pieces = new Map<number, { id: number; type: PieceType; color: Color; hasMoved: boolean }>();
+  let nextId = 1;
+  const ranks = boardPart.split('/');
+  if (ranks.length !== 8) {
+    throw new Error(`Invalid FEN board: ${fen}`);
+  }
+
+  for (let fenRank = 0; fenRank < 8; fenRank += 1) {
+    const rank = 7 - fenRank;
+    let file = 0;
+    for (const char of ranks[fenRank]) {
+      if (char >= '1' && char <= '8') {
+        file += Number(char);
+        continue;
+      }
+      const piece = fenCharToPiece(char);
+      if (!piece) {
+        throw new Error(`Invalid FEN piece: ${fen}`);
+      }
+      if (file > 7) {
+        throw new Error(`Invalid FEN file: ${fen}`);
+      }
+      pieces.set(nextId, { id: nextId, ...piece, hasMoved: false });
+      board[rank][file] = nextId;
+      nextId += 1;
+      file += 1;
+    }
+    if (file !== 8) {
+      throw new Error(`Invalid FEN rank width: ${fen}`);
+    }
+  }
+
+  const activeColor = activeColorRaw === 'b' ? 'b' : 'w';
+  const castlingRights = {
+    wK: castlingRaw.includes('K'),
+    wQ: castlingRaw.includes('Q'),
+    bK: castlingRaw.includes('k'),
+    bQ: castlingRaw.includes('q')
+  };
+  const enPassantTarget = enPassantRaw && enPassantRaw !== '-' ? parseSquare(enPassantRaw) : null;
+  const halfmoveClock = Number(halfmoveRaw ?? 0) || 0;
+  const fullmoveNumber = Number(fullmoveRaw ?? 1) || 1;
+
+  const state: GameState = {
+    board,
+    pieces,
+    activeColor,
+    castlingRights,
+    enPassantTarget: enPassantTarget ? { file: enPassantTarget.file, rank: enPassantTarget.rank } : null,
+    halfmoveClock,
+    fullmoveNumber,
+    lastMove: null,
+    positionCounts: new Map()
+  };
+
+  state.positionCounts?.set(getPositionKey(state), 1);
+  return state;
+}
+
+function fenCharToPiece(char: string): { type: PieceType; color: Color } | null {
+  const lower = char.toLowerCase();
+  const type =
+    lower === 'p'
+      ? 'pawn'
+      : lower === 'n'
+      ? 'knight'
+      : lower === 'b'
+      ? 'bishop'
+      : lower === 'r'
+      ? 'rook'
+      : lower === 'q'
+      ? 'queen'
+      : lower === 'k'
+      ? 'king'
+      : null;
+  if (!type) {
+    return null;
+  }
+  const color: Color = char === lower ? 'b' : 'w';
+  return { type, color };
 }
 
 function applyOpening(
   state: GameState,
   opening: string[],
-  moves: PgnMove[]
+  moves: PgnMove[],
+  moveHistoryUci: string[]
 ): { plies: number; lastMoveUci: string | null; lastMoveSan: string | null } {
   let plies = 0;
   let lastMoveUci: string | null = null;
@@ -1055,6 +1362,7 @@ function applyOpening(
     plies += 1;
     lastMoveUci = uci;
     lastMoveSan = san;
+    moveHistoryUci.push(uci);
   }
   return { plies, lastMoveUci, lastMoveSan };
 }
