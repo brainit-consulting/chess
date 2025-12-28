@@ -12,8 +12,9 @@ npm run bench:quick -- --stockfish "C:\path\to\stockfish.exe" --batch 10 --movet
 Report updates will appear between the markers below.
 
 <!-- REPORT:START -->
-Last updated: 2025-12-27T23:58:46.351Z
+Last updated: 2025-12-28T02:32:58.974Z
 Series: Post-fix baseline series
+Note: series reset due to corrupted quick-run-state.json; prior series remains above for reference.
 
 Config: BrainIT hard @ 200ms | Stockfish movetime 200ms
 Stockfish: C:\Users\snake\Downloads\stockfish-windows-x86-64-avx2\stockfish\stockfish-windows-x86-64-avx2.exe
@@ -21,24 +22,20 @@ Settings: Threads=1, Hash=64MB, Ponder=false
 Movetime targets: BrainIT=200ms, Stockfish=200ms
 Next ladder rung: paused (Stockfish=200ms)
 
-Cumulative: 0-0-58 (58 games)
+Cumulative: 0-0-12 (12 games)
 Score: 0.000
 Elo delta: Outside estimation range (shutout).
-Avg plies per game: 35.3
-End reasons: mate=52, stalemate=0, repetition=0, 50-move=0, other=0
-Timed out moves: 574/749
-Avg ms (non-timeout): 203.3, Avg ms (timeout): 290.6
-Max ms (non-timeout): 255.0, Max ms (timeout): 298.3
+Avg plies per game: 37.2
+End reasons: mate=12, stalemate=0, repetition=0, 50-move=0, other=0
+Timed out moves: 6/184
+Avg ms (non-timeout): 203.1, Avg ms (timeout): 290.1
+Max ms (non-timeout): 216.4, Max ms (timeout): 294.4
 
 Batch history:
 Batch | Games | W | D | L | Score | Elo | BrainIT ms (target/avg) | Stockfish ms (target/avg) | Timeouts | Timed-out moves | Avg ms (ok/timeout) | Max ms (ok/timeout) | Stop Latency (avg ms) | Overhead
 --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | ---
-1 | 10 | 0 | 0 | 10 | 0.000 | n/a | 200/289.0 | 200/178.3 | B:131 SF:0 | 131/132 | 203.9/289.7 | 203.9/297.1 | 0.7 | 1
-2 | 10 | 0 | 0 | 10 | 0.000 | n/a | 200/291.6 | 200/178.9 | B:151 SF:0 | 151/151 | 0.0/291.6 | 0.0/297.4 | 0.0 | 0
-3 | 10 | 0 | 0 | 10 | 0.000 | n/a | 200/290.1 | 200/176.0 | B:125 SF:0 | 125/125 | 0.0/290.1 | 0.0/298.3 | 0.0 | 0
-4 | 10 | 0 | 0 | 10 | 0.000 | n/a | 200/290.9 | 200/179.8 | B:147 SF:0 | 147/147 | 0.0/290.9 | 0.0/297.1 | 0.0 | 0
-5 | 2 | 0 | 0 | 2 | 0.000 | n/a | 200/282.0 | 200/176.0 | B:15 SF:0 | 15/18 | 240.8/290.2 | 255.0/294.3 | 30.7 | 3
-6 | 10 | 0 | 0 | 10 | 0.000 | n/a | 200/205.2 | 200/181.7 | B:5 SF:0 | 5/176 | 202.6/292.9 | 215.7/297.5 | 2.0 | 26
+1 | 2 | 0 | 0 | 2 | 0.000 | n/a | 200/207.3 | 200/163.6 | B:1 SF:0 | 1/25 | 203.8/292.1 | 214.5/292.1 | 6.0 | 6
+2 | 10 | 0 | 0 | 10 | 0.000 | n/a | 200/205.7 | 200/176.3 | B:5 SF:0 | 5/159 | 203.0/289.7 | 216.4/294.4 | 2.8 | 41
 <!-- REPORT:END -->
 
 Notes

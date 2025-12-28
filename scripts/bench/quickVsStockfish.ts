@@ -999,6 +999,9 @@ async function loadRunState(
   if (!reset) {
     try {
       const raw = await fs.readFile(STATE_PATH, 'utf8');
+      if (!raw.trim()) {
+        throw new Error('Empty run state.');
+      }
       const parsed = JSON.parse(raw) as RunState;
       if (parsed.config && parsed.config.stockfishPath === config.stockfishPath) {
         if (
@@ -1015,14 +1018,22 @@ async function loadRunState(
       }
       throw new Error('Config mismatch. Run with --reset to start a new series.');
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      const message = error instanceof Error ? error.message : '';
+      if (message.includes('Config mismatch')) {
         throw error;
+      }
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        if (error instanceof SyntaxError || message === 'Empty run state.') {
+          console.warn('[bench] run state invalid; starting new series.');
+        } else {
+          throw error;
+        }
       }
     }
   }
 
   const now = new Date().toISOString();
-  return {
+  const freshState: RunState = {
     startedAt: now,
     updatedAt: now,
     seriesLabel: seriesLabel?.trim() || DEFAULT_SERIES_LABEL,
@@ -1044,10 +1055,16 @@ async function loadRunState(
     stockfishRungIndex: 0,
     batches: []
   };
+  await saveRunState(freshState);
+  return freshState;
 }
 
 async function saveRunState(state: RunState): Promise<void> {
-  await fs.writeFile(STATE_PATH, JSON.stringify(state, null, 2), 'utf8');
+  const payload = JSON.stringify(state, null, 2);
+  const tmpPath = `${STATE_PATH}.tmp`;
+  await fs.writeFile(tmpPath, payload, 'utf8');
+  await fs.rm(STATE_PATH, { force: true });
+  await fs.rename(tmpPath, STATE_PATH);
 }
 
 function buildBatchResult(args: {
