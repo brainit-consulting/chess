@@ -638,6 +638,12 @@ button:active {
   opacity: 0.9;
 }
 
+.ai-force-button {
+  padding: 3px 8px;
+  font-size: 11px;
+  opacity: 0.9;
+}
+
 .ai-explain-button:disabled {
   opacity: 0.4;
   cursor: not-allowed;

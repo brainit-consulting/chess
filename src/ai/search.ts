@@ -72,6 +72,7 @@ type TimedSearchOptions = Omit<SearchOptions, 'depth'> & {
   maxTimeMs: number;
   now?: () => number;
   onDepth?: (depth: number) => void;
+  onProgress?: (update: { depth: number; move: Move | null; score: number | null }) => void;
   aspirationWindow?: number;
   aspirationMaxRetries?: number;
 };
@@ -299,6 +300,11 @@ export function findBestMoveTimed(
     if (scored?.move) {
       best = scored.move;
       prevScore = scored.score;
+      options.onProgress?.({
+        depth,
+        move: scored.move,
+        score: scored.score
+      });
     }
   }
 

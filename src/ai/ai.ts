@@ -4,8 +4,9 @@ import { findBestMove, findBestMoveTimed } from './search';
 export type AiDifficulty = 'easy' | 'medium' | 'hard' | 'max';
 
 export const MAX_THINKING_DEPTH_CAP = 7;
-export const MAX_THINKING_HUMAN_VS_AI_MS = 1000;
-export const MAX_THINKING_AI_VS_AI_MS = 700;
+export const MAX_THINKING_CAP_MS = 10000;
+export const MAX_THINKING_HUMAN_VS_AI_MS = MAX_THINKING_CAP_MS;
+export const MAX_THINKING_AI_VS_AI_MS = MAX_THINKING_CAP_MS;
 
 export type AiOptions = {
   color?: Color;
@@ -18,6 +19,7 @@ export type AiOptions = {
   maxTimeMs?: number;
   maxDepth?: number;
   stopRequested?: () => boolean;
+  onProgress?: (update: { depth: number; move: Move | null; score: number | null }) => void;
 };
 
 const DEPTH_BY_DIFFICULTY: Record<AiDifficulty, number> = {
@@ -39,7 +41,7 @@ export function chooseMove(state: GameState, options: AiOptions = {}): Move | nu
   const difficulty = options.difficulty ?? 'medium';
 
   if (difficulty === 'max') {
-    const maxTimeMs = options.maxTimeMs ?? MAX_THINKING_HUMAN_VS_AI_MS;
+    const maxTimeMs = options.maxTimeMs ?? MAX_THINKING_CAP_MS;
     const maxDepth = options.maxDepth ?? MAX_THINKING_DEPTH_CAP;
     return findBestMoveTimed(state, color, {
       maxDepth,
@@ -48,7 +50,9 @@ export function chooseMove(state: GameState, options: AiOptions = {}): Move | nu
       legalMoves,
       playForWin: options.playForWin,
       recentPositions: options.recentPositions,
-      maxThinking: true
+      maxThinking: true,
+      stopRequested: options.stopRequested,
+      onProgress: options.onProgress
     });
   }
 

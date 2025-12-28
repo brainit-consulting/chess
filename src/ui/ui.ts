@@ -11,7 +11,7 @@ import engineLogoUrl from '../../graphics/ScorpionChessEngineLogo.png';
 
 const PLAYER_GUIDE_URL = `${import.meta.env.BASE_URL}player-user-guide.md`;
 const LIVE_URL = 'https://brainit-consulting.github.io/chess/';
-const APP_VERSION = 'v1.1.51';
+const APP_VERSION = 'v1.1.52';
 
 export type UiState = {
   visible: boolean;
@@ -39,6 +39,7 @@ type UIHandlers = {
   onToggleAutoSnap: (enabled: boolean) => void;
   onShowAiExplanation: () => void;
   onHideAiExplanation: () => void;
+  onForceMoveNow: () => void;
   onExportPgn: () => void;
   onCopyPgn: () => void;
   onAnalyzerChange: (choice: AnalyzerChoice) => void;
@@ -82,6 +83,7 @@ export class GameUI {
   private aiStatusText: HTMLSpanElement;
   private aiStatusDots: HTMLSpanElement;
   private explainButton: HTMLButtonElement;
+  private forceMoveButton: HTMLButtonElement;
   private historyPanel: HTMLDivElement;
   private historyListEl: HTMLDivElement;
   private historyTimerEl: HTMLDivElement;
@@ -249,7 +251,17 @@ export class GameUI {
     this.explainButton.classList.add('ghost', 'ai-explain-button');
     this.explainButton.disabled = true;
     this.explainButton.title = 'Why this move?';
-    this.aiStatusEl.append(this.aiStatusText, this.aiStatusDots, this.explainButton);
+    this.forceMoveButton = this.makeButton('Force Move Now', () =>
+      this.handlers.onForceMoveNow()
+    );
+    this.forceMoveButton.classList.add('ghost', 'ai-force-button', 'hidden');
+    this.forceMoveButton.title = 'Force the current best move';
+    this.aiStatusEl.append(
+      this.aiStatusText,
+      this.aiStatusDots,
+      this.explainButton,
+      this.forceMoveButton
+    );
 
     const modeTitle = document.createElement('div');
     modeTitle.className = 'section-title expand-only';
@@ -841,6 +853,10 @@ export class GameUI {
   setAiExplanationAvailable(available: boolean): void {
     this.explainButton.disabled = !available;
     this.explainButton.classList.toggle('hidden', !available);
+  }
+
+  setForceMoveNowVisible(visible: boolean): void {
+    this.forceMoveButton.classList.toggle('hidden', !visible);
   }
 
   showAiExplanation(explanation: AiExplainResult | null, loading: boolean): void {

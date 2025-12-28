@@ -15,6 +15,11 @@ export type AiMoveRequest = {
   maxDepth?: number;
 };
 
+export type AiStopRequest = {
+  kind: 'stop';
+  requestId: number;
+};
+
 export type AiHintRequest = {
   kind: 'hint';
   requestId: number;
@@ -29,6 +34,14 @@ export type AiMoveResponse = {
   kind: 'move';
   requestId: number;
   move: Move | null;
+};
+
+export type AiProgressResponse = {
+  kind: 'progress';
+  requestId: number;
+  move: Move | null;
+  depth: number;
+  score: number | null;
 };
 
 export type AiHintResponse = {
@@ -69,5 +82,13 @@ export type AiExplainResponse = {
   explanation: AiExplainResult;
 };
 
-export type AiWorkerResponse = AiMoveResponse | AiHintResponse | AiExplainResponse;
-export type AiWorkerRequest = AiMoveRequest | AiHintRequest | AiExplainRequest;
+export type AiWorkerResponse =
+  | AiMoveResponse
+  | AiProgressResponse
+  | AiHintResponse
+  | AiExplainResponse;
+export type AiWorkerRequest =
+  | AiMoveRequest
+  | AiStopRequest
+  | AiHintRequest
+  | AiExplainRequest;

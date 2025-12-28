@@ -120,6 +120,9 @@ describe('AI move selection', () => {
     });
 
     expect(direct).not.toBeNull();
+    if (!worker || worker.kind !== 'move') {
+      throw new Error('Expected worker response.');
+    }
     expect(worker.move).not.toBeNull();
     if (!direct || !worker.move) {
       throw new Error('Expected both paths to return a move.');
@@ -210,6 +213,9 @@ describe('AI move selection', () => {
     });
 
     expect(direct).not.toBeNull();
+    if (!worker || worker.kind !== 'hint') {
+      throw new Error('Expected worker response.');
+    }
     expect(worker.move).not.toBeNull();
     if (!direct || !worker.move) {
       throw new Error('Expected both paths to return a move.');

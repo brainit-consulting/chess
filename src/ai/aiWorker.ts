@@ -1,8 +1,15 @@
+import { Move } from '../rules';
 import { chooseMove } from './ai';
 import { explainMove } from './aiExplain';
 import { AiWorkerRequest, AiWorkerResponse } from './aiWorkerTypes';
 
-export function computeAiMove(request: AiWorkerRequest): AiWorkerResponse {
+type ProgressUpdate = { depth: number; move: Move | null; score: number | null };
+
+export function computeAiMove(
+  request: AiWorkerRequest,
+  onProgress?: (update: ProgressUpdate) => void,
+  stopRequested?: () => boolean
+): AiWorkerResponse | null {
   if (request.kind === 'hint') {
     const move = chooseMove(request.state, {
       color: request.color,
@@ -29,6 +36,10 @@ export function computeAiMove(request: AiWorkerRequest): AiWorkerResponse {
     };
   }
 
+  if (request.kind === 'stop') {
+    return null;
+  }
+
   const move = chooseMove(request.state, {
     color: request.color,
     difficulty: request.difficulty,
@@ -37,7 +48,9 @@ export function computeAiMove(request: AiWorkerRequest): AiWorkerResponse {
     recentPositions: request.recentPositions,
     depthOverride: request.depthOverride,
     maxTimeMs: request.maxTimeMs,
-    maxDepth: request.maxDepth
+    maxDepth: request.maxDepth,
+    stopRequested,
+    onProgress
   });
 
   return { kind: 'move', requestId: request.requestId, move };
@@ -45,8 +58,41 @@ export function computeAiMove(request: AiWorkerRequest): AiWorkerResponse {
 
 if (typeof self !== 'undefined') {
   const ctx = self as DedicatedWorkerGlobalScope;
+  const stopFlags = new Map<number, boolean>();
   ctx.onmessage = (event: MessageEvent<AiWorkerRequest>) => {
-    const response = computeAiMove(event.data);
-    ctx.postMessage(response);
+    const request = event.data;
+    if (request.kind === 'stop') {
+      stopFlags.set(request.requestId, true);
+      return;
+    }
+    if (request.kind === 'move') {
+      stopFlags.set(request.requestId, false);
+      const onProgress =
+        request.difficulty === 'max'
+          ? (update: ProgressUpdate) => {
+              ctx.postMessage({
+                kind: 'progress',
+                requestId: request.requestId,
+                move: update.move,
+                depth: update.depth,
+                score: update.score
+              });
+            }
+          : undefined;
+      const response = computeAiMove(
+        request,
+        onProgress,
+        () => stopFlags.get(request.requestId) === true
+      );
+      stopFlags.delete(request.requestId);
+      if (response) {
+        ctx.postMessage(response);
+      }
+      return;
+    }
+    const response = computeAiMove(request);
+    if (response) {
+      ctx.postMessage(response);
+    }
   };
 }

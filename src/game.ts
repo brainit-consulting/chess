@@ -9,6 +9,7 @@ import {
   applyMove,
   createInitialState,
   findKingSquare,
+  getAllLegalMoves,
   getPieceAt,
   getGameStatus,
   getLegalMovesForSquare,
@@ -17,15 +18,15 @@ import {
 } from './rules';
 import {
   AiDifficulty,
-  MAX_THINKING_AI_VS_AI_MS,
   MAX_THINKING_DEPTH_CAP,
-  MAX_THINKING_HUMAN_VS_AI_MS,
+  MAX_THINKING_CAP_MS,
   chooseMove
 } from './ai/ai';
 import { explainMove } from './ai/aiExplain';
 import {
   AiExplainOptions,
   AiExplainResult,
+  AiProgressResponse,
   AiWorkerRequest,
   AiWorkerResponse
 } from './ai/aiWorkerTypes';
@@ -124,7 +125,11 @@ export class GameController {
   private aiSeed: number | undefined;
   private aiDelayMs = DEFAULT_AI_DELAY_MS;
   private aiTimeout: number | null = null;
+  private aiForceTimeout: number | null = null;
   private aiRequestId = 0;
+  private aiThinkingActive = false;
+  private aiBestSoFarMove: Move | null = null;
+  private aiBestSoFarRequestId: number | null = null;
   private summaryShown = false;
   private lastStatus: GameStatus | null = null;
   private lastPgnText: string | null = null;
@@ -205,6 +210,7 @@ export class GameController {
       onToggleAutoSnap: (enabled) => this.setAutoSnapHumanView(enabled),
       onShowAiExplanation: () => this.showAiExplanation(),
       onHideAiExplanation: () => this.hideAiExplanation(),
+      onForceMoveNow: () => this.forceAiMoveNow(),
       onExportPgn: () => this.exportPgn(),
       onCopyPgn: () => void this.copyPgn(),
       onExportPlainHistory: () => this.exportPlainHistory(),
@@ -437,18 +443,18 @@ export class GameController {
 
   private maybeScheduleAiMove(): void {
     if (this.gameOver) {
-      this.ui.setAiThinking(false);
+      this.setAiThinkingActive(false);
       return;
     }
     if (
       this.mode === 'aivai' &&
       (!this.aiVsAiStarted || this.aiVsAiPaused || !this.aiVsAiRunning)
     ) {
-      this.ui.setAiThinking(false);
+      this.setAiThinkingActive(false);
       return;
     }
     if (!this.isAiControlled(this.state.activeColor)) {
-      this.ui.setAiThinking(false);
+      this.setAiThinkingActive(false);
       return;
     }
     this.scheduleAiMove(this.state.activeColor);
@@ -459,15 +465,15 @@ export class GameController {
     const requestId = this.aiRequestId;
     const delayMs = this.getAiDelayMs();
     const thinkingColor = this.mode === 'aivai' ? color : undefined;
-    this.ui.setAiThinking(true, thinkingColor);
+    this.setAiThinkingActive(true, thinkingColor);
     this.aiPendingApplyAt = performance.now() + delayMs;
+    this.aiBestSoFarMove = this.selectFallbackAiMove();
+    this.aiBestSoFarRequestId = requestId;
 
     const playForWin = this.mode === 'aivai' && this.playForWinAiVsAi;
     const maxTimeMs =
       this.aiDifficulty === 'max'
-        ? this.mode === 'aivai'
-          ? MAX_THINKING_AI_VS_AI_MS
-          : MAX_THINKING_HUMAN_VS_AI_MS
+        ? MAX_THINKING_CAP_MS
         : this.aiDifficulty === 'hard'
         ? HARD_THINKING_MS
         : undefined;
@@ -486,6 +492,9 @@ export class GameController {
     };
 
     this.postAiRequest(request);
+    if (this.aiDifficulty === 'max') {
+      this.startMaxThinkingTimer(requestId);
+    }
   }
 
   private cancelAiMove(): void {
@@ -494,8 +503,70 @@ export class GameController {
       window.clearTimeout(this.aiTimeout);
       this.aiTimeout = null;
     }
+    if (this.aiForceTimeout !== null) {
+      window.clearTimeout(this.aiForceTimeout);
+      this.aiForceTimeout = null;
+    }
     this.aiPendingApplyAt = 0;
-    this.ui.setAiThinking(false);
+    this.aiBestSoFarMove = null;
+    this.aiBestSoFarRequestId = null;
+    this.setAiThinkingActive(false);
+  }
+
+  private setAiThinkingActive(thinking: boolean, color?: Color): void {
+    this.aiThinkingActive = thinking;
+    this.ui.setAiThinking(thinking, color);
+    this.updateForceMoveNowVisibility();
+  }
+
+  private updateForceMoveNowVisibility(): void {
+    const show =
+      this.aiThinkingActive &&
+      this.aiDifficulty === 'max' &&
+      (this.mode === 'hvai' || this.mode === 'aivai') &&
+      this.isAiControlled(this.state.activeColor) &&
+      (this.mode !== 'aivai' || (this.aiVsAiStarted && this.aiVsAiRunning && !this.aiVsAiPaused));
+    this.ui.setForceMoveNowVisible(show);
+  }
+
+  private startMaxThinkingTimer(requestId: number): void {
+    if (this.aiForceTimeout !== null) {
+      window.clearTimeout(this.aiForceTimeout);
+    }
+    this.aiForceTimeout = window.setTimeout(() => {
+      this.aiForceTimeout = null;
+      this.forceAiMoveNow(requestId);
+    }, MAX_THINKING_CAP_MS);
+  }
+
+  private forceAiMoveNow(requestId?: number): void {
+    if (!this.aiThinkingActive || this.aiDifficulty !== 'max') {
+      return;
+    }
+    if (requestId !== undefined && requestId !== this.aiRequestId) {
+      return;
+    }
+    if (!this.isAiControlled(this.state.activeColor)) {
+      return;
+    }
+    if (
+      this.mode === 'aivai' &&
+      (!this.aiVsAiStarted || !this.aiVsAiRunning || this.aiVsAiPaused)
+    ) {
+      return;
+    }
+    const move = this.aiBestSoFarMove ?? this.selectFallbackAiMove();
+    if (!move) {
+      this.cancelAiMove();
+      return;
+    }
+    this.postAiRequest({ kind: 'stop', requestId: this.aiRequestId });
+    this.applyAndAdvance(move);
+  }
+
+  private selectFallbackAiMove(): Move | null {
+    const legalMoves = getAllLegalMoves(this.state, this.state.activeColor);
+    return legalMoves[0] ?? null;
   }
 
   private setAiEnabled(enabled: boolean): void {
@@ -525,6 +596,7 @@ export class GameController {
     this.aiDifficulty = difficulty;
     this.persistPreferences();
     this.updatePlayerNames();
+    this.updateForceMoveNowVisibility();
   }
 
   private setAiDelay(delayMs: number): void {
@@ -979,6 +1051,9 @@ export class GameController {
       worker.postMessage(request);
       return;
     }
+    if (request.kind === 'stop') {
+      return;
+    }
     let response: AiWorkerResponse;
     if (request.kind === 'hint') {
       response = {
@@ -1020,6 +1095,10 @@ export class GameController {
   }
 
   private handleAiWorkerMessage(response: AiWorkerResponse): void {
+    if (response.kind === 'progress') {
+      this.handleAiProgress(response);
+      return;
+    }
     if (response.kind === 'hint') {
       this.handleHintWorkerResponse(response);
       return;
@@ -1045,7 +1124,9 @@ export class GameController {
     }
 
     if (!response.move) {
-      this.ui.setAiThinking(false);
+      this.setAiThinkingActive(false);
+      this.aiBestSoFarMove = null;
+      this.aiBestSoFarRequestId = null;
       this.sync();
       return;
     }
@@ -1068,7 +1149,7 @@ export class GameController {
       const preMoveState = this.cloneState(this.state);
       const recentPositions = this.getRecentPositionKeys();
       const playForWin = this.mode === 'aivai' && this.playForWinAiVsAi;
-      this.ui.setAiThinking(false);
+      this.setAiThinkingActive(false);
       this.applyAndAdvance(response.move);
       this.setLastAiMove(preMoveState, response.move, {
         playForWin,
@@ -1086,6 +1167,28 @@ export class GameController {
     }
 
     applyMove();
+  }
+
+  private handleAiProgress(response: AiProgressResponse): void {
+    if (
+      !shouldApplyAiResponse({
+        requestId: response.requestId,
+        currentRequestId: this.aiRequestId,
+        gameOver: this.gameOver,
+        mode: this.mode,
+        aiVsAiStarted: this.aiVsAiStarted,
+        aiVsAiRunning: this.aiVsAiRunning,
+        aiVsAiPaused: this.aiVsAiPaused,
+        isAiControlled: this.isAiControlled(this.state.activeColor)
+      })
+    ) {
+      return;
+    }
+    if (!response.move) {
+      return;
+    }
+    this.aiBestSoFarMove = response.move;
+    this.aiBestSoFarRequestId = response.requestId;
   }
 
   private handleHintWorkerResponse(response: AiWorkerResponse): void {

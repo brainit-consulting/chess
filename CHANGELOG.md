@@ -8,6 +8,12 @@ Semantic Versioning.
 ## [Unreleased]
 ### Changed
 
+## [1.1.52] - 2025-12-28 10:37
+### Changed
+- Cap Max Thinking at 10 seconds and auto-force the best-so-far move.
+- Add a Force Move Now control for Max Thinking AI turns.
+- Preserve best-so-far progress for stop/force requests.
+
 ## [1.1.51] - 2025-12-28 07:33
 ### Changed
 - Hard mode now respects a gameplay time budget to keep moves responsive.
