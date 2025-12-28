@@ -1364,71 +1364,79 @@ async function runEngineWithTimeout(
     meta?: { [key: string]: unknown };
   }>(
     (resolve) => {
-    const stopTimer = setTimeout(() => {
-      stopSentAt = performance.now();
-      activeWorker.postMessage({ kind: 'stop', id: requestId });
-    }, targetMs);
+      const attachedWorker = activeWorker;
+      const stopTimer = setTimeout(() => {
+        stopSentAt = performance.now();
+        attachedWorker.postMessage({ kind: 'stop', id: requestId });
+      }, targetMs);
 
-    const timeout = setTimeout(() => {
-      onTimeout();
-      timedOut = true;
-      activeWorker.terminate();
-      activeWorker = createEngineWorker();
-      onStopLatency(null);
-      resolve({ move: fallbackMove(state), worker: activeWorker, timedOut });
-    }, targetMs + graceMs);
+      const timeout = setTimeout(() => {
+        onTimeout();
+        timedOut = true;
+        cleanup();
+        attachedWorker.terminate();
+        activeWorker = createEngineWorker();
+        onStopLatency(null);
+        resolve({ move: fallbackMove(state), worker: activeWorker, timedOut });
+      }, targetMs + graceMs);
 
-    activeWorker.once(
-      'message',
-      (response: {
+      const cleanup = () => {
+        clearTimeout(stopTimer);
+        clearTimeout(timeout);
+        attachedWorker.off('message', onMessage);
+        attachedWorker.off('error', onError);
+      };
+
+      const onMessage = (response: {
         id: number;
         move: Move | null;
         error?: string;
         meta?: { [key: string]: unknown };
       }) => {
-      if (response.id !== requestId) {
-        return;
-      }
-      clearTimeout(stopTimer);
-      clearTimeout(timeout);
-      if (stopSentAt !== null) {
-        onStopLatency(Math.max(0, performance.now() - stopSentAt));
-      } else {
+        if (response.id !== requestId) {
+          return;
+        }
+        cleanup();
+        if (stopSentAt !== null) {
+          onStopLatency(Math.max(0, performance.now() - stopSentAt));
+        } else {
+          onStopLatency(null);
+        }
+        if (debug && response.meta) {
+          console.log('[BENCH_DEBUG] engine meta', response.meta);
+        }
+        resolve({
+          move: response.move,
+          error: response.error,
+          worker: activeWorker,
+          timedOut,
+          meta: response.meta
+        });
+      };
+
+      const onError = (error: unknown) => {
+        cleanup();
+        attachedWorker.terminate();
+        activeWorker = createEngineWorker();
         onStopLatency(null);
-      }
-      if (debug && response.meta) {
-        console.log('[BENCH_DEBUG] engine meta', response.meta);
-      }
-      resolve({
-        move: response.move,
-        error: response.error,
-        worker: activeWorker,
-        timedOut,
-        meta: response.meta
+        resolve({
+          move: null,
+          error: error instanceof Error ? error.message : String(error),
+          worker: activeWorker,
+          timedOut
+        });
+      };
+
+      attachedWorker.on('message', onMessage);
+      attachedWorker.on('error', onError);
+
+      attachedWorker.postMessage({
+        id: requestId,
+        state,
+        color: options.color,
+        options
       });
     });
-
-    activeWorker.once('error', (error) => {
-      clearTimeout(stopTimer);
-      clearTimeout(timeout);
-      activeWorker.terminate();
-      activeWorker = createEngineWorker();
-      onStopLatency(null);
-      resolve({
-        move: null,
-        error: error instanceof Error ? error.message : String(error),
-        worker: activeWorker,
-        timedOut
-      });
-    });
-
-    activeWorker.postMessage({
-      id: requestId,
-      state,
-      color: options.color,
-      options
-    });
-  });
 
   return result;
 }
