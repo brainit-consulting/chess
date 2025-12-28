@@ -8,15 +8,13 @@ Semantic Versioning.
 ## [Unreleased]
 ### Changed
 
-## [1.1.51] - 2025-12-27 17:30
-### Added
-- Scorpion Chess Engine branding assets (logos) for the UI header.
-- Benchmark report timing split metrics (timed-out move counts, avg/max ms breakdown).
+## [1.1.51] - 2025-12-28 07:33
 ### Changed
-- Rename the main UI title to "SCORPION 3D CHESS" and update the header logo.
-- Update the in-UI version label to v1.1.50 as part of the branding release.
-- Benchmark harness: add per-move timing flags in meta logs and improved reporting detail.
-- Hard mode: add a time budget guard (best-so-far return) and stop-request support for worker runs.
+- Hard mode now respects a gameplay time budget to keep moves responsive.
+- Timed hard search checks now propagate through alpha-beta and quiescence for clean early exits.
+- Benchmark harness: clean up per-request worker listeners to prevent MaxListeners warnings.
+- Quick-run state handling now auto-resets on invalid/empty state and writes atomically.
+- BrainIT vs Stockfish report notes the series reset after a corrupted run-state file.
 
 ## [1.1.49] - 2025-12-27 09:19
 ### Added
