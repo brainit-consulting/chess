@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Scorpion Self-Play Analysis Report (Chunk 1)</title>
+  <style>
+    :root{
+      --bg:#0b0b10; --card:#12121a; --text:#f2f2f6; --muted:#b7b7c6;
+      --accent:#7B3FA0; --accent2:#4CAF50; --border:rgba(255,255,255,.10);
+      --shadow:0 18px 60px rgba(0,0,0,.45);
+      --mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+      --sans:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+    }
+    body{
+      margin:0;
+      background: radial-gradient(1200px 700px at 15% 0%, rgba(123,63,160,.25), transparent 55%),
+                  radial-gradient(1000px 650px at 85% 10%, rgba(76,175,80,.18), transparent 50%),
+                  var(--bg);
+      color:var(--text);
+      font-family:var(--sans);
+      line-height:1.6;
+    }
+    .wrap{max-width:980px; margin:0 auto; padding:42px 18px 72px;}
+    header{display:flex; gap:14px; align-items:center; justify-content:space-between; flex-wrap:wrap; margin-bottom:18px;}
+    h1{font-size:clamp(28px, 4.2vw, 44px); margin:0; letter-spacing:-0.02em;}
+    .sub{color:var(--muted); margin:6px 0 0; font-size:15px; max-width:780px;}
+    .chip{
+      display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:999px;
+      border:1px solid var(--border); background:rgba(18,18,26,.65);
+      box-shadow:0 10px 28px rgba(0,0,0,.25); font-size:13px; color:var(--muted); white-space:nowrap;
+    }
+    .dot{width:10px; height:10px; border-radius:999px; background:linear-gradient(135deg,var(--accent),var(--accent2));
+      box-shadow:0 0 0 4px rgba(123,63,160,.14);}
+    .card{
+      background:rgba(18,18,26,.86); border:1px solid var(--border); border-radius:18px;
+      padding:22px 22px; box-shadow:var(--shadow); margin-top:18px;
+    }
+    h2{margin:0 0 10px; font-size:22px; letter-spacing:-0.01em;}
+    h3{margin:18px 0 8px; font-size:17px; color:#fff;}
+    p{margin:10px 0;}
+    ul{margin:10px 0 0 20px; padding:0;}
+    li{margin:8px 0;}
+    code, pre{font-family:var(--mono);}
+    pre{
+      background:rgba(255,255,255,.04);
+      border:1px solid var(--border);
+      border-radius:14px;
+      padding:14px 14px;
+      overflow:auto;
+    }
+    .kpi{display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px; margin-top:12px;}
+    .kpi .box{
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.03);
+      border-radius:14px;
+      padding:14px 14px;
+    }
+    .kpi .label{color:var(--muted); font-size:12px; margin-bottom:6px;}
+    .kpi .value{font-size:18px; font-weight:700;}
+    .table{width:100%; border-collapse:collapse; margin-top:12px; border-radius:14px; overflow:hidden; border:1px solid var(--border);}
+    .table th,.table td{padding:12px; border-bottom:1px solid var(--border); font-size:14px; vertical-align:top;}
+    .table th{color:var(--muted); font-weight:600; background:rgba(255,255,255,.03);}
+    .callout{
+      border-left:4px solid var(--accent);
+      padding:14px 14px 14px 16px;
+      background:rgba(123,63,160,.12);
+      border-radius:14px;
+      margin-top:14px;
+      color:var(--muted);
+    }
+    footer{margin-top:26px; color:var(--muted); font-size:13px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:12px;}
+    .muted{color:var(--muted);}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>Scorpion Self-Play Analysis Report</h1>
+        <p class="sub">
+          Chunk 1 review: <strong>Hard Mode (800ms)</strong> vs <strong>Max Thinking (10,000ms)</strong>,
+          swap enabled, FEN suite enabled. Goal: validate that longer thinking time produces
+          stronger play characteristics without changing engine logic.
+        </p>
+      </div>
+      <div class="chip"><span class="dot"></span><span>Scorpion 3D Chess • v1.1.52+</span></div>
+    </header>
+
+    <div class="card">
+      <h2>Run configuration</h2>
+      <table class="table">
+        <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td><strong>hardMs</strong></td><td>800</td></tr>
+          <tr><td><strong>maxMs</strong></td><td>10000</td></tr>
+          <tr><td><strong>batch</strong></td><td>5 (swap=true → 10 total games)</td></tr>
+          <tr><td><strong>swap</strong></td><td>true</td></tr>
+          <tr><td><strong>fenSuite</strong></td><td>true</td></tr>
+          <tr><td><strong>seed</strong></td><td>1000</td></tr>
+          <tr><td><strong>output</strong></td><td><code>benchmarks/selfplay/run-chunk1-10000ms/</code></td></tr>
+        </tbody>
+      </table>
+      <div class="callout">
+        This self-play benchmark keeps the engine unchanged and isolates <em>time budget</em> as the only variable.
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Headline results (Hard perspective)</h2>
+      <div class="kpi">
+        <div class="box">
+          <div class="label">Total W/D/L (10 games)</div>
+          <div class="value">2 – 8 – 0</div>
+          <div class="muted">Hard did not lose</div>
+        </div>
+        <div class="box">
+          <div class="label">Average game length</div>
+          <div class="value">101.6 plies</div>
+          <div class="muted">Longer games at 10s Max</div>
+        </div>
+        <div class="box">
+          <div class="label">Repetition rate / Mate rate</div>
+          <div class="value">70% / 20%</div>
+          <div class="muted">Many draws, some decisive finishes</div>
+        </div>
+      </div>
+
+      <h3>Segment breakdown</h3>
+      <table class="table">
+        <thead><tr><th>Segment</th><th>W/D/L</th><th>Avg plies</th><th>End reasons</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>Hard as White vs Max</strong></td>
+            <td>2 – 3 – 0</td>
+            <td>72.2</td>
+            <td>mate=2, repetition=3</td>
+          </tr>
+          <tr>
+            <td><strong>Max as White vs Hard</strong></td>
+            <td>0 – 5 – 0</td>
+            <td>131.0</td>
+            <td>repetition=4, other=1</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Timing</h3>
+      <table class="table">
+        <thead><tr><th>Side</th><th>Avg</th><th>Max</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Hard</strong></td><td>774.6 ms</td><td>900.7 ms</td></tr>
+          <tr><td><strong>Max</strong></td><td>9562.8 ms</td><td>10099.7 ms</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Decisiveness</h3>
+      <div class="kpi">
+        <div class="box">
+          <div class="label">Avg captures</div>
+          <div class="value">16.5</div>
+        </div>
+        <div class="box">
+          <div class="label">Avg pawn moves</div>
+          <div class="value">22.9</div>
+        </div>
+        <div class="box">
+          <div class="label">Early repetitions (&lt;30 ply)</div>
+          <div class="value">4</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Interpretation</h2>
+      <ul>
+        <li><strong>Max Thinking is not weaker</strong> in this chunk (no losses).</li>
+        <li><strong>Longer games</strong> and fewer forcing finishes on the Max-as-White segment suggest stronger defense / fewer tactical collapses.</li>
+        <li><strong>High repetition</strong> indicates both sides often converge on drawing lines; common in self-play at similar strength.</li>
+        <li>For human play, Max Thinking should generally feel tougher because it has more time to avoid blunders and hold positions.</li>
+      </ul>
+      <div class="callout">
+        Best next step: run Chunk 2 with a different seed to confirm the pattern isn’t seed-dependent.
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Recommended next run (Chunk 2)</h2>
+      <p class="muted">Same settings, new seed, new runId:</p>
+      <pre><code>npm run bench:selfplay -- --hardMs 800 --maxMs 10000 --batch 5 --swap --seed 1001 --fenSuite --runId chunk2-10000ms</code></pre>
+      <p class="muted">
+        After Chunk 2, you’ll have 20 total games at 10s Max and can compare stability across seeds.
+      </p>
+    </div>
+
+    <footer>
+      <div>Generated: 2025-12-28</div>
+      <div class="muted"><strong>Scorpion Self-Play Analysis Report</strong> — Chunk 1</div>
+    </footer>
+  </div>
+</body>
+</html>
