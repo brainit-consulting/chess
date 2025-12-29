@@ -1,7 +1,7 @@
 # Engine Mechanics (Current)
 
 This is a code-backed summary of how the Scorpion Chess Engine currently works and where the mechanics live.
-Version: 1.1.52
+Version: 1.1.53
 
 ## Code map (by subsystem)
 

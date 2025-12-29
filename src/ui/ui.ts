@@ -11,7 +11,7 @@ import engineLogoUrl from '../../graphics/ScorpionChessEngineLogo.png';
 
 const PLAYER_GUIDE_URL = `${import.meta.env.BASE_URL}player-user-guide.md`;
 const LIVE_URL = 'https://brainit-consulting.github.io/chess/';
-const APP_VERSION = 'v1.1.52';
+const APP_VERSION = 'v1.1.53';
 
 export type UiState = {
   visible: boolean;
@@ -1199,12 +1199,12 @@ export class GameUI {
     analyzerLink.href = ANALYZER_OPTIONS.buddy.url;
     analyzerLink.target = '_blank';
     analyzerLink.rel = 'noopener noreferrer';
-    analyzerLink.title = 'Open Chess Game Buddy';
-    analyzerLink.setAttribute('aria-label', 'Open Chess Game Buddy');
+    analyzerLink.title = 'Open Scorpion Chess Game Analyzer';
+    analyzerLink.setAttribute('aria-label', 'Open Scorpion Chess Game Analyzer');
     const analyzerLogo = document.createElement('img');
     analyzerLogo.className = 'ui-logo ui-logo-analyzer';
     analyzerLogo.src = analyzerLogoUrl;
-    analyzerLogo.alt = 'BrainIT Chess Game Analyzer';
+    analyzerLogo.alt = 'Scorpion Chess Game Analyzer';
     analyzerLogo.loading = 'lazy';
     analyzerLink.append(analyzerLogo);
     analyzerBrand.append(analyzerLink);
@@ -1227,8 +1227,8 @@ export class GameUI {
       this.handlers.onAnalyzeGame()
     );
     this.summaryAnalyzeButton.classList.add('ghost');
-    this.summaryAnalyzeButton.title = 'Analyze in Chess Game Buddy';
-    this.summaryAnalyzeButton.setAttribute('aria-label', 'Analyze in Chess Game Buddy');
+    this.summaryAnalyzeButton.title = 'Analyze in Scorpion Chess Game Analyzer';
+    this.summaryAnalyzeButton.setAttribute('aria-label', 'Analyze in Scorpion Chess Game Analyzer');
     this.summaryPlainHtmlExportButton = this.makeButton('Export Plain HTML', () =>
       this.handlers.onExportPlainHistoryHtml()
     );

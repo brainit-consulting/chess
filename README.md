@@ -6,7 +6,7 @@ Live demo: https://brainit-consulting.github.io/chess/
 Shareable play link: https://brainit-consulting.github.io/chess/
 
 GitHub Pages: Settings -> Pages -> Source: GitHub Actions
-Current UI version: v1.1.52
+Current UI version: v1.1.53
 
 The UI shows player names (including AI labels) and a running captured-material score.
 You can hide the UI panel or collapse it to a compact view from the header controls.
@@ -56,7 +56,7 @@ npm run test:run
 ## Analyze Your Games
 
 - Export PGN from the Game History panel or the game-over summary.
-- Use the Analyzer dropdown (BrainIT Chess Buddy Analyzer, Chess Analysis Pro, Chess Engine AI) or the game-over "Analyze Game" button, then paste or import the PGN to replay and analyze.
+- Use the Analyzer dropdown (Scorpion Chess Game Analyzer, Chess Analysis Pro, Chess Engine AI) or the game-over "Analyze Game" button, then paste or import the PGN to replay and analyze.
 
 ## Benchmarks
 

@@ -147,7 +147,7 @@ The game-over summary also includes:
 
 Use the **Analyzer** dropdown in the main UI to choose:
 
-- **BrainIT Chess Buddy Analyzer**
+- **Scorpion Chess Game Analyzer**
 - **Chess Analysis Pro**
 - **Chess Engine AI**
 
