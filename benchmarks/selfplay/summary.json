@@ -1,8 +1,8 @@
 {
-  "runId": "chunk2-10000ms",
-  "startedAt": "2025-12-29T01:09:20.193Z",
-  "finishedAt": "2025-12-29T02:56:07.670Z",
-  "commitSha": "83560ee5a30d44f29f9d3a7e99d688065d48d298",
+  "runId": "chunk3-10000ms",
+  "startedAt": "2025-12-29T12:16:57.126Z",
+  "finishedAt": "2025-12-29T13:44:55.643Z",
+  "commitSha": "032685e356aa2983665247a92554cb291ba2614c",
   "config": {
     "batchSize": 5,
     "hardMs": 800,
@@ -10,42 +10,76 @@
     "maxPlies": 200,
     "swap": true,
     "fenSuite": true,
-    "baseSeed": 1000,
-    "outDir": "H:\\chess\\benchmarks\\selfplay\\run-chunk2-10000ms"
+    "baseSeed": 2000,
+    "outDir": "H:\\chess\\benchmarks\\selfplay\\run-chunk3-10000ms"
   },
   "totals": {
     "games": 10,
-    "wins": 1,
+    "wins": 2,
     "draws": 7,
-    "losses": 2,
-    "avgPlies": 121.2,
-    "repetitionRate": 50,
+    "losses": 1,
+    "avgPlies": 94.3,
+    "repetitionRate": 60,
     "mateRate": 30,
-    "avgCapturesPerGame": 20.5,
-    "avgPawnMovesPerGame": 20.2,
-    "earlyRepetitionCount": 1,
-    "avgRepetitionPly": 74.5,
+    "avgCapturesPerGame": 16.9,
+    "avgPawnMovesPerGame": 20.4,
+    "earlyRepetitionCount": 2,
+    "avgRepetitionPly": 72,
     "endReasons": {
       "mate": 3,
       "stalemate": 0,
-      "repetition": 5,
+      "repetition": 6,
       "fiftyMove": 0,
-      "other": 2
+      "other": 1
     }
   },
   "segments": {
     "hardAsWhite": {
       "games": 5,
       "wins": 1,
+      "draws": 3,
+      "losses": 1,
+      "avgPlies": 61,
+      "repetitionRate": 60,
+      "mateRate": 40,
+      "avgCapturesPerGame": 13.8,
+      "avgPawnMovesPerGame": 11.8,
+      "earlyRepetitionCount": 1,
+      "avgRepetitionPly": 49.75,
+      "endReasons": {
+        "mate": 2,
+        "stalemate": 0,
+        "repetition": 3,
+        "fiftyMove": 0,
+        "other": 0
+      },
+      "timing": {
+        "hard": {
+          "avgMs": 806.8975655844181,
+          "maxMs": 897.3133999999845,
+          "timeouts": 44,
+          "moveCount": 154
+        },
+        "max": {
+          "avgMs": 9998.821901324502,
+          "maxMs": 10097.77409999998,
+          "timeouts": 42,
+          "moveCount": 151
+        }
+      }
+    },
+    "hardAsBlack": {
+      "games": 5,
+      "wins": 1,
       "draws": 4,
       "losses": 0,
-      "avgPlies": 124.2,
+      "avgPlies": 127.6,
       "repetitionRate": 60,
       "mateRate": 20,
-      "avgCapturesPerGame": 20.8,
-      "avgPawnMovesPerGame": 24.2,
+      "avgCapturesPerGame": 20,
+      "avgPawnMovesPerGame": 29,
       "earlyRepetitionCount": 1,
-      "avgRepetitionPly": 65.25,
+      "avgRepetitionPly": 94.25,
       "endReasons": {
         "mate": 1,
         "stalemate": 0,
@@ -55,66 +89,32 @@
       },
       "timing": {
         "hard": {
-          "avgMs": 765.9351708333273,
-          "maxMs": 987.6264000001829,
-          "timeouts": 87,
-          "moveCount": 312
+          "avgMs": 788.4559493710626,
+          "maxMs": 899.4653000002727,
+          "timeouts": 65,
+          "moveCount": 318
         },
         "max": {
-          "avgMs": 9634.743780258896,
-          "maxMs": 10126.544900000095,
-          "timeouts": 86,
-          "moveCount": 309
-        }
-      }
-    },
-    "hardAsBlack": {
-      "games": 5,
-      "wins": 0,
-      "draws": 3,
-      "losses": 2,
-      "avgPlies": 118.2,
-      "repetitionRate": 40,
-      "mateRate": 40,
-      "avgCapturesPerGame": 20.2,
-      "avgPawnMovesPerGame": 16.2,
-      "earlyRepetitionCount": 0,
-      "avgRepetitionPly": 93,
-      "endReasons": {
-        "mate": 2,
-        "stalemate": 0,
-        "repetition": 2,
-        "fiftyMove": 0,
-        "other": 1
-      },
-      "timing": {
-        "hard": {
-          "avgMs": 762.6307598639241,
-          "maxMs": 897.3464999999851,
-          "timeouts": 38,
-          "moveCount": 294
-        },
-        "max": {
-          "avgMs": 9603.046554208766,
-          "maxMs": 10098.159099999815,
-          "timeouts": 42,
-          "moveCount": 297
+          "avgMs": 9977.297881562514,
+          "maxMs": 10098.016000000294,
+          "timeouts": 69,
+          "moveCount": 320
         }
       }
     }
   },
   "timing": {
     "hard": {
-      "avgMs": 764.3320407590625,
-      "maxMs": 987.6264000001829,
-      "timeouts": 125,
-      "moveCount": 606
+      "avgMs": 794.4729173728778,
+      "maxMs": 899.4653000002727,
+      "timeouts": 109,
+      "moveCount": 472
     },
     "max": {
-      "avgMs": 9619.209001155119,
-      "maxMs": 10126.544900000095,
-      "timeouts": 128,
-      "moveCount": 606
+      "avgMs": 9984.19836348196,
+      "maxMs": 10098.016000000294,
+      "timeouts": 111,
+      "moveCount": 471
     }
   }
 }
