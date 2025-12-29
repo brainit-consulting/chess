@@ -68,9 +68,12 @@ Version: 1.1.52
   - Material sum (PIECE_VALUES).
   - Mobility (legal move count diff * `MOBILITY_WEIGHT`).
   - Check penalty (`CHECK_PENALTY`).
+  - King exposure penalties after move 10 when uncastled or centrally stuck without castling rights (scaled when queens remain).
+  - File pressure: rooks/queens on open or semi-open files toward the king, and king penalties on open files vs enemy rook/queen.
 - Max-thinking extras (`evaluateMaxThinking`):
   - Opening king safety (castling/home bonuses, king move penalty, pawn shield).
   - Early queen development penalty.
+  - Extra king-ring pawn shield penalty around the king file.
   - Knight and bishop PST tables.
 
 ## Draw / repetition mechanics

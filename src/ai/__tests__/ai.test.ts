@@ -20,6 +20,7 @@ import {
   createInitialState,
   getAllLegalMoves,
   getLegalMovesForSquare,
+  getPieceSquares,
   getPositionKey,
   GameState,
   Piece,
@@ -517,6 +518,73 @@ describe('AI move selection', () => {
     for (let i = 1; i < depths.length; i += 1) {
       expect(depths[i]).toBe(depths[i - 1] + 1);
     }
+  });
+
+  it('penalizes exposed kings more when queens are on the board', () => {
+    const safe = createEmptyState();
+    addPiece(safe, 'king', 'w', sq(4, 0));
+    addPiece(safe, 'king', 'b', sq(4, 7));
+    addPiece(safe, 'queen', 'w', sq(3, 0));
+    addPiece(safe, 'queen', 'b', sq(3, 7));
+    safe.castlingRights = { wK: true, wQ: true, bK: true, bQ: true };
+    safe.fullmoveNumber = 15;
+
+    const exposed = cloneState(safe);
+    const whiteKing = [...exposed.pieces.values()].find(
+      (piece) => piece.type === 'king' && piece.color === 'w'
+    );
+    if (!whiteKing) {
+      throw new Error('Expected white king in exposure test.');
+    }
+    exposed.pieces.set(whiteKing.id, { ...whiteKing });
+    const whiteSquare = { file: 4, rank: 1 };
+    exposed.board[0][4] = null;
+    exposed.board[1][4] = whiteKing.id;
+    exposed.pieces.get(whiteKing.id)!.hasMoved = true;
+    exposed.castlingRights = { wK: false, wQ: false, bK: true, bQ: true };
+
+    const exposedNoQueens = cloneState(exposed);
+    const queenSquares = getPieceSquares(exposedNoQueens);
+    for (const piece of [...exposedNoQueens.pieces.values()]) {
+      if (piece.type === 'queen') {
+        const square = queenSquares.get(piece.id);
+        if (square) {
+          exposedNoQueens.board[square.rank][square.file] = null;
+        }
+        exposedNoQueens.pieces.delete(piece.id);
+      }
+    }
+
+    const safeEval = evaluateState(safe, 'w');
+    const exposedEval = evaluateState(exposed, 'w');
+    const exposedNoQueensEval = evaluateState(exposedNoQueens, 'w');
+
+    expect(exposedEval).toBeLessThan(safeEval);
+    expect(exposedNoQueensEval).toBeGreaterThan(exposedEval);
+  });
+
+  it('rewards rook pressure on open files toward the king', () => {
+    const pressure = createEmptyState();
+    addPiece(pressure, 'king', 'w', sq(6, 0));
+    addPiece(pressure, 'king', 'b', sq(4, 7));
+    addPiece(pressure, 'rook', 'w', sq(3, 1));
+    pressure.fullmoveNumber = 15;
+
+    const noPressure = cloneState(pressure);
+    const rook = [...noPressure.pieces.values()].find(
+      (piece) => piece.type === 'rook' && piece.color === 'w'
+    );
+    if (!rook) {
+      throw new Error('Expected rook in file pressure test.');
+    }
+    noPressure.pieces.set(rook.id, { ...rook });
+    noPressure.board[1][3] = null;
+    noPressure.board[1][0] = rook.id;
+
+    const pressureEval = evaluateState(pressure, 'w');
+    const noPressureEval = evaluateState(noPressure, 'w');
+
+    expect(pressureEval).toBeGreaterThan(noPressureEval);
   });
 
   it('retries aspiration windows on score swings (deterministic)', () => {

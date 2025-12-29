@@ -25,6 +25,17 @@ const KING_CASTLED_BONUS = 35;
 const KING_MOVE_PENALTY = 8;
 const PAWN_SHIELD_PENALTY = 8;
 const EARLY_QUEEN_PENALTY = 20;
+const KING_UNCASTLED_PENALTY = 12;
+const KING_CENTRAL_PENALTY = 10;
+const KING_QUEEN_PRESENT_MULTIPLIER = 1.4;
+const KING_PHASE_START = 10;
+const KING_PHASE_END = 20;
+const ROOK_OPEN_FILE_BONUS = 10;
+const ROOK_SEMI_OPEN_FILE_BONUS = 6;
+const QUEEN_OPEN_FILE_BONUS = 6;
+const QUEEN_SEMI_OPEN_FILE_BONUS = 4;
+const KING_OPEN_FILE_PENALTY = 12;
+const MAX_KING_RING_PAWN_PENALTY = 5;
 
 const KNIGHT_PST = [
   -50, -40, -30, -30, -30, -30, -40, -50,
@@ -52,15 +63,46 @@ type EvalOptions = {
   maxThinking?: boolean;
 };
 
+type EvalContext = {
+  squares: Map<number, { file: number; rank: number }>;
+  pawnFiles: Record<Color, boolean[]>;
+  rookQueenFiles: Record<Color, boolean[]>;
+  queenCount: number;
+  phaseFactor: number;
+};
+
 export function evaluateState(
   state: GameState,
   perspective: Color,
   options: EvalOptions = {}
 ): number {
+  const squares = getPieceSquares(state);
+  const pawnFiles: Record<Color, boolean[]> = {
+    w: new Array(8).fill(false),
+    b: new Array(8).fill(false)
+  };
+  const rookQueenFiles: Record<Color, boolean[]> = {
+    w: new Array(8).fill(false),
+    b: new Array(8).fill(false)
+  };
+  let queenCount = 0;
   let material = 0;
   for (const piece of state.pieces.values()) {
     const value = PIECE_VALUES[piece.type];
     material += piece.color === 'w' ? value : -value;
+    if (piece.type === 'queen') {
+      queenCount += 1;
+    }
+    const square = squares.get(piece.id);
+    if (!square) {
+      continue;
+    }
+    if (piece.type === 'pawn') {
+      pawnFiles[piece.color][square.file] = true;
+    }
+    if (piece.type === 'rook' || piece.type === 'queen') {
+      rookQueenFiles[piece.color][square.file] = true;
+    }
   }
 
   const whiteMoves = getAllLegalMoves(state, 'w').length;
@@ -75,21 +117,176 @@ export function evaluateState(
     checkScore += CHECK_PENALTY;
   }
 
-  const maxScore = options.maxThinking ? evaluateMaxThinking(state) : 0;
-  const scoreForWhite = material + mobility + checkScore + maxScore;
+  const context: EvalContext = {
+    squares,
+    pawnFiles,
+    rookQueenFiles,
+    queenCount,
+    phaseFactor: getPhaseFactor(state.fullmoveNumber)
+  };
+  const kingExposure =
+    kingExposureScore(state, context, 'w') - kingExposureScore(state, context, 'b');
+  const filePressure = filePressureScore(state, context);
+  const maxScore = options.maxThinking ? evaluateMaxThinking(state, context) : 0;
+  const scoreForWhite = material + mobility + checkScore + kingExposure + filePressure + maxScore;
   return perspective === 'w' ? scoreForWhite : -scoreForWhite;
 }
 
-function evaluateMaxThinking(state: GameState): number {
-  const squares = getPieceSquares(state);
+function evaluateMaxThinking(state: GameState, context: EvalContext): number {
+  const squares = context.squares;
   return (
     kingSafetyScore(state, squares, 'w') -
     kingSafetyScore(state, squares, 'b') +
+    maxKingShieldScore(state, context, 'w') -
+    maxKingShieldScore(state, context, 'b') +
     earlyQueenScore(state, squares, 'w') -
     earlyQueenScore(state, squares, 'b') +
     pieceSquareScore(state, squares, 'w') -
     pieceSquareScore(state, squares, 'b')
   );
+}
+
+function getPhaseFactor(fullmoveNumber: number): number {
+  if (fullmoveNumber <= KING_PHASE_START) {
+    return 0;
+  }
+  if (fullmoveNumber >= KING_PHASE_END) {
+    return 1;
+  }
+  return (fullmoveNumber - KING_PHASE_START) / (KING_PHASE_END - KING_PHASE_START);
+}
+
+function kingExposureScore(state: GameState, context: EvalContext, color: Color): number {
+  if (context.phaseFactor <= 0) {
+    return 0;
+  }
+  const kingSquare = findKingSquare(state, color);
+  if (!kingSquare) {
+    return 0;
+  }
+  const homeRank = color === 'w' ? 0 : 7;
+  const castled =
+    (color === 'w' &&
+      kingSquare.rank === 0 &&
+      (kingSquare.file === 2 || kingSquare.file === 6)) ||
+    (color === 'b' &&
+      kingSquare.rank === 7 &&
+      (kingSquare.file === 2 || kingSquare.file === 6));
+  const onStart = kingSquare.file === 4 && kingSquare.rank === homeRank;
+  const hasCastlingRights =
+    color === 'w'
+      ? state.castlingRights.wK || state.castlingRights.wQ
+      : state.castlingRights.bK || state.castlingRights.bQ;
+  const queenMultiplier =
+    context.queenCount > 0 ? KING_QUEEN_PRESENT_MULTIPLIER : 1;
+
+  let penalty = 0;
+  if (!castled && !onStart) {
+    penalty -= KING_UNCASTLED_PENALTY;
+  }
+  const isCentralFile = kingSquare.file >= 2 && kingSquare.file <= 4;
+  if (!hasCastlingRights && isCentralFile) {
+    penalty -= KING_CENTRAL_PENALTY;
+  }
+
+  return penalty * context.phaseFactor * queenMultiplier;
+}
+
+function filePressureScore(state: GameState, context: EvalContext): number {
+  const whiteKing = findKingSquare(state, 'w');
+  const blackKing = findKingSquare(state, 'b');
+  if (!whiteKing || !blackKing) {
+    return 0;
+  }
+  const phaseScale = 0.5 + 0.5 * context.phaseFactor;
+  const queenMultiplier =
+    context.queenCount > 0 ? KING_QUEEN_PRESENT_MULTIPLIER : 1;
+  const isOpenFile = (file: number) =>
+    !context.pawnFiles.w[file] && !context.pawnFiles.b[file];
+  const isSemiOpenFile = (file: number, color: Color) =>
+    !context.pawnFiles[color][file] && context.pawnFiles[opponentColor(color)][file];
+
+  let score = 0;
+  for (const piece of state.pieces.values()) {
+    if (piece.type !== 'rook' && piece.type !== 'queen') {
+      continue;
+    }
+    const square = context.squares.get(piece.id);
+    if (!square) {
+      continue;
+    }
+    const file = square.file;
+    const open = isOpenFile(file);
+    const semiOpen = isSemiOpenFile(file, piece.color);
+    if (!open && !semiOpen) {
+      continue;
+    }
+    const targetFile = piece.color === 'w' ? blackKing.file : whiteKing.file;
+    if (Math.abs(file - targetFile) > 1) {
+      continue;
+    }
+    const bonus =
+      piece.type === 'rook'
+        ? open
+          ? ROOK_OPEN_FILE_BONUS
+          : ROOK_SEMI_OPEN_FILE_BONUS
+        : open
+          ? QUEEN_OPEN_FILE_BONUS
+          : QUEEN_SEMI_OPEN_FILE_BONUS;
+    score += (piece.color === 'w' ? bonus : -bonus) * phaseScale;
+  }
+
+  if (isOpenFile(whiteKing.file)) {
+    if (hasRookQueenOnFile(context.rookQueenFiles.b, whiteKing.file)) {
+      score -= KING_OPEN_FILE_PENALTY * phaseScale * queenMultiplier;
+    }
+  }
+  if (isOpenFile(blackKing.file)) {
+    if (hasRookQueenOnFile(context.rookQueenFiles.w, blackKing.file)) {
+      score += KING_OPEN_FILE_PENALTY * phaseScale * queenMultiplier;
+    }
+  }
+
+  return score;
+}
+
+function maxKingShieldScore(state: GameState, context: EvalContext, color: Color): number {
+  if (context.phaseFactor <= 0) {
+    return 0;
+  }
+  const kingSquare = findKingSquare(state, color);
+  if (!kingSquare) {
+    return 0;
+  }
+  const queenMultiplier =
+    context.queenCount > 0 ? KING_QUEEN_PRESENT_MULTIPLIER : 1;
+  let missing = 0;
+  for (const file of [kingSquare.file - 1, kingSquare.file, kingSquare.file + 1]) {
+    if (file < 0 || file > 7) {
+      continue;
+    }
+    if (!context.pawnFiles[color][file]) {
+      missing += 1;
+    }
+  }
+  return -missing * MAX_KING_RING_PAWN_PENALTY * context.phaseFactor * queenMultiplier;
+}
+
+function hasRookQueenOnFile(files: boolean[], file: number): boolean {
+  for (const offset of [-1, 0, 1]) {
+    const target = file + offset;
+    if (target < 0 || target > 7) {
+      continue;
+    }
+    if (files[target]) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function opponentColor(color: Color): Color {
+  return color === 'w' ? 'b' : 'w';
 }
 
 function kingSafetyScore(
