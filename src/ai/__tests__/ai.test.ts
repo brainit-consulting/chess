@@ -454,6 +454,108 @@ describe('AI move selection', () => {
     expect(withNudge[0].move).toBe(altMove);
   });
 
+  it('uses hard micro-quiescence to avoid losing captures', () => {
+    const state = createEmptyState();
+    addPiece(state, 'king', 'w', sq(6, 0));
+    addPiece(state, 'king', 'b', sq(6, 7));
+    addPiece(state, 'queen', 'w', sq(4, 1));
+    addPiece(state, 'rook', 'b', sq(4, 7));
+    addPiece(state, 'pawn', 'b', sq(4, 6));
+    state.activeColor = 'w';
+
+    const legalMoves = getAllLegalMoves(state, 'w');
+    const capture = legalMoves.find(
+      (move) => move.from.file === 4 && move.from.rank === 1 && move.to.file === 4 && move.to.rank === 6
+    );
+    const safe = legalMoves.find(
+      (move) => move.from.file === 4 && move.from.rank === 1 && move.to.file === 4 && move.to.rank === 3
+    );
+    if (!capture || !safe) {
+      throw new Error('Expected capture and quiet queen moves for micro-quiescence test.');
+    }
+
+    const noMicroQ = search.findBestMove(state, 'w', {
+      depth: 1,
+      rng: createSequenceRng([0.9, 0.1, 0]),
+      legalMoves: [capture, safe],
+      topMoveWindow: 0,
+      fairnessWindow: 0,
+      maxThinking: false
+    });
+    const withMicroQ = search.findBestMove(state, 'w', {
+      depth: 1,
+      rng: createSequenceRng([0.9, 0.1, 0]),
+      legalMoves: [capture, safe],
+      microQuiescenceDepth: 1,
+      topMoveWindow: 0,
+      fairnessWindow: 0,
+      maxThinking: false
+    });
+
+    expect(noMicroQ).not.toBeNull();
+    expect(withMicroQ).not.toBeNull();
+    expect(sameMove(noMicroQ as Move, capture)).toBe(true);
+    expect(sameMove(withMicroQ as Move, safe)).toBe(true);
+  });
+
+  it('reuses hard TT best moves across repeated searches', () => {
+    const state = createEmptyState();
+    addPiece(state, 'king', 'w', sq(3, 3));
+    addPiece(state, 'king', 'b', sq(7, 7));
+    state.activeColor = 'w';
+
+    const moves = getAllLegalMoves(state, 'w');
+    const moveA = moves.find((move) => move.to.file === 2 && move.to.rank === 3);
+    const moveB = moves.find((move) => move.to.file === 4 && move.to.rank === 3);
+    if (!moveA || !moveB) {
+      throw new Error('Expected two comparable king moves for TT test.');
+    }
+
+    const tt = search.createHardTt();
+    const first = search.findBestMove(state, 'w', {
+      depth: 1,
+      rng: createSequenceRng([0.9, 0.1, 0]),
+      legalMoves: [moveA, moveB],
+      tt,
+      topMoveWindow: 0,
+      fairnessWindow: 0,
+      maxThinking: false
+    });
+    const second = search.findBestMove(state, 'w', {
+      depth: 1,
+      rng: createSequenceRng([0.1, 0.9, 0]),
+      legalMoves: [moveA, moveB],
+      tt,
+      topMoveWindow: 0,
+      fairnessWindow: 0,
+      maxThinking: false
+    });
+
+    expect(first).not.toBeNull();
+    expect(second).not.toBeNull();
+    const cached = tt.get(getPositionKey(state));
+    expect(cached?.bestMove).toBeDefined();
+    expect(sameMove(second as Move, cached?.bestMove as Move)).toBe(true);
+  });
+
+  it('keeps max evaluation at least as strong as hard', () => {
+    const state = createEmptyState();
+    addPiece(state, 'king', 'w', sq(6, 0));
+    addPiece(state, 'rook', 'w', sq(5, 0));
+    addPiece(state, 'pawn', 'w', sq(5, 1));
+    addPiece(state, 'pawn', 'w', sq(6, 1));
+    addPiece(state, 'pawn', 'w', sq(7, 1));
+    addPiece(state, 'queen', 'w', sq(3, 0));
+    addPiece(state, 'king', 'b', sq(4, 7));
+    addPiece(state, 'queen', 'b', sq(3, 7));
+    state.fullmoveNumber = 8;
+
+    const hardScore = evaluateState(state, 'w', { maxThinking: false });
+    const maxScore = evaluateState(state, 'w', { maxThinking: true });
+
+    expect(maxScore).toBeGreaterThanOrEqual(hardScore);
+  });
+
   it('prioritizes TT, killer, and history moves in max-thinking ordering', () => {
     const state = createEmptyState();
     addPiece(state, 'king', 'w', sq(4, 0));

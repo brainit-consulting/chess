@@ -1,5 +1,5 @@
 import { Color, GameState, Move, getAllLegalMoves } from '../rules';
-import { findBestMove, findBestMoveTimed } from './search';
+import { createHardTt, findBestMove, findBestMoveTimed } from './search';
 
 export type AiDifficulty = 'easy' | 'medium' | 'hard' | 'max';
 
@@ -10,6 +10,7 @@ export const MAX_THINKING_AI_VS_AI_MS = MAX_THINKING_CAP_MS;
 const HARD_REPETITION_PENALTY_SCALE = 1;
 const MAX_REPETITION_PENALTY_SCALE = 2;
 const HARD_REPETITION_NUDGE_SCALE = 1;
+const HARD_MICRO_QUIESCENCE_DEPTH = 1;
 
 export type AiOptions = {
   color?: Color;
@@ -75,6 +76,9 @@ export function chooseMove(state: GameState, options: AiOptions = {}): Move | nu
 
   const depth = options.depthOverride ?? DEPTH_BY_DIFFICULTY[difficulty];
   const maxTimeMs = difficulty === 'hard' ? options.maxTimeMs : undefined;
+  const tt = difficulty === 'hard' ? createHardTt() : undefined;
+  const microQuiescenceDepth =
+    difficulty === 'hard' ? HARD_MICRO_QUIESCENCE_DEPTH : undefined;
   if (difficulty === 'hard' && maxTimeMs !== undefined) {
     if (typeof process !== 'undefined' && process.env?.BENCH_DEBUG === '1') {
       console.log('TIMED_HARD_USED');
@@ -88,6 +92,8 @@ export function chooseMove(state: GameState, options: AiOptions = {}): Move | nu
       recentPositions: options.recentPositions,
       repetitionPenaltyScale,
       hardRepetitionNudgeScale,
+      microQuiescenceDepth,
+      tt,
       maxThinking: false,
       stopRequested: options.stopRequested
     });
@@ -101,6 +107,8 @@ export function chooseMove(state: GameState, options: AiOptions = {}): Move | nu
     recentPositions: options.recentPositions,
     repetitionPenaltyScale,
     hardRepetitionNudgeScale,
+    microQuiescenceDepth,
+    tt,
     maxThinking: false,
     maxTimeMs,
     stopRequested: options.stopRequested

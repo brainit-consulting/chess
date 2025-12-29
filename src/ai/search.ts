@@ -20,10 +20,11 @@ type SearchOptions = {
   repetitionPenalty?: number;
   repetitionPenaltyScale?: number;
   hardRepetitionNudgeScale?: number;
+  microQuiescenceDepth?: number;
   topMoveWindow?: number;
   fairnessWindow?: number;
   maxThinking?: boolean;
-  tt?: Map<string, TTEntry>;
+  tt?: TtStore;
   ordering?: OrderingState;
   maxTimeMs?: number;
   now?: () => number;
@@ -47,6 +48,10 @@ const REPETITION_HARD_NUDGE_WINDOW = 10;
 const REPETITION_HARD_NUDGE_THREEFOLD_MULTIPLIER = 1.5;
 const REPETITION_ESCAPE_MARGIN = 150;
 const REPETITION_AVOID_LOSS_THRESHOLD = -200;
+const HARD_TT_SIZE = 4096;
+const HARD_MICRO_QUIESCENCE_MAX_DEPTH = 2;
+const FORCING_EXTENSION_MAX_DEPTH = 2;
+const FORCING_EXTENSION_MAX_PLY = 6;
 const DEFAULT_TOP_MOVE_WINDOW = 10;
 const DEFAULT_FAIRNESS_WINDOW = 25;
 const DEFAULT_ASPIRATION_WINDOW = 35;
@@ -70,6 +75,76 @@ type TTEntry = {
   flag: TTFlag;
   bestMove?: Move;
 };
+
+type TtStore = {
+  get: (key: string) => TTEntry | undefined;
+  set: (key: string, entry: TTEntry) => void;
+  size?: number;
+};
+
+type HardTTEntry = TTEntry & {
+  key: string;
+};
+
+class HardTT implements TtStore {
+  public size = 0;
+  private entries: (HardTTEntry | null)[];
+  private mask: number;
+
+  constructor(size: number) {
+    const capacity = Math.max(2, nextPowerOfTwo(size));
+    this.entries = new Array(capacity).fill(null);
+    this.mask = capacity - 1;
+  }
+
+  get(key: string): TTEntry | undefined {
+    const entry = this.entries[hashPositionKey(key) & this.mask];
+    if (entry && entry.key === key) {
+      return entry;
+    }
+    return undefined;
+  }
+
+  set(key: string, entry: TTEntry): void {
+    const index = hashPositionKey(key) & this.mask;
+    const slot = this.entries[index];
+    if (slot && slot.key === key) {
+      slot.depth = entry.depth;
+      slot.score = entry.score;
+      slot.flag = entry.flag;
+      slot.bestMove = entry.bestMove;
+      return;
+    }
+    this.entries[index] = { ...entry, key };
+    if (!slot) {
+      this.size += 1;
+    }
+  }
+}
+
+function hashPositionKey(key: string): number {
+  let hash = 0;
+  for (let i = 0; i < key.length; i += 1) {
+    hash = (hash * 31 + key.charCodeAt(i)) | 0;
+  }
+  return hash >>> 0;
+}
+
+function nextPowerOfTwo(value: number): number {
+  let power = 1;
+  while (power < value) {
+    power <<= 1;
+  }
+  return power;
+}
+
+export function createHardTt(): TtStore {
+  return new HardTT(HARD_TT_SIZE);
+}
+
+function getTtSize(tt?: TtStore): number | undefined {
+  return tt && typeof tt.size === 'number' ? tt.size : undefined;
+}
 
 type RootScore = {
   move: Move;
@@ -256,6 +331,19 @@ export function getRepetitionTieBreakCandidatesForTest(
   );
 }
 
+function storeRootTt(options: SearchOptions, state: GameState, move: Move, score: number): void {
+  if (!options.tt) {
+    return;
+  }
+  const key = getPositionKey(state);
+  options.tt.set(key, {
+    depth: options.depth,
+    score,
+    flag: 'exact',
+    bestMove: move
+  });
+}
+
 export type OrderingState = {
   killerMoves: { primary?: Move; secondary?: Move }[];
   history: number[];
@@ -330,10 +418,7 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
   const ordering = options.maxThinking
     ? options.ordering ?? createOrderingState(options.depth + 4)
     : undefined;
-  const preferred =
-    options.maxThinking && options.tt
-      ? options.tt.get(getPositionKey(state))?.bestMove
-      : undefined;
+  const preferred = options.tt ? options.tt.get(getPositionKey(state))?.bestMove : undefined;
   const ordered = orderMoves(state, legalMoves, color, options.rng, {
     preferred,
     maxThinking: options.maxThinking,
@@ -369,7 +454,8 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
       1,
       options.tt,
       ordering,
-      shouldStopChecked
+      shouldStopChecked,
+      options.microQuiescenceDepth
     );
     const repeatKey = playForWin ? getPositionKey(next) : null;
     const repeatCount =
@@ -384,6 +470,7 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
   }
 
   if (rootScores.length === 1) {
+    storeRootTt(options, state, rootScores[0].move, rootScores[0].baseScore);
     return rootScores[0].move;
   }
 
@@ -406,7 +493,9 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
     if (windowed.length === 0) {
       const baseLeaders = scoredMoves.filter((entry) => entry.baseScore === baseBest);
       const index = Math.floor(options.rng() * baseLeaders.length);
-      return baseLeaders[index].move;
+      const chosen = baseLeaders[index];
+      storeRootTt(options, state, chosen.move, chosen.baseScore);
+      return chosen.move;
     }
   }
 
@@ -424,7 +513,9 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
   }
 
   const index = Math.floor(options.rng() * windowed.length);
-  return windowed[index].move;
+  const chosen = windowed[index];
+  storeRootTt(options, state, chosen.move, chosen.baseScore);
+  return chosen.move;
 }
 
 export function findBestMoveTimed(
@@ -447,7 +538,7 @@ export function findBestMoveTimed(
   };
   let best: Move | null = null;
   let prevScore: number | null = null;
-  const tt = options.maxThinking ? options.tt ?? new Map<string, TTEntry>() : undefined;
+  const tt = options.tt ?? (options.maxThinking ? new Map<string, TTEntry>() : undefined);
   const ordering = options.maxThinking
     ? options.ordering ?? createOrderingState(options.maxDepth + 4)
     : undefined;
@@ -485,6 +576,7 @@ export function findBestMoveTimed(
               repetitionPenalty: options.repetitionPenalty,
               repetitionPenaltyScale: options.repetitionPenaltyScale,
               hardRepetitionNudgeScale: options.hardRepetitionNudgeScale,
+              microQuiescenceDepth: options.microQuiescenceDepth,
               topMoveWindow: options.topMoveWindow,
               fairnessWindow: options.fairnessWindow,
               maxThinking: options.maxThinking,
@@ -510,6 +602,7 @@ export function findBestMoveTimed(
           repetitionPenalty: options.repetitionPenalty,
           repetitionPenaltyScale: options.repetitionPenaltyScale,
           hardRepetitionNudgeScale: options.hardRepetitionNudgeScale,
+          microQuiescenceDepth: options.microQuiescenceDepth,
           topMoveWindow: options.topMoveWindow,
           fairnessWindow: options.fairnessWindow,
           maxThinking: options.maxThinking,
@@ -546,6 +639,7 @@ export function findBestMoveTimed(
     repetitionPenalty: options.repetitionPenalty,
     repetitionPenaltyScale: options.repetitionPenaltyScale,
     hardRepetitionNudgeScale: options.hardRepetitionNudgeScale,
+    microQuiescenceDepth: options.microQuiescenceDepth,
     topMoveWindow: options.topMoveWindow,
     fairnessWindow: options.fairnessWindow,
     maxThinking: options.maxThinking,
@@ -641,7 +735,7 @@ export function findBestMoveTimedDebug(
     }
     return now() - start >= options.maxTimeMs;
   };
-  const tt = options.maxThinking ? options.tt ?? new Map<string, TTEntry>() : undefined;
+  const tt = options.tt ?? (options.maxThinking ? new Map<string, TTEntry>() : undefined);
   const ordering = options.maxThinking
     ? options.ordering ?? createOrderingState(options.maxDepth + 4)
     : undefined;
@@ -687,6 +781,7 @@ export function findBestMoveTimedDebug(
               repetitionPenalty: options.repetitionPenalty,
               repetitionPenaltyScale: options.repetitionPenaltyScale,
               hardRepetitionNudgeScale: options.hardRepetitionNudgeScale,
+              microQuiescenceDepth: options.microQuiescenceDepth,
               topMoveWindow: options.topMoveWindow,
               fairnessWindow: options.fairnessWindow,
               maxThinking: options.maxThinking,
@@ -709,11 +804,12 @@ export function findBestMoveTimedDebug(
           rng: options.rng,
           legalMoves,
           playForWin: options.playForWin,
-        recentPositions: options.recentPositions,
-        repetitionPenalty: options.repetitionPenalty,
-        repetitionPenaltyScale: options.repetitionPenaltyScale,
-        hardRepetitionNudgeScale: options.hardRepetitionNudgeScale,
-        topMoveWindow: options.topMoveWindow,
+          recentPositions: options.recentPositions,
+          repetitionPenalty: options.repetitionPenalty,
+          repetitionPenaltyScale: options.repetitionPenaltyScale,
+          hardRepetitionNudgeScale: options.hardRepetitionNudgeScale,
+          microQuiescenceDepth: options.microQuiescenceDepth,
+          topMoveWindow: options.topMoveWindow,
           fairnessWindow: options.fairnessWindow,
           maxThinking: options.maxThinking,
           tt,
@@ -752,6 +848,7 @@ export function findBestMoveTimedDebug(
         repetitionPenalty: options.repetitionPenalty,
         repetitionPenaltyScale: options.repetitionPenaltyScale,
         hardRepetitionNudgeScale: options.hardRepetitionNudgeScale,
+        microQuiescenceDepth: options.microQuiescenceDepth,
         topMoveWindow: options.topMoveWindow,
         fairnessWindow: options.fairnessWindow,
         maxThinking: options.maxThinking,
@@ -775,7 +872,7 @@ export function findBestMoveTimedDebug(
     mateInMoves: mateInfo?.mateInMoves ?? null,
     depthCompleted,
     scoredMoves,
-    ttEntries: tt?.size,
+    ttEntries: getTtSize(tt),
     aspirationRetries
   };
 }
@@ -788,9 +885,7 @@ function scoreRootMoves(
   shouldStop?: () => boolean
 ): { move: Move | null; score: number | null; scoredMoves: MateProbeScoredMove[] } {
   const ordered = orderMoves(state, options.legalMoves ?? [], color, options.rng, {
-    preferred: options.maxThinking && options.tt
-      ? options.tt.get(getPositionKey(state))?.bestMove
-      : undefined,
+    preferred: options.tt ? options.tt.get(getPositionKey(state))?.bestMove : undefined,
     maxThinking: options.maxThinking,
     ordering: options.ordering,
     ply: 0
@@ -825,7 +920,8 @@ function scoreRootMoves(
       1,
       options.tt,
       options.ordering,
-      shouldStop
+      shouldStop,
+      options.microQuiescenceDepth
     );
     const repeatKey = playForWin ? getPositionKey(next) : null;
     const repeatCount =
@@ -867,7 +963,9 @@ function scoreRootMoves(
     if (windowed.length === 0) {
       const baseLeaders = scoredMoves.filter((entry) => entry.baseScore === baseBest);
       const index = Math.floor(options.rng() * baseLeaders.length);
-      return { move: baseLeaders[index].move, score: baseLeaders[index].score, scoredMoves };
+      const chosen = baseLeaders[index];
+      storeRootTt(options, state, chosen.move, chosen.baseScore);
+      return { move: chosen.move, score: chosen.score, scoredMoves };
     }
   }
 
@@ -885,7 +983,9 @@ function scoreRootMoves(
   }
 
   const index = Math.floor(options.rng() * windowed.length);
-  return { move: windowed[index].move, score: windowed[index].score, scoredMoves };
+  const chosen = windowed[index];
+  storeRootTt(options, state, chosen.move, chosen.baseScore);
+  return { move: chosen.move, score: chosen.score, scoredMoves };
 }
 
 function getMateInfo(score: number): { mateInPly: number; mateInMoves: number } | null {
@@ -912,9 +1012,10 @@ function alphaBeta(
   rng: () => number,
   maxThinking: boolean,
   ply: number,
-  tt?: Map<string, TTEntry>,
+  tt?: TtStore,
   ordering?: OrderingState,
-  stopChecker?: () => boolean
+  stopChecker?: () => boolean,
+  microQuiescenceDepth?: number
 ): number {
   if (stopChecker && stopChecker()) {
     return evaluateState(state, maximizingColor, { maxThinking });
@@ -925,7 +1026,7 @@ function alphaBeta(
   let key: string | null = null;
   let ttBestMove: Move | undefined;
 
-  if (maxThinking && tt) {
+  if (tt) {
     key = getPositionKey(state);
     const cached = tt.get(key);
     if (cached && cached.depth >= depth) {
@@ -955,6 +1056,23 @@ function alphaBeta(
 
   if (depth <= 0) {
     if (!maxThinking) {
+      const microDepth = Math.min(
+        microQuiescenceDepth ?? 0,
+        HARD_MICRO_QUIESCENCE_MAX_DEPTH
+      );
+      if (microDepth > 0) {
+        return microQuiescence(
+          state,
+          alpha,
+          beta,
+          currentColor,
+          maximizingColor,
+          rng,
+          ply,
+          microDepth,
+          stopChecker
+        );
+      }
       return evaluateState(state, maximizingColor, { maxThinking });
     }
     return quiescence(
@@ -995,7 +1113,8 @@ function alphaBeta(
       ply + 1,
       tt,
       ordering,
-      stopChecker
+      stopChecker,
+      microQuiescenceDepth
     );
     if (maximizing) {
       if (nullScore >= beta) {
@@ -1027,7 +1146,8 @@ function alphaBeta(
       const reduction = maxThinking
         ? getLmrReduction(depth, index, inCheck, isQuietForLmr(state, move, currentColor))
         : 0;
-      const reducedDepth = Math.max(0, depth - 1 - reduction);
+      const extension = getForcingExtension(next, move, currentColor, depth, ply);
+      const reducedDepth = Math.max(0, depth - 1 - reduction + extension);
       let nextScore = alphaBeta(
         next,
         reducedDepth,
@@ -1040,7 +1160,8 @@ function alphaBeta(
         ply + 1,
         tt,
         ordering,
-        stopChecker
+        stopChecker,
+        microQuiescenceDepth
       );
       if (reduction > 0 && reducedDepth < depth - 1 && nextScore > alpha) {
         nextScore = alphaBeta(
@@ -1055,7 +1176,8 @@ function alphaBeta(
           ply + 1,
           tt,
           ordering,
-          stopChecker
+          stopChecker,
+          microQuiescenceDepth
         );
       }
       if (stopChecker && stopChecker()) {
@@ -1074,7 +1196,7 @@ function alphaBeta(
         break;
       }
     }
-    if (maxThinking && tt && key) {
+    if (tt && key) {
       tt.set(key, {
         depth,
         score: value,
@@ -1098,7 +1220,8 @@ function alphaBeta(
     const reduction = maxThinking
       ? getLmrReduction(depth, index, inCheck, isQuietForLmr(state, move, currentColor))
       : 0;
-    const reducedDepth = Math.max(0, depth - 1 - reduction);
+    const extension = getForcingExtension(next, move, currentColor, depth, ply);
+    const reducedDepth = Math.max(0, depth - 1 - reduction + extension);
     let nextScore = alphaBeta(
       next,
       reducedDepth,
@@ -1111,7 +1234,8 @@ function alphaBeta(
       ply + 1,
       tt,
       ordering,
-      stopChecker
+      stopChecker,
+      microQuiescenceDepth
     );
     if (reduction > 0 && reducedDepth < depth - 1 && nextScore < beta) {
       nextScore = alphaBeta(
@@ -1126,7 +1250,8 @@ function alphaBeta(
         ply + 1,
         tt,
         ordering,
-        stopChecker
+        stopChecker,
+        microQuiescenceDepth
       );
     }
     if (stopChecker && stopChecker()) {
@@ -1145,7 +1270,7 @@ function alphaBeta(
       break;
     }
   }
-  if (maxThinking && tt && key) {
+  if (tt && key) {
     tt.set(key, {
       depth,
       score: value,
@@ -1316,6 +1441,129 @@ function getHistoryIndex(move: Move): number {
   const from = move.from.rank * 8 + move.from.file;
   const to = move.to.rank * 8 + move.to.file;
   return from * 64 + to;
+}
+
+function microQuiescence(
+  state: GameState,
+  alpha: number,
+  beta: number,
+  currentColor: Color,
+  maximizingColor: Color,
+  rng: () => number,
+  ply: number,
+  depthLeft: number,
+  stopChecker?: () => boolean
+): number {
+  if (stopChecker && stopChecker()) {
+    return evaluateState(state, maximizingColor, { maxThinking: false });
+  }
+
+  const legalMoves = getAllLegalMoves(state, currentColor);
+  if (legalMoves.length === 0) {
+    if (isInCheck(state, currentColor)) {
+      return mateScore(currentColor, maximizingColor, ply);
+    }
+    return 0;
+  }
+
+  const standPat = evaluateState(state, maximizingColor, { maxThinking: false });
+  if (depthLeft <= 0) {
+    return standPat;
+  }
+
+  const noisyMoves = legalMoves.filter(
+    (move) => isCaptureMove(state, move) || Boolean(move.promotion)
+  );
+  if (noisyMoves.length === 0) {
+    return standPat;
+  }
+
+  const ordered = orderMoves(state, noisyMoves, currentColor, rng, {
+    maxThinking: false
+  });
+  const maximizing = currentColor === maximizingColor;
+
+  if (maximizing) {
+    let value = standPat;
+    for (const move of ordered) {
+      if (stopChecker && stopChecker()) {
+        return value;
+      }
+      const next = cloneState(state);
+      next.activeColor = currentColor;
+      applyMove(next, move);
+      value = Math.max(
+        value,
+        microQuiescence(
+          next,
+          alpha,
+          beta,
+          opponentColor(currentColor),
+          maximizingColor,
+          rng,
+          ply + 1,
+          depthLeft - 1,
+          stopChecker
+        )
+      );
+      alpha = Math.max(alpha, value);
+      if (alpha >= beta) {
+        break;
+      }
+    }
+    return value;
+  }
+
+  let value = standPat;
+  for (const move of ordered) {
+    if (stopChecker && stopChecker()) {
+      return value;
+    }
+    const next = cloneState(state);
+    next.activeColor = currentColor;
+    applyMove(next, move);
+    value = Math.min(
+      value,
+      microQuiescence(
+        next,
+        alpha,
+        beta,
+        opponentColor(currentColor),
+        maximizingColor,
+        rng,
+        ply + 1,
+        depthLeft - 1,
+        stopChecker
+      )
+    );
+    beta = Math.min(beta, value);
+    if (alpha >= beta) {
+      break;
+    }
+  }
+  return value;
+}
+
+function getForcingExtension(
+  next: GameState,
+  move: Move,
+  currentColor: Color,
+  depth: number,
+  ply: number
+): number {
+  if (depth <= 0) {
+    return 0;
+  }
+  if (depth > FORCING_EXTENSION_MAX_DEPTH || ply >= FORCING_EXTENSION_MAX_PLY) {
+    return 0;
+  }
+  if (move.promotion) {
+    return 1;
+  }
+  if (isInCheck(next, opponentColor(currentColor))) {
+    return 1;
+  }
+  return 0;
 }
 
 function quiescence(

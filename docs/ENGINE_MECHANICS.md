@@ -21,10 +21,12 @@ Version: 1.1.52
     - `findBestMoveTimed` (iterative deepening to `maxDepth` with time cap)
     - `alphaBeta` (principal search with optional null-move + LMR when `maxThinking`)
     - `quiescence` (max-thinking only; capture/check filtering + SEE pruning)
+    - Hard micro-quiescence (capture/promotions only at leaf; depth 1-2 max)
+    - Forcing extensions (+1 ply for checks/promotions; depth/ply capped)
     - `runAspirationSearch` (max-thinking only; aspiration windows)
 - Transposition table
   - `src/ai/search.ts`
-    - `TTEntry` + `tt` Map used only when `maxThinking` is true
+    - `TTEntry` + `tt` Map for Max; small fixed-size TT for Hard
     - Keyed by `getPositionKey` (`src/rules/index.ts`)
 - Move ordering heuristics
   - `src/ai/search.ts`
@@ -46,13 +48,14 @@ Version: 1.1.52
 
 - Alpha-beta: `alphaBeta` in `src/ai/search.ts`.
 - Iterative deepening: `findBestMoveTimed` loops depth 1..`maxDepth`.
-- Quiescence: only when `maxThinking` is true; `QUIESCENCE_MAX_DEPTH` = 4.
+- Quiescence: Max uses full quiescence (`QUIESCENCE_MAX_DEPTH` = 4); Hard uses capture-only micro-quiescence at leaf nodes.
 - Null-move pruning: only when `maxThinking` is true; gated by depth/material.
 - LMR (late move reductions): only when `maxThinking` is true.
+- Forcing extensions: +1 ply on checks/promotions (depth/ply capped).
 - Move ordering:
   - Base heuristic: promotions, captures, checks, hanging piece penalty, minor development bonus.
   - Max-thinking adds: SEE capture penalty, larger check bonus, TT best move, killer/history.
-- Transposition table: only for `maxThinking` search.
+- Transposition table: Max uses a full Map; Hard uses a small fixed-size TT.
 - Repetition avoidance:
   - Only when `playForWin` is passed and `recentPositions` is present.
   - Root scoring applies a repetition penalty that scales with advantage and skips clearly losing or forced-repeat lines.
@@ -104,13 +107,15 @@ Source: `src/ai/ai.ts` (`chooseMove`) and `src/game.ts` (`scheduleAiMove`).
   - Depth: 3.
   - If `maxTimeMs` is provided (live gameplay sets 800ms), uses `findBestMoveTimed` with `maxThinking: false`.
   - Otherwise uses `findBestMove` depth 3.
-  - No TT, no quiescence, no null-move, no LMR.
+  - Uses a small bounded TT and capture-only micro-quiescence at leaf nodes.
+  - Forcing extensions on checks/promotions (depth/ply capped).
+  - No null-move, no LMR, no full quiescence.
   - RNG: seeded if provided; otherwise `Math.random`.
 - Max
   - Depth cap: `MAX_THINKING_DEPTH_CAP` (7).
   - Time cap: `MAX_THINKING_CAP_MS` (10,000ms).
   - Uses `findBestMoveTimed` with `maxThinking: true`.
-  - Enables TT, killer/history ordering, quiescence, null-move, LMR, aspiration windows.
+  - Enables TT, killer/history ordering, quiescence, null-move, LMR, aspiration windows, forcing extensions.
   - RNG: seeded if provided; otherwise `Math.random`.
 
 ## Live gameplay time caps (Hard/Max)
