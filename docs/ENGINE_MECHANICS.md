@@ -56,7 +56,9 @@ Version: 1.1.52
 - Repetition avoidance:
   - Only when `playForWin` is passed and `recentPositions` is present.
   - Root scoring applies a repetition penalty that scales with advantage and skips clearly losing or forced-repeat lines.
+  - Near repetition (position seen once) incurs a mild penalty; immediate threefold risk (seen 2+ times) incurs a larger penalty.
   - Max uses a higher penalty scale and an extra loop multiplier when the same position has already repeated.
+  - A root-level tie-breaker prefers a close-scoring non-repetition move when the top move repeats and the side is not losing.
   - `DEFAULT_REPETITION_PENALTY`, `DEFAULT_TOP_MOVE_WINDOW`, `DEFAULT_FAIRNESS_WINDOW` in `src/ai/search.ts`.
 
 ## Evaluation details

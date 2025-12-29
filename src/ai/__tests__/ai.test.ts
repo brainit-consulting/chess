@@ -332,6 +332,42 @@ describe('AI move selection', () => {
     expect(sameMove(chosenBlack as Move, blackRepeat)).toBe(false);
   });
 
+  it('avoids near repetition when an alternative is close in score', () => {
+    const state = createEmptyState();
+    addPiece(state, 'king', 'w', sq(3, 3));
+    addPiece(state, 'king', 'b', sq(7, 7));
+    addPiece(state, 'pawn', 'w', sq(0, 1));
+    state.activeColor = 'w';
+
+    const legalMoves = getAllLegalMoves(state, 'w');
+    const repeatMove = legalMoves.find((move) => move.to.file === 2 && move.to.rank === 3);
+    const altMove = legalMoves.find((move) => move.to.file === 4 && move.to.rank === 3);
+
+    if (!repeatMove || !altMove) {
+      throw new Error('Expected two comparable king moves for repetition test.');
+    }
+
+    const next = cloneState(state);
+    next.activeColor = 'w';
+    applyMove(next, repeatMove);
+    const repeatKey = getPositionKey(next);
+
+    const chosen = search.findBestMove(state, 'w', {
+      depth: 1,
+      rng: createSequenceRng([0.1, 0.2, 0]),
+      legalMoves: [repeatMove, altMove],
+      playForWin: true,
+      recentPositions: [repeatKey],
+      repetitionPenalty: 0,
+      repetitionPenaltyScale: 1,
+      topMoveWindow: 0,
+      fairnessWindow: 0
+    });
+
+    expect(chosen).not.toBeNull();
+    expect(sameMove(chosen as Move, repeatMove)).toBe(false);
+  });
+
   it('allows repetition when clearly worse with play-for-win enabled', () => {
     const state = createEmptyState();
     addPiece(state, 'king', 'w', sq(3, 3));
@@ -366,6 +402,30 @@ describe('AI move selection', () => {
 
     expect(chosen).not.toBeNull();
     expect(sameMove(chosen as Move, repeatMove)).toBe(true);
+  });
+
+  it('uses a wider tie-break window with higher repetition scale', () => {
+    const repeatMove: Move = { from: sq(0, 0), to: sq(1, 0) };
+    const altMove: Move = { from: sq(0, 0), to: sq(0, 1) };
+    const scores = [
+      { move: repeatMove, baseScore: 50, score: 50, repeatCount: 1, isRepeat: true },
+      { move: altMove, baseScore: 30, score: 30, repeatCount: 0, isRepeat: false }
+    ];
+
+    const hardCandidates = search.getRepetitionTieBreakCandidatesForTest(
+      scores,
+      { repetitionPenaltyScale: 1, recentPositions: ['x'] },
+      true
+    );
+    const maxCandidates = search.getRepetitionTieBreakCandidatesForTest(
+      scores,
+      { repetitionPenaltyScale: 2, recentPositions: ['x'] },
+      true
+    );
+
+    expect(hardCandidates.length).toBe(0);
+    expect(maxCandidates.length).toBe(1);
+    expect(maxCandidates[0].move).toBe(altMove);
   });
 
   it('prioritizes TT, killer, and history moves in max-thinking ordering', () => {

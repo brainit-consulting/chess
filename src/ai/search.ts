@@ -36,7 +36,11 @@ const REPETITION_STRONG_ADVANTAGE = 120;
 const REPETITION_CLEAR_DISADVANTAGE = -120;
 const REPETITION_STRONG_MULTIPLIER = 3;
 const REPETITION_SLIGHT_MULTIPLIER = 1;
+const REPETITION_NEUTRAL_MULTIPLIER = 0.5;
 const REPETITION_LOOP_MULTIPLIER = 1.5;
+const REPETITION_NEAR_MULTIPLIER = 1;
+const REPETITION_THREEFOLD_MULTIPLIER = 4;
+const REPETITION_TIEBREAK_WINDOW = 15;
 const REPETITION_ESCAPE_MARGIN = 150;
 const REPETITION_AVOID_LOSS_THRESHOLD = -200;
 const DEFAULT_TOP_MOVE_WINDOW = 10;
@@ -89,7 +93,7 @@ function getRepetitionPenaltyMultiplier(score: number): number {
   if (score >= REPETITION_SLIGHT_ADVANTAGE) {
     return REPETITION_SLIGHT_MULTIPLIER;
   }
-  return 0;
+  return REPETITION_NEUTRAL_MULTIPLIER;
 }
 
 function applyRepetitionPolicy(
@@ -134,12 +138,101 @@ function applyRepetitionPolicy(
     if (advantageMultiplier <= 0) {
       return entry;
     }
-    let penalty = basePenalty * scale * advantageMultiplier;
+    const repeatMultiplier =
+      entry.repeatCount >= 2 ? REPETITION_THREEFOLD_MULTIPLIER : REPETITION_NEAR_MULTIPLIER;
+    let penalty = basePenalty * scale * advantageMultiplier * repeatMultiplier;
     if (maxThinking && entry.repeatCount >= 2) {
       penalty *= REPETITION_LOOP_MULTIPLIER;
     }
     return { ...entry, score: entry.score - penalty };
   });
+}
+
+function getRepetitionTieBreakCandidates(
+  scores: RootScore[],
+  options: SearchOptions,
+  playForWin: boolean
+): RootScore[] | null {
+  if (!playForWin || !options.recentPositions?.length) {
+    return null;
+  }
+  const scale = options.repetitionPenaltyScale ?? 0;
+  if (scale <= 0) {
+    return null;
+  }
+  let bestEntry = scores[0];
+  for (const entry of scores) {
+    if (entry.score > bestEntry.score) {
+      bestEntry = entry;
+    }
+  }
+  if (!bestEntry.isRepeat || bestEntry.baseScore <= REPETITION_CLEAR_DISADVANTAGE) {
+    return null;
+  }
+  const tieBreakWindow = REPETITION_TIEBREAK_WINDOW * scale;
+  const candidates = scores.filter(
+    (entry) =>
+      !entry.isRepeat &&
+      entry.baseScore >= bestEntry.baseScore - tieBreakWindow &&
+      entry.baseScore > REPETITION_CLEAR_DISADVANTAGE
+  );
+  return candidates.length > 0 ? candidates : null;
+}
+
+// Test-only: expose repetition policy logic with synthetic scores.
+export function applyRepetitionPolicyForTest(
+  scores: {
+    move: Move;
+    baseScore: number;
+    score: number;
+    repeatCount: number;
+    isRepeat: boolean;
+  }[],
+  options: {
+    repetitionPenalty?: number;
+    repetitionPenaltyScale?: number;
+    maxThinking?: boolean;
+    recentPositions?: string[];
+  },
+  playForWin: boolean
+): {
+  move: Move;
+  baseScore: number;
+  score: number;
+  repeatCount: number;
+  isRepeat: boolean;
+}[] {
+  return applyRepetitionPolicy(scores as RootScore[], options as SearchOptions, playForWin);
+}
+
+// Test-only: expose repetition tie-break candidates with synthetic scores.
+export function getRepetitionTieBreakCandidatesForTest(
+  scores: {
+    move: Move;
+    baseScore: number;
+    score: number;
+    repeatCount: number;
+    isRepeat: boolean;
+  }[],
+  options: {
+    repetitionPenaltyScale?: number;
+    recentPositions?: string[];
+  },
+  playForWin: boolean
+): {
+  move: Move;
+  baseScore: number;
+  score: number;
+  repeatCount: number;
+  isRepeat: boolean;
+}[] {
+  return (
+    getRepetitionTieBreakCandidates(
+      scores as RootScore[],
+      options as SearchOptions,
+      playForWin
+    ) ?? []
+  );
 }
 
 export type OrderingState = {
@@ -293,6 +386,19 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
       const baseLeaders = scoredMoves.filter((entry) => entry.baseScore === baseBest);
       const index = Math.floor(options.rng() * baseLeaders.length);
       return baseLeaders[index].move;
+    }
+  }
+
+  const tieBreakCandidates = getRepetitionTieBreakCandidates(
+    adjustedScores,
+    options,
+    playForWin
+  );
+  if (tieBreakCandidates) {
+    const tieBreakMoves = new Set(tieBreakCandidates.map((entry) => entry.move));
+    const filtered = windowed.filter((entry) => tieBreakMoves.has(entry.move));
+    if (filtered.length > 0) {
+      windowed = filtered;
     }
   }
 
@@ -735,6 +841,19 @@ function scoreRootMoves(
       const baseLeaders = scoredMoves.filter((entry) => entry.baseScore === baseBest);
       const index = Math.floor(options.rng() * baseLeaders.length);
       return { move: baseLeaders[index].move, score: baseLeaders[index].score, scoredMoves };
+    }
+  }
+
+  const tieBreakCandidates = getRepetitionTieBreakCandidates(
+    adjustedScores,
+    options,
+    playForWin
+  );
+  if (tieBreakCandidates) {
+    const tieBreakMoves = new Set(tieBreakCandidates.map((entry) => entry.move));
+    const filtered = windowed.filter((entry) => tieBreakMoves.has(entry.move));
+    if (filtered.length > 0) {
+      windowed = filtered;
     }
   }
 
