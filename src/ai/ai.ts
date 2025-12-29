@@ -10,6 +10,12 @@ export const MAX_THINKING_AI_VS_AI_MS = MAX_THINKING_CAP_MS;
 const HARD_REPETITION_PENALTY_SCALE = 1;
 const MAX_REPETITION_PENALTY_SCALE = 2;
 const HARD_REPETITION_NUDGE_SCALE = 1;
+const HARD_REPETITION_AVOID_WINDOW = 20;
+const MAX_REPETITION_AVOID_WINDOW = 35;
+const DRAW_HOLD_THRESHOLD = -80;
+const HARD_TWO_PLY_REPEAT_PENALTY = 18;
+const MAX_TWO_PLY_REPEAT_PENALTY = 30;
+const TWO_PLY_REPEAT_TOP_N = 6;
 const HARD_MICRO_QUIESCENCE_DEPTH = 1;
 
 export type AiOptions = {
@@ -55,6 +61,20 @@ export function chooseMove(state: GameState, options: AiOptions = {}): Move | nu
   const hardRepetitionNudgeScale =
     options.hardRepetitionNudgeScale ??
     (difficulty === 'hard' ? HARD_REPETITION_NUDGE_SCALE : 0);
+  const repetitionAvoidWindow =
+    difficulty === 'max'
+      ? MAX_REPETITION_AVOID_WINDOW
+      : difficulty === 'hard'
+        ? HARD_REPETITION_AVOID_WINDOW
+        : 0;
+  const drawHoldThreshold = DRAW_HOLD_THRESHOLD;
+  const twoPlyRepeatPenalty =
+    difficulty === 'max'
+      ? MAX_TWO_PLY_REPEAT_PENALTY
+      : difficulty === 'hard'
+        ? HARD_TWO_PLY_REPEAT_PENALTY
+        : 0;
+  const twoPlyRepeatTopN = TWO_PLY_REPEAT_TOP_N;
 
   if (difficulty === 'max') {
     const maxTimeMs = options.maxTimeMs ?? MAX_THINKING_CAP_MS;
@@ -68,6 +88,10 @@ export function chooseMove(state: GameState, options: AiOptions = {}): Move | nu
       recentPositions: options.recentPositions,
       repetitionPenaltyScale,
       hardRepetitionNudgeScale,
+      repetitionAvoidWindow,
+      drawHoldThreshold,
+      twoPlyRepeatPenalty,
+      twoPlyRepeatTopN,
       maxThinking: true,
       stopRequested: options.stopRequested,
       onProgress: options.onProgress
@@ -92,6 +116,10 @@ export function chooseMove(state: GameState, options: AiOptions = {}): Move | nu
       recentPositions: options.recentPositions,
       repetitionPenaltyScale,
       hardRepetitionNudgeScale,
+      repetitionAvoidWindow,
+      drawHoldThreshold,
+      twoPlyRepeatPenalty,
+      twoPlyRepeatTopN,
       microQuiescenceDepth,
       tt,
       maxThinking: false,
@@ -107,6 +135,10 @@ export function chooseMove(state: GameState, options: AiOptions = {}): Move | nu
     recentPositions: options.recentPositions,
     repetitionPenaltyScale,
     hardRepetitionNudgeScale,
+    repetitionAvoidWindow,
+    drawHoldThreshold,
+    twoPlyRepeatPenalty,
+    twoPlyRepeatTopN,
     microQuiescenceDepth,
     tt,
     maxThinking: false,

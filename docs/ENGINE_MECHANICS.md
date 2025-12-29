@@ -62,6 +62,8 @@ Version: 1.1.53
   - Near repetition (position seen once) incurs a mild penalty; immediate threefold risk (seen 2+ times) incurs a larger penalty.
   - Max uses a higher penalty scale and an extra loop multiplier when the same position has already repeated.
   - A root-level tie-breaker prefers a close-scoring non-repetition move when the top move repeats and the side is not losing.
+  - A root avoidance constraint: if the best move repeats and a non-repeat is within an eval window, choose the best non-repeat (larger window for Max; smaller for Hard; gated by a draw-hold threshold so the losing side can still repeat for a draw).
+  - Two-ply anti-loop penalty on the top root moves if the opponent’s best reply quickly returns to a recent position (larger penalty for Max; lightweight for Hard).
   - Hard also applies a small, advantage-gated tie-break nudge (via `hardRepetitionNudgeScale`) to reduce early loops.
   - `DEFAULT_REPETITION_PENALTY`, `DEFAULT_TOP_MOVE_WINDOW`, `DEFAULT_FAIRNESS_WINDOW` in `src/ai/search.ts`.
 

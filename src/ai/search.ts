@@ -24,6 +24,10 @@ type SearchOptions = {
   topMoveWindow?: number;
   fairnessWindow?: number;
   maxThinking?: boolean;
+  repetitionAvoidWindow?: number;
+  drawHoldThreshold?: number;
+  twoPlyRepeatPenalty?: number;
+  twoPlyRepeatTopN?: number;
   tt?: TtStore;
   ordering?: OrderingState;
   maxTimeMs?: number;
@@ -48,6 +52,8 @@ const REPETITION_HARD_NUDGE_WINDOW = 10;
 const REPETITION_HARD_NUDGE_THREEFOLD_MULTIPLIER = 1.5;
 const REPETITION_ESCAPE_MARGIN = 150;
 const REPETITION_AVOID_LOSS_THRESHOLD = -200;
+const DRAW_HOLD_THRESHOLD_DEFAULT = -80;
+const TWO_PLY_REPEAT_TOP_N_DEFAULT = 6;
 const HARD_TT_SIZE = 4096;
 const HARD_MICRO_QUIESCENCE_MAX_DEPTH = 2;
 const FORCING_EXTENSION_MAX_DEPTH = 2;
@@ -331,6 +337,131 @@ export function getRepetitionTieBreakCandidatesForTest(
   );
 }
 
+function enforceRootRepetitionAvoidance(
+  windowed: RootScore[],
+  adjustedScores: RootScore[],
+  options: SearchOptions,
+  playForWin: boolean
+): RootScore[] {
+  if (!playForWin || windowed.length === 0) {
+    return windowed;
+  }
+  const avoidWindow = options.repetitionAvoidWindow ?? 0;
+  if (avoidWindow <= 0) {
+    return windowed;
+  }
+  let bestEntry = adjustedScores[0];
+  for (const entry of adjustedScores) {
+    if (entry.score > bestEntry.score) {
+      bestEntry = entry;
+    }
+  }
+  const drawHoldThreshold = options.drawHoldThreshold ?? DRAW_HOLD_THRESHOLD_DEFAULT;
+  if (!bestEntry.isRepeat || bestEntry.baseScore < drawHoldThreshold) {
+    return windowed;
+  }
+  const candidates = adjustedScores
+    .filter(
+      (entry) =>
+        !entry.isRepeat &&
+        entry.baseScore >= bestEntry.baseScore - avoidWindow &&
+        entry.baseScore > REPETITION_CLEAR_DISADVANTAGE
+    )
+    .sort((a, b) => b.baseScore - a.baseScore || b.score - a.score);
+  if (candidates.length === 0) {
+    return windowed;
+  }
+  const bestNonRepeat = candidates[0];
+  return windowed.filter((entry) => entry.move === bestNonRepeat.move);
+}
+
+function applyTwoPlyLoopPenalty(
+  state: GameState,
+  color: Color,
+  scores: RootScore[],
+  options: SearchOptions,
+  playForWin: boolean,
+  positionCounts?: Map<string, number>
+): RootScore[] {
+  const penaltyBase = options.twoPlyRepeatPenalty ?? 0;
+  if (!playForWin || penaltyBase <= 0) {
+    return scores;
+  }
+  const recentSet = new Set(options.recentPositions ?? []);
+  const topN = options.twoPlyRepeatTopN ?? TWO_PLY_REPEAT_TOP_N_DEFAULT;
+  const sorted = [...scores].sort((a, b) => b.score - a.score).slice(0, topN);
+
+  const penalizedMoves = new Map<Move, number>();
+  for (const entry of sorted) {
+    const penalty = computeTwoPlyPenalty(
+      state,
+      color,
+      entry,
+      recentSet,
+      positionCounts,
+      penaltyBase,
+      Boolean(options.maxThinking)
+    );
+    if (penalty > 0) {
+      penalizedMoves.set(entry.move, penalty);
+    }
+  }
+
+  if (penalizedMoves.size === 0) {
+    return scores;
+  }
+
+  return scores.map((entry) => {
+    const penalty = penalizedMoves.get(entry.move) ?? 0;
+    if (penalty === 0) {
+      return entry;
+    }
+    return { ...entry, score: entry.score - penalty };
+  });
+}
+
+function computeTwoPlyPenalty(
+  state: GameState,
+  color: Color,
+  entry: RootScore,
+  recentSet: Set<string>,
+  positionCounts: Map<string, number> | undefined,
+  penaltyBase: number,
+  maxThinking: boolean
+): number {
+  const next = cloneState(state);
+  next.activeColor = color;
+  applyMove(next, entry.move);
+  const opponent = opponentColor(color);
+  const replies = getAllLegalMoves(next, opponent);
+  if (replies.length === 0) {
+    return 0;
+  }
+  let worstScore = Infinity;
+  let repeatKey: string | null = null;
+  for (const reply of replies) {
+    const follow = cloneState(next);
+    follow.activeColor = opponent;
+    applyMove(follow, reply);
+    const key = getPositionKey(follow);
+    const score = evaluateState(follow, color, { maxThinking });
+    if (score < worstScore) {
+      worstScore = score;
+      repeatKey = key;
+    }
+  }
+  if (!repeatKey) {
+    return 0;
+  }
+  const repeatCount = positionCounts?.get(repeatKey) ?? 0;
+  const isRepeat = recentSet.has(repeatKey) || repeatCount > 0;
+  if (!isRepeat) {
+    return 0;
+  }
+  const multiplier = (entry.repeatCount >= 2 ? 1.5 : 1) * (maxThinking ? 1.2 : 1);
+  return penaltyBase * multiplier;
+}
+
 function storeRootTt(options: SearchOptions, state: GameState, move: Move, score: number): void {
   if (!options.tt) {
     return;
@@ -475,7 +606,15 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
   }
 
   const adjustedScores = applyRepetitionPolicy(rootScores, options, playForWin);
-  const scoredMoves = adjustedScores.map((entry) => ({
+  const twoPlyAdjusted = applyTwoPlyLoopPenalty(
+    state,
+    color,
+    adjustedScores,
+    options,
+    playForWin,
+    positionCounts
+  );
+  const scoredMoves = twoPlyAdjusted.map((entry) => ({
     move: entry.move,
     score: entry.score,
     baseScore: entry.baseScore
@@ -500,7 +639,7 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
   }
 
   const tieBreakCandidates = getRepetitionTieBreakCandidates(
-    adjustedScores,
+    twoPlyAdjusted,
     options,
     playForWin
   );
@@ -511,6 +650,8 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
       windowed = filtered;
     }
   }
+
+  windowed = enforceRootRepetitionAvoidance(windowed, twoPlyAdjusted, options, playForWin);
 
   const index = Math.floor(options.rng() * windowed.length);
   const chosen = windowed[index];
@@ -576,6 +717,10 @@ export function findBestMoveTimed(
               repetitionPenalty: options.repetitionPenalty,
               repetitionPenaltyScale: options.repetitionPenaltyScale,
               hardRepetitionNudgeScale: options.hardRepetitionNudgeScale,
+              repetitionAvoidWindow: options.repetitionAvoidWindow,
+              drawHoldThreshold: options.drawHoldThreshold,
+              twoPlyRepeatPenalty: options.twoPlyRepeatPenalty,
+              twoPlyRepeatTopN: options.twoPlyRepeatTopN,
               microQuiescenceDepth: options.microQuiescenceDepth,
               topMoveWindow: options.topMoveWindow,
               fairnessWindow: options.fairnessWindow,
@@ -602,6 +747,10 @@ export function findBestMoveTimed(
           repetitionPenalty: options.repetitionPenalty,
           repetitionPenaltyScale: options.repetitionPenaltyScale,
           hardRepetitionNudgeScale: options.hardRepetitionNudgeScale,
+          repetitionAvoidWindow: options.repetitionAvoidWindow,
+          drawHoldThreshold: options.drawHoldThreshold,
+          twoPlyRepeatPenalty: options.twoPlyRepeatPenalty,
+          twoPlyRepeatTopN: options.twoPlyRepeatTopN,
           microQuiescenceDepth: options.microQuiescenceDepth,
           topMoveWindow: options.topMoveWindow,
           fairnessWindow: options.fairnessWindow,
@@ -848,6 +997,10 @@ export function findBestMoveTimedDebug(
         repetitionPenalty: options.repetitionPenalty,
         repetitionPenaltyScale: options.repetitionPenaltyScale,
         hardRepetitionNudgeScale: options.hardRepetitionNudgeScale,
+        repetitionAvoidWindow: options.repetitionAvoidWindow,
+        drawHoldThreshold: options.drawHoldThreshold,
+        twoPlyRepeatPenalty: options.twoPlyRepeatPenalty,
+        twoPlyRepeatTopN: options.twoPlyRepeatTopN,
         microQuiescenceDepth: options.microQuiescenceDepth,
         topMoveWindow: options.topMoveWindow,
         fairnessWindow: options.fairnessWindow,
@@ -940,7 +1093,15 @@ function scoreRootMoves(
   }
 
   const adjustedScores = applyRepetitionPolicy(rootScores, options, playForWin);
-  const scoredMoves = adjustedScores.map((entry) => {
+  const twoPlyAdjusted = applyTwoPlyLoopPenalty(
+    state,
+    color,
+    adjustedScores,
+    options,
+    playForWin,
+    positionCounts
+  );
+  const scoredMoves = twoPlyAdjusted.map((entry) => {
     const mateInfo = getMateInfo(entry.score);
     return {
       move: entry.move,
@@ -970,7 +1131,7 @@ function scoreRootMoves(
   }
 
   const tieBreakCandidates = getRepetitionTieBreakCandidates(
-    adjustedScores,
+    twoPlyAdjusted,
     options,
     playForWin
   );
@@ -981,6 +1142,8 @@ function scoreRootMoves(
       windowed = filtered;
     }
   }
+
+  windowed = enforceRootRepetitionAvoidance(windowed, twoPlyAdjusted, options, playForWin);
 
   const index = Math.floor(options.rng() * windowed.length);
   const chosen = windowed[index];
@@ -1871,6 +2034,36 @@ export function getLmrReductionForTest(
 
 export function shouldAllowNullMoveForTest(state: GameState, color: Color): boolean {
   return shouldAllowNullMove(state, color);
+}
+
+// Test-only: expose avoidance selection with synthetic scores.
+export function chooseWithRepetitionAvoidanceForTest(
+  windowed: {
+    move: Move;
+    baseScore: number;
+    score: number;
+    repeatCount: number;
+    isRepeat: boolean;
+  }[],
+  adjustedScores: {
+    move: Move;
+    baseScore: number;
+    score: number;
+    repeatCount: number;
+    isRepeat: boolean;
+  }[],
+  options: {
+    repetitionAvoidWindow?: number;
+    drawHoldThreshold?: number;
+  }
+): Move | null {
+  const result = enforceRootRepetitionAvoidance(
+    windowed as RootScore[],
+    adjustedScores as RootScore[],
+    options as SearchOptions,
+    true
+  );
+  return result[0]?.move ?? null;
 }
 
 function cloneState(state: GameState): GameState {

@@ -454,6 +454,59 @@ describe('AI move selection', () => {
     expect(withNudge[0].move).toBe(altMove);
   });
 
+  it('prefers a non-repeat within the avoidance window when not losing', () => {
+    const repeatMove: Move = { from: sq(0, 0), to: sq(1, 0) };
+    const altMove: Move = { from: sq(0, 0), to: sq(0, 1) };
+    const scores = [
+      { move: repeatMove, baseScore: 100, score: 100, repeatCount: 1, isRepeat: true },
+      { move: altMove, baseScore: 92, score: 92, repeatCount: 0, isRepeat: false }
+    ];
+
+    const chosen = search.chooseWithRepetitionAvoidanceForTest(scores, scores, {
+      repetitionAvoidWindow: 12,
+      drawHoldThreshold: -50
+    });
+
+    expect(chosen).toBe(altMove);
+  });
+
+  it('allows repetition when outside the avoidance window or clearly worse', () => {
+    const repeatMove: Move = { from: sq(0, 0), to: sq(1, 0) };
+    const altMove: Move = { from: sq(0, 0), to: sq(0, 1) };
+    const scores = [
+      { move: repeatMove, baseScore: -250, score: -250, repeatCount: 1, isRepeat: true },
+      { move: altMove, baseScore: -260, score: -260, repeatCount: 0, isRepeat: false }
+    ];
+
+    const chosen = search.chooseWithRepetitionAvoidanceForTest(scores, scores, {
+      repetitionAvoidWindow: 20,
+      drawHoldThreshold: -50
+    });
+
+    expect(chosen).toBe(repeatMove);
+  });
+
+  it('uses a larger avoidance window for Max than Hard', () => {
+    const repeatMove: Move = { from: sq(0, 0), to: sq(1, 0) };
+    const altMove: Move = { from: sq(0, 0), to: sq(0, 1) };
+    const scores = [
+      { move: repeatMove, baseScore: 100, score: 100, repeatCount: 1, isRepeat: true },
+      { move: altMove, baseScore: 92, score: 92, repeatCount: 0, isRepeat: false }
+    ];
+
+    const hardChoice = search.chooseWithRepetitionAvoidanceForTest(scores, scores, {
+      repetitionAvoidWindow: 5,
+      drawHoldThreshold: -50
+    });
+    const maxChoice = search.chooseWithRepetitionAvoidanceForTest(scores, scores, {
+      repetitionAvoidWindow: 15,
+      drawHoldThreshold: -50
+    });
+
+    expect(hardChoice).toBe(repeatMove);
+    expect(maxChoice).toBe(altMove);
+  });
+
   it('uses hard micro-quiescence to avoid losing captures', () => {
     const state = createEmptyState();
     addPiece(state, 'king', 'w', sq(6, 0));
