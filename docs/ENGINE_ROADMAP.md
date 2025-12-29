@@ -78,6 +78,10 @@ Goal: Reduce early threefolds without changing time caps.
   - Self-play: same config as Phase 1b; verify lower early repetition while Max remains stronger.
 - Rollback plan
   - Set `hardRepetitionNudgeScale` to 0.
+- Results (seed 3000 fastcheck)
+  - 0-10-0, repetition 100%, mate 0% (ineffective).
+- Status
+  - Attempted but ineffective; superseded by Phase 3.1 anti-loop constraints.
 
 ## Phase 2 - Evaluation upgrades (low risk, steady Elo)
 
@@ -98,6 +102,8 @@ Goal: Reduce early threefolds without changing time caps.
   - Stockfish quick bench: should not regress.
 - Rollback plan
   - Guard new terms with feature flags and tune weights down if regressions appear.
+- Results (seed 4000 fastcheck)
+  - 0-9-1, repetition 80%, mate 10%.
 
 ## Phase 3 - Search and ordering improvements (moderate risk)
 
@@ -118,8 +124,48 @@ Goal: Reduce early threefolds without changing time caps.
   - Track average move time and timeouts; ensure Hard stays ~800ms.
 - Rollback plan
   - Keep ordering and TT sizes configurable; revert to current maxThinking-only path if needed.
+- Results (seed 5000 fastcheck)
+  - 0-10-0, repetition 100%, mate 0%.
 
-## Phase 4 - Endgame conversion (target late-game draws)
+## Phase 3.1 - Anti-loop root constraints (pending validation)
+
+- Change list (files)
+  - `src/ai/search.ts`
+    - Root avoidance constraint: if the top move repeats and a non-repeat is within an eval window, choose the best non-repeat when not losing.
+    - Two-ply anti-loop penalty on top root moves that quickly return to recent positions.
+  - `src/ai/ai.ts`
+    - Defaults (Hard vs Max):
+      - Avoid window: Hard 20cp, Max 35cp.
+      - Two-ply repeat penalty: Hard 18cp, Max 30cp.
+      - Draw-hold threshold: -80cp.
+      - Top-N for two-ply check: 6.
+- Expected benefit
+  - Reduce repetition loops without time-cap changes; preserve Max > Hard.
+- Risks / failure modes
+  - Small eval regressions if the window is too wide; ensure losing side can still repeat.
+- Validation plan (local)
+  - Fastcheck: `npm run bench:selfplay -- --hardMs 800 --maxMs 3000 --batch 5 --swap --fenSuite --seed 6000 --runId phase3_1-fastcheck`
+  - Real cap: `npm run bench:selfplay -- --hardMs 800 --maxMs 10000 --batch 5 --swap --fenSuite --seed 6000 --runId phase3_1-10000ms`
+- Results
+  - Pending local validation.
+
+## Phase 4 - Search efficiency + ordering (browser-friendly)
+
+- Change list (files)
+  - Phase 4.1: PVS + countermove heuristic + improved quiet move ordering (Max first; Hard optional).
+  - Phase 4.2: bounded selective extensions (recapture optional, strict caps).
+  - Phase 4.3: shallow pruning guards (futility/razoring; Max first).
+- Expected benefit
+  - Lower node count for the same depth, higher tactical clarity, fewer drawish loops.
+- Risks / failure modes
+  - Over-pruning can hide tactics; ordering bias can reduce variety.
+- Validation plan
+  - Self-play: repetition rate, mate rate, avg plies, timing.
+  - Stockfish quick bench: no regression.
+- Rollback plan
+  - Keep changes gated by `maxThinking` first; revert subphase independently.
+
+## Phase 5 - Endgame conversion (target late-game draws)
 
 - Change list (files)
   - `src/ai/evaluate.ts`
