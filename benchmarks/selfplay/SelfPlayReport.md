@@ -3,7 +3,7 @@
 Latest run summary is always inside the markers below.
 
 <!-- REPORT:START -->
-Last updated: 2025-12-29T13:44:55.643Z
+Last updated: 2025-12-29T13:44:55.643Z (UTC) | 2025-12-29 08:44:55 ET
 Config: hardMs=800, maxMs=10000, batch=5, swap=true, fenSuite=true
 Commit: 032685e356aa2983665247a92554cb291ba2614c
 Base seed: 2000

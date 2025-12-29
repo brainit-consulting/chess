@@ -1135,7 +1135,7 @@ function buildReportBody(summary: RunSummary): string {
   const hardSegment = summary.segments.hardAsWhite;
   const maxSegment = summary.segments.hardAsBlack;
   const lines = [
-    `Last updated: ${summary.finishedAt}`,
+    `Last updated: ${formatTimestampLine(summary.finishedAt)}`,
     `Config: hardMs=${summary.config.hardMs}, maxMs=${summary.config.maxMs}, batch=${summary.config.batchSize}, swap=${summary.config.swap}, fenSuite=${summary.config.fenSuite}`,
     `Commit: ${summary.commitSha}`,
     `Base seed: ${summary.config.baseSeed}`,
@@ -1180,6 +1180,44 @@ function formatSegmentLines(label: string, segment: SegmentSummary): string[] {
     `Timing (Hard): avg=${segment.timing.hard.avgMs.toFixed(1)}ms, max=${segment.timing.hard.maxMs.toFixed(1)}ms, timeouts=${segment.timing.hard.timeouts}`,
     `Timing (Max): avg=${segment.timing.max.avgMs.toFixed(1)}ms, max=${segment.timing.max.maxMs.toFixed(1)}ms, timeouts=${segment.timing.max.timeouts}`
   ];
+}
+
+function formatTimestampLine(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  const utc = date.toISOString();
+  const eastern = formatEasternTime(date);
+  return `${utc} (UTC) | ${eastern}`;
+}
+
+function formatEasternTime(date: Date): string {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
+    const parts = formatter.formatToParts(date);
+    const map: Record<string, string> = {};
+    for (const part of parts) {
+      if (part.type !== 'literal') {
+        map[part.type] = part.value;
+      }
+    }
+    if (map.year && map.month && map.day && map.hour && map.minute && map.second) {
+      return `${map.year}-${map.month}-${map.day} ${map.hour}:${map.minute}:${map.second} ET`;
+    }
+    return formatter.format(date);
+  } catch {
+    return date.toLocaleString('en-US', { timeZone: 'America/New_York' });
+  }
 }
 
 function buildRunReadme(): string {
