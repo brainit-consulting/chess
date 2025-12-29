@@ -5,8 +5,8 @@ export const ANALYZER_OPTIONS: Record<
   { label: string; url: string }
 > = {
   buddy: {
-    label: 'BrainIT Chess Buddy Analyzer',
-    url: 'https://chessgamebuddy.base44.app/'
+    label: 'Scorpion Chess Game Analyzer',
+    url: 'https://scorpionchessanalyzer.base44.app/'
   },
   analysispro: {
     label: 'Chess Analysis Pro',

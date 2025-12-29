@@ -55,6 +55,8 @@ Version: 1.1.52
 - Transposition table: only for `maxThinking` search.
 - Repetition avoidance:
   - Only when `playForWin` is passed and `recentPositions` is present.
+  - Root scoring applies a repetition penalty that scales with advantage and skips clearly losing or forced-repeat lines.
+  - Max uses a higher penalty scale and an extra loop multiplier when the same position has already repeated.
   - `DEFAULT_REPETITION_PENALTY`, `DEFAULT_TOP_MOVE_WINDOW`, `DEFAULT_FAIRNESS_WINDOW` in `src/ai/search.ts`.
 
 ## Evaluation details

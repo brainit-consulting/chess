@@ -7,6 +7,8 @@ export const MAX_THINKING_DEPTH_CAP = 7;
 export const MAX_THINKING_CAP_MS = 10000;
 export const MAX_THINKING_HUMAN_VS_AI_MS = MAX_THINKING_CAP_MS;
 export const MAX_THINKING_AI_VS_AI_MS = MAX_THINKING_CAP_MS;
+const HARD_REPETITION_PENALTY_SCALE = 1;
+const MAX_REPETITION_PENALTY_SCALE = 2;
 
 export type AiOptions = {
   color?: Color;
@@ -15,6 +17,7 @@ export type AiOptions = {
   rng?: () => number;
   playForWin?: boolean;
   recentPositions?: string[];
+  repetitionPenaltyScale?: number;
   depthOverride?: number;
   maxTimeMs?: number;
   maxDepth?: number;
@@ -39,6 +42,13 @@ export function chooseMove(state: GameState, options: AiOptions = {}): Move | nu
   const rng =
     options.rng ?? (options.seed !== undefined ? createSeededRng(options.seed) : Math.random);
   const difficulty = options.difficulty ?? 'medium';
+  const repetitionPenaltyScale =
+    options.repetitionPenaltyScale ??
+    (difficulty === 'max'
+      ? MAX_REPETITION_PENALTY_SCALE
+      : difficulty === 'hard'
+        ? HARD_REPETITION_PENALTY_SCALE
+        : 0);
 
   if (difficulty === 'max') {
     const maxTimeMs = options.maxTimeMs ?? MAX_THINKING_CAP_MS;
@@ -50,6 +60,7 @@ export function chooseMove(state: GameState, options: AiOptions = {}): Move | nu
       legalMoves,
       playForWin: options.playForWin,
       recentPositions: options.recentPositions,
+      repetitionPenaltyScale,
       maxThinking: true,
       stopRequested: options.stopRequested,
       onProgress: options.onProgress
@@ -69,6 +80,7 @@ export function chooseMove(state: GameState, options: AiOptions = {}): Move | nu
       legalMoves,
       playForWin: options.playForWin,
       recentPositions: options.recentPositions,
+      repetitionPenaltyScale,
       maxThinking: false,
       stopRequested: options.stopRequested
     });
@@ -80,6 +92,7 @@ export function chooseMove(state: GameState, options: AiOptions = {}): Move | nu
     legalMoves,
     playForWin: options.playForWin,
     recentPositions: options.recentPositions,
+    repetitionPenaltyScale,
     maxThinking: false,
     maxTimeMs,
     stopRequested: options.stopRequested

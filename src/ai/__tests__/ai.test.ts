@@ -59,6 +59,15 @@ function cloneState(state: GameState): GameState {
   };
 }
 
+function createSequenceRng(values: number[]): () => number {
+  let index = 0;
+  return () => {
+    const value = values[Math.min(index, values.length - 1)] ?? 0;
+    index += 1;
+    return value;
+  };
+}
+
 describe('AI move selection', () => {
   it('never selects an illegal move', () => {
     const state = createEmptyState();
@@ -223,10 +232,11 @@ describe('AI move selection', () => {
     expect(sameMove(direct, worker.move)).toBe(true);
   });
 
-  it('penalizes repeating positions when play-for-win is enabled', () => {
+  it('avoids repeating positions when ahead with play-for-win enabled', () => {
     const state = createEmptyState();
     addPiece(state, 'king', 'w', sq(3, 3));
     addPiece(state, 'king', 'b', sq(7, 7));
+    addPiece(state, 'pawn', 'w', sq(0, 1));
     state.activeColor = 'w';
 
     const legalMoves = getAllLegalMoves(state, 'w');
@@ -244,11 +254,12 @@ describe('AI move selection', () => {
 
     const chosen = search.findBestMove(state, 'w', {
       depth: 1,
-      rng: () => 0,
+      rng: createSequenceRng([0.1, 0.2, 0]),
       legalMoves: [moveA, moveB],
       playForWin: true,
       recentPositions: [repeatKey],
       repetitionPenalty: 1000,
+      repetitionPenaltyScale: 1,
       topMoveWindow: 0
     });
 
@@ -260,6 +271,7 @@ describe('AI move selection', () => {
     const whiteState = createEmptyState();
     addPiece(whiteState, 'king', 'w', sq(3, 3));
     addPiece(whiteState, 'king', 'b', sq(7, 7));
+    addPiece(whiteState, 'pawn', 'w', sq(0, 1));
     whiteState.activeColor = 'w';
 
     const whiteMoves = getAllLegalMoves(whiteState, 'w');
@@ -276,17 +288,19 @@ describe('AI move selection', () => {
 
     const chosenWhite = search.findBestMove(whiteState, 'w', {
       depth: 1,
-      rng: () => 0,
+      rng: createSequenceRng([0.1, 0.2, 0]),
       legalMoves: [whiteRepeat, whiteAlt],
       playForWin: true,
       recentPositions: [whiteKey],
       repetitionPenalty: 1000,
+      repetitionPenaltyScale: 1,
       topMoveWindow: 0
     });
 
     const blackState = createEmptyState();
     addPiece(blackState, 'king', 'b', sq(3, 3));
     addPiece(blackState, 'king', 'w', sq(7, 7));
+    addPiece(blackState, 'pawn', 'b', sq(0, 6));
     blackState.activeColor = 'b';
 
     const blackMoves = getAllLegalMoves(blackState, 'b');
@@ -303,11 +317,12 @@ describe('AI move selection', () => {
 
     const chosenBlack = search.findBestMove(blackState, 'b', {
       depth: 1,
-      rng: () => 0,
+      rng: createSequenceRng([0.1, 0.2, 0]),
       legalMoves: [blackRepeat, blackAlt],
       playForWin: true,
       recentPositions: [blackKey],
       repetitionPenalty: 1000,
+      repetitionPenaltyScale: 1,
       topMoveWindow: 0
     });
 
@@ -315,6 +330,42 @@ describe('AI move selection', () => {
     expect(chosenBlack).not.toBeNull();
     expect(sameMove(chosenWhite as Move, whiteRepeat)).toBe(false);
     expect(sameMove(chosenBlack as Move, blackRepeat)).toBe(false);
+  });
+
+  it('allows repetition when clearly worse with play-for-win enabled', () => {
+    const state = createEmptyState();
+    addPiece(state, 'king', 'w', sq(3, 3));
+    addPiece(state, 'king', 'b', sq(7, 7));
+    addPiece(state, 'queen', 'b', sq(0, 6));
+    state.activeColor = 'w';
+
+    const legalMoves = getAllLegalMoves(state, 'w');
+    const repeatMove = legalMoves.find((move) => move.to.file === 2 && move.to.rank === 3);
+    const altMove = legalMoves.find((move) => move.to.file === 4 && move.to.rank === 3);
+
+    if (!repeatMove || !altMove) {
+      throw new Error('Expected two comparable king moves for repetition test.');
+    }
+
+    const next = cloneState(state);
+    next.activeColor = 'w';
+    applyMove(next, repeatMove);
+    const repeatKey = getPositionKey(next);
+
+    const chosen = search.findBestMove(state, 'w', {
+      depth: 1,
+      rng: createSequenceRng([0.1, 0.2, 0]),
+      legalMoves: [repeatMove, altMove],
+      playForWin: true,
+      recentPositions: [repeatKey],
+      repetitionPenalty: 1000,
+      repetitionPenaltyScale: 1,
+      topMoveWindow: 0,
+      fairnessWindow: 0
+    });
+
+    expect(chosen).not.toBeNull();
+    expect(sameMove(chosen as Move, repeatMove)).toBe(true);
   });
 
   it('prioritizes TT, killer, and history moves in max-thinking ordering', () => {
