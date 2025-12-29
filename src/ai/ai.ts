@@ -9,6 +9,7 @@ export const MAX_THINKING_HUMAN_VS_AI_MS = MAX_THINKING_CAP_MS;
 export const MAX_THINKING_AI_VS_AI_MS = MAX_THINKING_CAP_MS;
 const HARD_REPETITION_PENALTY_SCALE = 1;
 const MAX_REPETITION_PENALTY_SCALE = 2;
+const HARD_REPETITION_NUDGE_SCALE = 1;
 
 export type AiOptions = {
   color?: Color;
@@ -18,6 +19,7 @@ export type AiOptions = {
   playForWin?: boolean;
   recentPositions?: string[];
   repetitionPenaltyScale?: number;
+  hardRepetitionNudgeScale?: number;
   depthOverride?: number;
   maxTimeMs?: number;
   maxDepth?: number;
@@ -49,6 +51,9 @@ export function chooseMove(state: GameState, options: AiOptions = {}): Move | nu
       : difficulty === 'hard'
         ? HARD_REPETITION_PENALTY_SCALE
         : 0);
+  const hardRepetitionNudgeScale =
+    options.hardRepetitionNudgeScale ??
+    (difficulty === 'hard' ? HARD_REPETITION_NUDGE_SCALE : 0);
 
   if (difficulty === 'max') {
     const maxTimeMs = options.maxTimeMs ?? MAX_THINKING_CAP_MS;
@@ -61,6 +66,7 @@ export function chooseMove(state: GameState, options: AiOptions = {}): Move | nu
       playForWin: options.playForWin,
       recentPositions: options.recentPositions,
       repetitionPenaltyScale,
+      hardRepetitionNudgeScale,
       maxThinking: true,
       stopRequested: options.stopRequested,
       onProgress: options.onProgress
@@ -81,6 +87,7 @@ export function chooseMove(state: GameState, options: AiOptions = {}): Move | nu
       playForWin: options.playForWin,
       recentPositions: options.recentPositions,
       repetitionPenaltyScale,
+      hardRepetitionNudgeScale,
       maxThinking: false,
       stopRequested: options.stopRequested
     });
@@ -93,6 +100,7 @@ export function chooseMove(state: GameState, options: AiOptions = {}): Move | nu
     playForWin: options.playForWin,
     recentPositions: options.recentPositions,
     repetitionPenaltyScale,
+    hardRepetitionNudgeScale,
     maxThinking: false,
     maxTimeMs,
     stopRequested: options.stopRequested

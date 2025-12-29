@@ -19,6 +19,7 @@ type SearchOptions = {
   recentPositions?: string[];
   repetitionPenalty?: number;
   repetitionPenaltyScale?: number;
+  hardRepetitionNudgeScale?: number;
   topMoveWindow?: number;
   fairnessWindow?: number;
   maxThinking?: boolean;
@@ -41,6 +42,9 @@ const REPETITION_LOOP_MULTIPLIER = 1.5;
 const REPETITION_NEAR_MULTIPLIER = 1;
 const REPETITION_THREEFOLD_MULTIPLIER = 4;
 const REPETITION_TIEBREAK_WINDOW = 15;
+const REPETITION_HARD_NUDGE_ADVANTAGE = 30;
+const REPETITION_HARD_NUDGE_WINDOW = 10;
+const REPETITION_HARD_NUDGE_THREEFOLD_MULTIPLIER = 1.5;
 const REPETITION_ESCAPE_MARGIN = 150;
 const REPETITION_AVOID_LOSS_THRESHOLD = -200;
 const DEFAULT_TOP_MOVE_WINDOW = 10;
@@ -157,7 +161,8 @@ function getRepetitionTieBreakCandidates(
     return null;
   }
   const scale = options.repetitionPenaltyScale ?? 0;
-  if (scale <= 0) {
+  const hardNudgeScale = options.hardRepetitionNudgeScale ?? 0;
+  if (scale <= 0 && hardNudgeScale <= 0) {
     return null;
   }
   let bestEntry = scores[0];
@@ -169,7 +174,20 @@ function getRepetitionTieBreakCandidates(
   if (!bestEntry.isRepeat || bestEntry.baseScore <= REPETITION_CLEAR_DISADVANTAGE) {
     return null;
   }
-  const tieBreakWindow = REPETITION_TIEBREAK_WINDOW * scale;
+  let tieBreakWindow = REPETITION_TIEBREAK_WINDOW * scale;
+  if (
+    !options.maxThinking &&
+    hardNudgeScale > 0 &&
+    bestEntry.baseScore >= REPETITION_HARD_NUDGE_ADVANTAGE &&
+    bestEntry.repeatCount > 0
+  ) {
+    const nudgeMultiplier =
+      bestEntry.repeatCount >= 2 ? REPETITION_HARD_NUDGE_THREEFOLD_MULTIPLIER : 1;
+    tieBreakWindow += REPETITION_HARD_NUDGE_WINDOW * hardNudgeScale * nudgeMultiplier;
+  }
+  if (tieBreakWindow <= 0) {
+    return null;
+  }
   const candidates = scores.filter(
     (entry) =>
       !entry.isRepeat &&
@@ -191,6 +209,7 @@ export function applyRepetitionPolicyForTest(
   options: {
     repetitionPenalty?: number;
     repetitionPenaltyScale?: number;
+    hardRepetitionNudgeScale?: number;
     maxThinking?: boolean;
     recentPositions?: string[];
   },
@@ -216,6 +235,8 @@ export function getRepetitionTieBreakCandidatesForTest(
   }[],
   options: {
     repetitionPenaltyScale?: number;
+    hardRepetitionNudgeScale?: number;
+    maxThinking?: boolean;
     recentPositions?: string[];
   },
   playForWin: boolean
@@ -463,6 +484,7 @@ export function findBestMoveTimed(
               recentPositions: options.recentPositions,
               repetitionPenalty: options.repetitionPenalty,
               repetitionPenaltyScale: options.repetitionPenaltyScale,
+              hardRepetitionNudgeScale: options.hardRepetitionNudgeScale,
               topMoveWindow: options.topMoveWindow,
               fairnessWindow: options.fairnessWindow,
               maxThinking: options.maxThinking,
@@ -487,6 +509,7 @@ export function findBestMoveTimed(
           recentPositions: options.recentPositions,
           repetitionPenalty: options.repetitionPenalty,
           repetitionPenaltyScale: options.repetitionPenaltyScale,
+          hardRepetitionNudgeScale: options.hardRepetitionNudgeScale,
           topMoveWindow: options.topMoveWindow,
           fairnessWindow: options.fairnessWindow,
           maxThinking: options.maxThinking,
@@ -522,6 +545,7 @@ export function findBestMoveTimed(
     recentPositions: options.recentPositions,
     repetitionPenalty: options.repetitionPenalty,
     repetitionPenaltyScale: options.repetitionPenaltyScale,
+    hardRepetitionNudgeScale: options.hardRepetitionNudgeScale,
     topMoveWindow: options.topMoveWindow,
     fairnessWindow: options.fairnessWindow,
     maxThinking: options.maxThinking,
@@ -662,6 +686,7 @@ export function findBestMoveTimedDebug(
               recentPositions: options.recentPositions,
               repetitionPenalty: options.repetitionPenalty,
               repetitionPenaltyScale: options.repetitionPenaltyScale,
+              hardRepetitionNudgeScale: options.hardRepetitionNudgeScale,
               topMoveWindow: options.topMoveWindow,
               fairnessWindow: options.fairnessWindow,
               maxThinking: options.maxThinking,
@@ -684,10 +709,11 @@ export function findBestMoveTimedDebug(
           rng: options.rng,
           legalMoves,
           playForWin: options.playForWin,
-          recentPositions: options.recentPositions,
-          repetitionPenalty: options.repetitionPenalty,
-          repetitionPenaltyScale: options.repetitionPenaltyScale,
-          topMoveWindow: options.topMoveWindow,
+        recentPositions: options.recentPositions,
+        repetitionPenalty: options.repetitionPenalty,
+        repetitionPenaltyScale: options.repetitionPenaltyScale,
+        hardRepetitionNudgeScale: options.hardRepetitionNudgeScale,
+        topMoveWindow: options.topMoveWindow,
           fairnessWindow: options.fairnessWindow,
           maxThinking: options.maxThinking,
           tt,
@@ -725,6 +751,7 @@ export function findBestMoveTimedDebug(
         recentPositions: options.recentPositions,
         repetitionPenalty: options.repetitionPenalty,
         repetitionPenaltyScale: options.repetitionPenaltyScale,
+        hardRepetitionNudgeScale: options.hardRepetitionNudgeScale,
         topMoveWindow: options.topMoveWindow,
         fairnessWindow: options.fairnessWindow,
         maxThinking: options.maxThinking,

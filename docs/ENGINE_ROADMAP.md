@@ -47,6 +47,38 @@ Goal: Reduce early threefolds without changing time caps.
 - Rollback plan
   - Feature-flag via option (e.g., penalty scale). Revert to default penalty if loss rate increases.
 
+## Phase 1b - Near repetition penalties + root tie-break (completed)
+
+- Change list (files)
+  - `src/ai/search.ts`
+    - Add near-repetition vs threefold multipliers and root tie-break away from repeating top moves.
+- Results (commit b75cc1a)
+  - Self-play (Hard 800 vs Max 3000, swap, fenSuite, seed 3000):
+    - Total (Hard perspective): 3-7-0
+    - Repetition rate: 60% (down from 80% baseline)
+    - Mate rate: 30% (up from 10% baseline)
+  - Segment: Hard as White vs Max: 0-5-0, repetition 100%.
+  - Segment: Max as White vs Hard: 3-2-0, repetition 20%, mate 60%.
+- Takeaway
+  - Max conversion improved materially; Hard as White still repeats heavily.
+
+## Phase 1c - Hard-only anti-loop nudge (target Hard repeats)
+
+- Change list (files)
+  - `src/ai/search.ts`
+    - Add a Hard-only tie-break window expansion when slightly ahead and the best move repeats.
+    - Only triggers on near/threefold repeats when a non-repeat move is close in eval.
+  - `src/ai/ai.ts`
+    - Add `hardRepetitionNudgeScale` (default on for Hard; off for Max/others).
+- Expected benefit
+  - Reduce early repetition for Hard without weakening Max or changing time caps.
+- Risks / failure modes
+  - Hard may decline safe draws when slightly ahead; keep window small and gate by eval.
+- Validation plan
+  - Self-play: same config as Phase 1b; verify lower early repetition while Max remains stronger.
+- Rollback plan
+  - Set `hardRepetitionNudgeScale` to 0.
+
 ## Phase 2 - Evaluation upgrades (low risk, steady Elo)
 
 - Change list (files)

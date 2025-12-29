@@ -396,6 +396,7 @@ describe('AI move selection', () => {
       recentPositions: [repeatKey],
       repetitionPenalty: 1000,
       repetitionPenaltyScale: 1,
+      hardRepetitionNudgeScale: 1,
       topMoveWindow: 0,
       fairnessWindow: 0
     });
@@ -414,18 +415,42 @@ describe('AI move selection', () => {
 
     const hardCandidates = search.getRepetitionTieBreakCandidatesForTest(
       scores,
-      { repetitionPenaltyScale: 1, recentPositions: ['x'] },
+      { repetitionPenaltyScale: 1, hardRepetitionNudgeScale: 0, recentPositions: ['x'] },
       true
     );
     const maxCandidates = search.getRepetitionTieBreakCandidatesForTest(
       scores,
-      { repetitionPenaltyScale: 2, recentPositions: ['x'] },
+      { repetitionPenaltyScale: 2, hardRepetitionNudgeScale: 0, recentPositions: ['x'] },
       true
     );
 
     expect(hardCandidates.length).toBe(0);
     expect(maxCandidates.length).toBe(1);
     expect(maxCandidates[0].move).toBe(altMove);
+  });
+
+  it('nudges Hard away from near repetition when slightly ahead', () => {
+    const repeatMove: Move = { from: sq(0, 0), to: sq(1, 0) };
+    const altMove: Move = { from: sq(0, 0), to: sq(0, 1) };
+    const scores = [
+      { move: repeatMove, baseScore: 50, score: 50, repeatCount: 1, isRepeat: true },
+      { move: altMove, baseScore: 30, score: 30, repeatCount: 0, isRepeat: false }
+    ];
+
+    const withoutNudge = search.getRepetitionTieBreakCandidatesForTest(
+      scores,
+      { repetitionPenaltyScale: 1, hardRepetitionNudgeScale: 0, recentPositions: ['x'] },
+      true
+    );
+    const withNudge = search.getRepetitionTieBreakCandidatesForTest(
+      scores,
+      { repetitionPenaltyScale: 1, hardRepetitionNudgeScale: 1, recentPositions: ['x'] },
+      true
+    );
+
+    expect(withoutNudge.length).toBe(0);
+    expect(withNudge.length).toBe(1);
+    expect(withNudge[0].move).toBe(altMove);
   });
 
   it('prioritizes TT, killer, and history moves in max-thinking ordering', () => {
