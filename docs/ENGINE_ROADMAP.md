@@ -169,7 +169,6 @@ Goal: Reduce early threefolds without changing time caps.
   - Phase 4.3 (implemented, commit ecbdd1a): defensive repetition awareness, in-check ordering, mate-distance preference.
   - Phase 4.4 (step 1 implemented, commit c37ffcc): check-pressure safety bias for in-check evasions.
   - Phase 4.4.2 (implemented, commit 714a389): minimal check extension (+1 ply when in check).
-  - Phase 4.4.2b (implemented, commit 88da25d): cap total extension at +1 (combine check + forcing without suppression).
 - Expected benefit
   - Lower node count for the same depth, higher tactical clarity, fewer drawish loops.
 - Risks / failure modes
@@ -261,12 +260,6 @@ Goal: Reduce early threefolds without changing time caps.
 - Validation (step 2)
   - Unit tests: check extension depth added and ply guard respected.
   - Stockfish tracking rung after Step 2 (planned): Hard 800ms vs Stockfish 500ms (b25).
-
-- Delivered change (step 2b, commit 88da25d)
-  - Cap total extension at +1 by combining check and forcing extensions (no suppression).
-- Validation (step 2b)
-  - Unit test for total extension cap with check + forcing.
-  - Stockfish tracking rung after Step 2b (planned): Hard 800ms vs Stockfish 500ms (b25).
 
 ## Phase 5 - Endgame conversion (target late-game draws)
 
