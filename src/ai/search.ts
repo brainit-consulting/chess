@@ -64,9 +64,6 @@ const HARD_TT_SIZE = 4096;
 const HARD_MICRO_QUIESCENCE_MAX_DEPTH = 2;
 const FORCING_EXTENSION_MAX_DEPTH = 2;
 const FORCING_EXTENSION_MAX_PLY = 6;
-const CHECK_EXTENSION_PLY = 1;
-const CHECK_EXTENSION_MAX_PLY = FORCING_EXTENSION_MAX_PLY;
-const ENABLE_CHECK_EXTENSION = true;
 const DEFAULT_TOP_MOVE_WINDOW = 10;
 const DEFAULT_FAIRNESS_WINDOW = 25;
 const DEFAULT_ASPIRATION_WINDOW = 35;
@@ -1520,16 +1517,6 @@ function defaultNow(): number {
   return typeof performance !== 'undefined' ? performance.now() : Date.now();
 }
 
-function getCheckExtensionDepth(depth: number, inCheck: boolean, ply: number): number {
-  if (!ENABLE_CHECK_EXTENSION || !inCheck) {
-    return depth;
-  }
-  if (depth > FORCING_EXTENSION_MAX_DEPTH || ply >= CHECK_EXTENSION_MAX_PLY) {
-    return depth;
-  }
-  return depth + CHECK_EXTENSION_PLY;
-}
-
 function alphaBeta(
   state: GameState,
   depth: number,
@@ -1554,14 +1541,11 @@ function alphaBeta(
   const betaOrig = beta;
   let key: string | null = null;
   let ttBestMove: Move | undefined;
-  const inCheck = isInCheck(state, currentColor);
-  const effectiveDepth = getCheckExtensionDepth(depth, inCheck, ply);
-  const checkExtension = effectiveDepth - depth;
 
   if (tt) {
     key = getPositionKey(state);
     const cached = tt.get(key);
-    if (cached && cached.depth >= effectiveDepth) {
+    if (cached && cached.depth >= depth) {
       if (cached.flag === 'exact') {
         return cached.score;
       }
@@ -1576,13 +1560,13 @@ function alphaBeta(
   }
 
   if (legalMoves.length === 0) {
-    if (inCheck) {
+    if (isInCheck(state, currentColor)) {
       return mateScore(currentColor, maximizingColor, ply);
     }
     return 0;
   }
 
-  if (effectiveDepth <= 0) {
+  if (depth <= 0) {
     if (!maxThinking) {
       const microDepth = Math.min(
         microQuiescenceDepth ?? 0,
@@ -1617,18 +1601,19 @@ function alphaBeta(
   }
 
   const maximizing = currentColor === maximizingColor;
+  const inCheck = maxThinking ? isInCheck(state, currentColor) : false;
   const pvsEnabled = maxThinking && usePvs;
 
   if (
     maxThinking &&
-    effectiveDepth >= NULL_MOVE_MIN_DEPTH &&
+    depth >= NULL_MOVE_MIN_DEPTH &&
     !inCheck &&
     shouldAllowNullMove(state, currentColor)
   ) {
     const next = cloneState(state);
     next.activeColor = opponentColor(currentColor);
     next.enPassantTarget = null;
-    const reductionDepth = Math.max(0, effectiveDepth - 1 - NULL_MOVE_REDUCTION);
+    const reductionDepth = Math.max(0, depth - 1 - NULL_MOVE_REDUCTION);
     const nullScore = alphaBeta(
       next,
       reductionDepth,
@@ -1674,18 +1659,10 @@ function alphaBeta(
       next.activeColor = currentColor;
       applyMove(next, move);
       const reduction = maxThinking
-        ? getLmrReduction(
-            effectiveDepth,
-            index,
-            inCheck,
-            isQuietForLmr(state, move, currentColor)
-          )
+        ? getLmrReduction(depth, index, inCheck, isQuietForLmr(state, move, currentColor))
         : 0;
-      const extension =
-        checkExtension > 0
-          ? 0
-          : getForcingExtension(state, next, move, currentColor, effectiveDepth, ply);
-      const reducedDepth = Math.max(0, effectiveDepth - 1 - reduction + extension);
+      const extension = getForcingExtension(state, next, move, currentColor, depth, ply);
+      const reducedDepth = Math.max(0, depth - 1 - reduction + extension);
       const canPvs = pvsEnabled && index > 0 && Number.isFinite(alpha) && Number.isFinite(beta);
       let nextScore: number;
       if (canPvs) {
@@ -1741,10 +1718,10 @@ function alphaBeta(
           microQuiescenceDepth
         );
       }
-      if (reduction > 0 && reducedDepth < effectiveDepth - 1 && nextScore > alpha) {
+      if (reduction > 0 && reducedDepth < depth - 1 && nextScore > alpha) {
         nextScore = alphaBeta(
           next,
-          effectiveDepth - 1,
+          depth - 1,
           alpha,
           beta,
           opponentColor(currentColor),
@@ -1773,14 +1750,14 @@ function alphaBeta(
             recordKiller(ordering, ply, move);
             recordCounterMove(ordering, state.lastMove, move);
           }
-          recordHistory(ordering, move, effectiveDepth);
+          recordHistory(ordering, move, depth);
         }
         break;
       }
     }
     if (tt && key) {
       tt.set(key, {
-        depth: effectiveDepth,
+        depth,
         score: value,
         flag: value <= alphaOrig ? 'alpha' : value >= betaOrig ? 'beta' : 'exact',
         bestMove
@@ -1800,18 +1777,10 @@ function alphaBeta(
     next.activeColor = currentColor;
     applyMove(next, move);
     const reduction = maxThinking
-      ? getLmrReduction(
-          effectiveDepth,
-          index,
-          inCheck,
-          isQuietForLmr(state, move, currentColor)
-        )
+      ? getLmrReduction(depth, index, inCheck, isQuietForLmr(state, move, currentColor))
       : 0;
-    const extension =
-      checkExtension > 0
-        ? 0
-        : getForcingExtension(state, next, move, currentColor, effectiveDepth, ply);
-    const reducedDepth = Math.max(0, effectiveDepth - 1 - reduction + extension);
+    const extension = getForcingExtension(state, next, move, currentColor, depth, ply);
+    const reducedDepth = Math.max(0, depth - 1 - reduction + extension);
     const canPvs = pvsEnabled && index > 0 && Number.isFinite(alpha) && Number.isFinite(beta);
     let nextScore: number;
     if (canPvs) {
@@ -1867,10 +1836,10 @@ function alphaBeta(
         microQuiescenceDepth
       );
     }
-    if (reduction > 0 && reducedDepth < effectiveDepth - 1 && nextScore < beta) {
+    if (reduction > 0 && reducedDepth < depth - 1 && nextScore < beta) {
       nextScore = alphaBeta(
         next,
-        effectiveDepth - 1,
+        depth - 1,
         alpha,
         beta,
         opponentColor(currentColor),
@@ -1899,14 +1868,14 @@ function alphaBeta(
           recordKiller(ordering, ply, move);
           recordCounterMove(ordering, state.lastMove, move);
         }
-        recordHistory(ordering, move, effectiveDepth);
+        recordHistory(ordering, move, depth);
       }
       break;
     }
   }
   if (tt && key) {
     tt.set(key, {
-      depth: effectiveDepth,
+      depth,
       score: value,
       flag: value <= alphaOrig ? 'alpha' : value >= betaOrig ? 'beta' : 'exact',
       bestMove
@@ -2005,14 +1974,6 @@ export function orderMovesForTest(
   }
 ): Move[] {
   return orderMoves(state, moves, color, rng, options);
-}
-
-export function getCheckExtensionDepthForTest(
-  depth: number,
-  inCheck: boolean,
-  ply: number
-): number {
-  return getCheckExtensionDepth(depth, inCheck, ply);
 }
 
 function scoreMoveHeuristic(

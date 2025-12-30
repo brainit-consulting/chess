@@ -920,15 +920,6 @@ describe('AI move selection', () => {
     expect(sameMove(ordered[0], safeKingMove)).toBe(true);
   });
 
-  it('adds a ply of depth when in check', () => {
-    expect(search.getCheckExtensionDepthForTest(1, true, 0)).toBe(2);
-    expect(search.getCheckExtensionDepthForTest(1, false, 0)).toBe(1);
-  });
-
-  it('caps the check extension by ply guard', () => {
-    expect(search.getCheckExtensionDepthForTest(1, true, 99)).toBe(1);
-  });
-
   it('prefers faster mates and delays being mated', () => {
     const fastWin = search.mateScoreForTest('b', 'w', 2);
     const slowWin = search.mateScoreForTest('b', 'w', 4);
