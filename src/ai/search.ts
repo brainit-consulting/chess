@@ -26,6 +26,7 @@ type SearchOptions = {
   fairnessWindow?: number;
   maxThinking?: boolean;
   repetitionAvoidWindow?: number;
+  repeatBanWindowCp?: number;
   drawHoldThreshold?: number;
   twoPlyRepeatPenalty?: number;
   twoPlyRepeatTopN?: number;
@@ -418,7 +419,7 @@ function enforceRootRepetitionAvoidance(
   if (!playForWin || windowed.length === 0) {
     return windowed;
   }
-  const avoidWindow = options.repetitionAvoidWindow ?? 0;
+  const avoidWindow = options.repeatBanWindowCp ?? options.repetitionAvoidWindow ?? 0;
   if (avoidWindow <= 0) {
     return windowed;
   }
@@ -444,7 +445,7 @@ function enforceRootRepetitionAvoidance(
     return windowed;
   }
   const bestNonRepeat = candidates[0];
-  return windowed.filter((entry) => entry.move === bestNonRepeat.move);
+  return adjustedScores.filter((entry) => entry.move === bestNonRepeat.move);
 }
 
 function getRepeatKind(entry: RootScore): 'none' | 'near-repetition' | 'threefold' {
@@ -852,6 +853,7 @@ export function findBestMoveTimed(
               repetitionPenaltyScale: options.repetitionPenaltyScale,
               hardRepetitionNudgeScale: options.hardRepetitionNudgeScale,
               repetitionAvoidWindow: options.repetitionAvoidWindow,
+              repeatBanWindowCp: options.repeatBanWindowCp ?? options.repetitionAvoidWindow,
               drawHoldThreshold: options.drawHoldThreshold,
               twoPlyRepeatPenalty: options.twoPlyRepeatPenalty,
               twoPlyRepeatTopN: options.twoPlyRepeatTopN,
@@ -885,6 +887,7 @@ export function findBestMoveTimed(
           repetitionPenaltyScale: options.repetitionPenaltyScale,
           hardRepetitionNudgeScale: options.hardRepetitionNudgeScale,
           repetitionAvoidWindow: options.repetitionAvoidWindow,
+          repeatBanWindowCp: options.repeatBanWindowCp ?? options.repetitionAvoidWindow,
           drawHoldThreshold: options.drawHoldThreshold,
           twoPlyRepeatPenalty: options.twoPlyRepeatPenalty,
           twoPlyRepeatTopN: options.twoPlyRepeatTopN,
@@ -929,6 +932,7 @@ export function findBestMoveTimed(
     repetitionPenaltyScale: options.repetitionPenaltyScale,
     hardRepetitionNudgeScale: options.hardRepetitionNudgeScale,
     repetitionAvoidWindow: options.repetitionAvoidWindow,
+    repeatBanWindowCp: options.repeatBanWindowCp ?? options.repetitionAvoidWindow,
     drawHoldThreshold: options.drawHoldThreshold,
     twoPlyRepeatPenalty: options.twoPlyRepeatPenalty,
     twoPlyRepeatTopN: options.twoPlyRepeatTopN,
@@ -1078,6 +1082,7 @@ export function findBestMoveTimedDebug(
               repetitionPenaltyScale: options.repetitionPenaltyScale,
               hardRepetitionNudgeScale: options.hardRepetitionNudgeScale,
               repetitionAvoidWindow: options.repetitionAvoidWindow,
+              repeatBanWindowCp: options.repeatBanWindowCp ?? options.repetitionAvoidWindow,
               drawHoldThreshold: options.drawHoldThreshold,
               twoPlyRepeatPenalty: options.twoPlyRepeatPenalty,
               twoPlyRepeatTopN: options.twoPlyRepeatTopN,
@@ -1112,6 +1117,7 @@ export function findBestMoveTimedDebug(
           repetitionPenaltyScale: options.repetitionPenaltyScale,
           hardRepetitionNudgeScale: options.hardRepetitionNudgeScale,
           repetitionAvoidWindow: options.repetitionAvoidWindow,
+          repeatBanWindowCp: options.repeatBanWindowCp ?? options.repetitionAvoidWindow,
           drawHoldThreshold: options.drawHoldThreshold,
           twoPlyRepeatPenalty: options.twoPlyRepeatPenalty,
           twoPlyRepeatTopN: options.twoPlyRepeatTopN,
@@ -1158,10 +1164,11 @@ export function findBestMoveTimedDebug(
         legalMoves,
         playForWin: options.playForWin,
         recentPositions: options.recentPositions,
-        repetitionPenalty: options.repetitionPenalty,
-        repetitionPenaltyScale: options.repetitionPenaltyScale,
-        hardRepetitionNudgeScale: options.hardRepetitionNudgeScale,
+      repetitionPenalty: options.repetitionPenalty,
+      repetitionPenaltyScale: options.repetitionPenaltyScale,
+      hardRepetitionNudgeScale: options.hardRepetitionNudgeScale,
       repetitionAvoidWindow: options.repetitionAvoidWindow,
+      repeatBanWindowCp: options.repeatBanWindowCp ?? options.repetitionAvoidWindow,
       drawHoldThreshold: options.drawHoldThreshold,
       twoPlyRepeatPenalty: options.twoPlyRepeatPenalty,
       twoPlyRepeatTopN: options.twoPlyRepeatTopN,
@@ -2387,6 +2394,7 @@ export function chooseWithRepetitionAvoidanceForTest(
     isRepeat: boolean;
   }[],
   options: {
+    repeatBanWindowCp?: number;
     repetitionAvoidWindow?: number;
     drawHoldThreshold?: number;
   }

@@ -17,8 +17,8 @@ export const MAX_THINKING_AI_VS_AI_MS = MAX_THINKING_CAP_MS;
 const HARD_REPETITION_PENALTY_SCALE = 1;
 const MAX_REPETITION_PENALTY_SCALE = 2;
 const HARD_REPETITION_NUDGE_SCALE = 1;
-const HARD_REPETITION_AVOID_WINDOW = 20;
-const MAX_REPETITION_AVOID_WINDOW = 35;
+const HARD_REPEAT_BAN_WINDOW_CP = 60;
+const MAX_REPEAT_BAN_WINDOW_CP = 100;
 const DRAW_HOLD_THRESHOLD = -80;
 const HARD_TWO_PLY_REPEAT_PENALTY = 18;
 const MAX_TWO_PLY_REPEAT_PENALTY = 30;
@@ -38,6 +38,7 @@ export type AiOptions = {
   hardRepetitionNudgeScale?: number;
   contemptCp?: number;
   usePvs?: boolean;
+  repeatBanWindowCp?: number;
   depthOverride?: number;
   maxTimeMs?: number;
   maxDepth?: number;
@@ -59,7 +60,7 @@ type AiContext = {
   difficulty: AiDifficulty;
   repetitionPenaltyScale: number;
   hardRepetitionNudgeScale: number;
-  repetitionAvoidWindow: number;
+  repeatBanWindowCp: number;
   drawHoldThreshold: number;
   twoPlyRepeatPenalty: number;
   twoPlyRepeatTopN: number;
@@ -87,12 +88,13 @@ function resolveAiContext(state: GameState, options: AiOptions): AiContext | nul
   const hardRepetitionNudgeScale =
     options.hardRepetitionNudgeScale ??
     (difficulty === 'hard' ? HARD_REPETITION_NUDGE_SCALE : 0);
-  const repetitionAvoidWindow =
-    difficulty === 'max'
-      ? MAX_REPETITION_AVOID_WINDOW
+  const repeatBanWindowCp =
+    options.repeatBanWindowCp ??
+    (difficulty === 'max'
+      ? MAX_REPEAT_BAN_WINDOW_CP
       : difficulty === 'hard'
-        ? HARD_REPETITION_AVOID_WINDOW
-        : 0;
+        ? HARD_REPEAT_BAN_WINDOW_CP
+        : 0);
   const drawHoldThreshold = DRAW_HOLD_THRESHOLD;
   const twoPlyRepeatPenalty =
     difficulty === 'max'
@@ -117,7 +119,7 @@ function resolveAiContext(state: GameState, options: AiOptions): AiContext | nul
     difficulty,
     repetitionPenaltyScale,
     hardRepetitionNudgeScale,
-    repetitionAvoidWindow,
+    repeatBanWindowCp,
     drawHoldThreshold,
     twoPlyRepeatPenalty,
     twoPlyRepeatTopN,
@@ -144,7 +146,7 @@ export function chooseMove(state: GameState, options: AiOptions = {}): Move | nu
     difficulty,
     repetitionPenaltyScale,
     hardRepetitionNudgeScale,
-    repetitionAvoidWindow,
+    repeatBanWindowCp,
     drawHoldThreshold,
     twoPlyRepeatPenalty,
     twoPlyRepeatTopN,
@@ -165,7 +167,7 @@ export function chooseMove(state: GameState, options: AiOptions = {}): Move | nu
       recentPositions: options.recentPositions,
       repetitionPenaltyScale,
       hardRepetitionNudgeScale,
-      repetitionAvoidWindow,
+      repeatBanWindowCp,
       drawHoldThreshold,
       twoPlyRepeatPenalty,
       twoPlyRepeatTopN,
@@ -197,7 +199,7 @@ export function chooseMove(state: GameState, options: AiOptions = {}): Move | nu
       recentPositions: options.recentPositions,
       repetitionPenaltyScale,
       hardRepetitionNudgeScale,
-      repetitionAvoidWindow,
+      repeatBanWindowCp,
       drawHoldThreshold,
       twoPlyRepeatPenalty,
       twoPlyRepeatTopN,
@@ -219,7 +221,7 @@ export function chooseMove(state: GameState, options: AiOptions = {}): Move | nu
     recentPositions: options.recentPositions,
     repetitionPenaltyScale,
     hardRepetitionNudgeScale,
-    repetitionAvoidWindow,
+    repeatBanWindowCp,
     drawHoldThreshold,
     twoPlyRepeatPenalty,
     twoPlyRepeatTopN,
@@ -250,7 +252,7 @@ export function chooseMoveWithDiagnostics(
     difficulty,
     repetitionPenaltyScale,
     hardRepetitionNudgeScale,
-    repetitionAvoidWindow,
+    repeatBanWindowCp,
     drawHoldThreshold,
     twoPlyRepeatPenalty,
     twoPlyRepeatTopN,
@@ -271,7 +273,7 @@ export function chooseMoveWithDiagnostics(
       recentPositions: options.recentPositions,
       repetitionPenaltyScale,
       hardRepetitionNudgeScale,
-      repetitionAvoidWindow,
+      repeatBanWindowCp,
       drawHoldThreshold,
       twoPlyRepeatPenalty,
       twoPlyRepeatTopN,
@@ -302,7 +304,7 @@ export function chooseMoveWithDiagnostics(
       recentPositions: options.recentPositions,
       repetitionPenaltyScale,
       hardRepetitionNudgeScale,
-      repetitionAvoidWindow,
+      repeatBanWindowCp,
       drawHoldThreshold,
       twoPlyRepeatPenalty,
       twoPlyRepeatTopN,
@@ -326,7 +328,7 @@ export function chooseMoveWithDiagnostics(
     recentPositions: options.recentPositions,
     repetitionPenaltyScale,
     hardRepetitionNudgeScale,
-    repetitionAvoidWindow,
+    repeatBanWindowCp,
     drawHoldThreshold,
     twoPlyRepeatPenalty,
     twoPlyRepeatTopN,

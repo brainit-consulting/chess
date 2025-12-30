@@ -463,7 +463,7 @@ describe('AI move selection', () => {
     ];
 
     const chosen = search.chooseWithRepetitionAvoidanceForTest(scores, scores, {
-      repetitionAvoidWindow: 12,
+      repeatBanWindowCp: 12,
       drawHoldThreshold: -50
     });
 
@@ -479,7 +479,7 @@ describe('AI move selection', () => {
     ];
 
     const chosen = search.chooseWithRepetitionAvoidanceForTest(scores, scores, {
-      repetitionAvoidWindow: 20,
+      repeatBanWindowCp: 20,
       drawHoldThreshold: -50
     });
 
@@ -495,11 +495,11 @@ describe('AI move selection', () => {
     ];
 
     const hardChoice = search.chooseWithRepetitionAvoidanceForTest(scores, scores, {
-      repetitionAvoidWindow: 5,
+      repeatBanWindowCp: 5,
       drawHoldThreshold: -50
     });
     const maxChoice = search.chooseWithRepetitionAvoidanceForTest(scores, scores, {
-      repetitionAvoidWindow: 15,
+      repeatBanWindowCp: 15,
       drawHoldThreshold: -50
     });
 
