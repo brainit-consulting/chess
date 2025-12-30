@@ -158,8 +158,10 @@ const DEFAULT_BASE_SEED = 1000;
 const DEFAULT_SWAP = false;
 const DEFAULT_FEN_SUITE = false;
 const DEFAULT_STOCKFISH_LADDER = '100,50,20,10,5';
-const ENGINE_TIMEOUT_GRACE_MS = 80;
-const STOCKFISH_TIMEOUT_SLACK_MS = 20;
+// Extra slack absorbs stop latency and OS scheduling jitter; it doesn't change engine budgets.
+const TIMEOUT_TOLERANCE_BUMP_MS = 25;
+const ENGINE_TIMEOUT_GRACE_MS = 80 + TIMEOUT_TOLERANCE_BUMP_MS;
+const STOCKFISH_TIMEOUT_SLACK_MS = 20 + TIMEOUT_TOLERANCE_BUMP_MS;
 const MIN_PLIES_FOR_DRAW = 2;
 const REPORT_WARNING_MIN_PLIES = 10;
 const DEFAULT_SERIES_LABEL = 'Post-fix baseline series';
@@ -1499,6 +1501,7 @@ function buildReportBody(
     `Stockfish: ${config.stockfishPath}`,
     `Settings: Threads=${config.threads}, Hash=${config.hashMb}MB, Ponder=${config.ponder ? 'true' : 'false'}`,
     `Movetime targets: BrainIT=${config.movetimeMs}ms, Stockfish=${lastRung}ms`,
+    `Timeout tolerance: +${TIMEOUT_TOLERANCE_BUMP_MS}ms (bench-only stop-latency/jitter slack)`,
     `Next ladder rung: paused (Stockfish=${currentRung}ms)`,
     `Output: ${config.outDir}`,
     '',
