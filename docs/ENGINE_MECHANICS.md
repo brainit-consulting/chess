@@ -1,7 +1,7 @@
 # Engine Mechanics (Current)
 
 This is a code-backed summary of how the Scorpion Chess Engine currently works and where the mechanics live.
-Version: 1.1.53
+Version: 1.1.54
 
 ## Code map (by subsystem)
 
@@ -62,12 +62,14 @@ Version: 1.1.53
   - Only when `playForWin` is passed and `recentPositions` is present.
   - Root scoring applies a repetition penalty that scales with advantage and skips clearly losing or forced-repeat lines.
   - Root contempt bias further nudges repeat/drawish lines down when not losing (per-difficulty cp bias).
-  - Near repetition (position seen once) incurs a mild penalty; immediate threefold risk (seen 2+ times) incurs a larger penalty.
+  - Near repetition (position seen once) incurs a mild penalty; twofold repulsion (seen once) is stronger than generic near-repeat; immediate threefold risk (seen 2+ times) incurs a larger penalty.
   - Max uses a higher penalty scale and an extra loop multiplier when the same position has already repeated.
   - A root-level tie-breaker prefers a close-scoring non-repetition move when the top move repeats and the side is not losing.
   - A root repeat-ban window: if the best move repeats and a non-repeat is within the window (Hard 60cp, Max 100cp), choose the best non-repeat when not losing (draw-hold threshold allows defensive repetition).
   - Two-ply anti-loop penalty on the top root moves if the opponent's best reply quickly returns to a recent position (larger penalty for Max; lightweight for Hard).
   - Hard also applies a small, advantage-gated tie-break nudge (via `hardRepetitionNudgeScale`) to reduce early loops.
+  - Root ordering deprioritizes quiet repeat moves when not losing, keeping non-repeat quiet moves earlier in the PV.
+  - Root scoring adds a small progress bias for quiet development (early minor development, castling/king safety, pawn advances) and a small penalty for rook shuffle repeats, gated by `playForWin` and draw-hold threshold.
   - `DEFAULT_REPETITION_PENALTY`, `DEFAULT_TOP_MOVE_WINDOW`, `DEFAULT_FAIRNESS_WINDOW` in `src/ai/search.ts`.
 
 ## Evaluation details

@@ -158,6 +158,13 @@ Goal: Reduce early threefolds without changing time caps.
     - Root contempt bias in play-for-win scoring (Hard 10cp, Max 20cp; draw-hold threshold -80cp).
     - Quiet history ordering strengthened for Max, modest for Hard.
     - Bench diagnostics: root top moves + chosen move reason in self-play meta.
+  - Phase 4.1b (implemented):
+    - Root repeat-ban policy: prefer non-repeats within a window when not losing (Hard 60cp, Max 100cp).
+    - Diagnostics summarizer for self-play move reasoning (bench-only).
+  - Phase 4.1c (implemented):
+    - Progress bias for quiet development (minor development, castling/king safety, pawn advance).
+    - Twofold repulsion multiplier (stronger than generic near-repeat, below threefold).
+    - Root ordering deprioritizes quiet repeat moves when not losing.
   - Phase 4.2: bounded selective extensions (recapture optional, strict caps).
   - Phase 4.3: shallow pruning guards (futility/razoring; Max first).
 - Expected benefit
@@ -170,7 +177,9 @@ Goal: Reduce early threefolds without changing time caps.
 - Rollback plan
   - Keep changes gated by `maxThinking` first; revert subphase independently.
 - Results
-  - Phase 4.1: pending local fastcheck (`seed 7000`, maxMs 3000 and 10000).
+  - Phase 4.1 fastcheck (seed 7000, maxMs 3000): 0-10-0, repetition 100%, mate 0%.
+  - Phase 4.1b: pending local validation (seed 7000).
+  - Phase 4.1c: pending local validation (shuffle-loop focus).
 
 ## Phase 5 - Endgame conversion (target late-game draws)
 
