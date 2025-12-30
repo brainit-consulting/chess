@@ -168,6 +168,7 @@ Goal: Reduce early threefolds without changing time caps.
   - Phase 4.2 (implemented, locked): bounded selective extensions (recapture-first) with check-extension gating.
   - Phase 4.3 (implemented, commit ecbdd1a): defensive repetition awareness, in-check ordering, mate-distance preference.
   - Phase 4.4 (step 1 implemented, commit c37ffcc): check-pressure safety bias for in-check evasions.
+  - Phase 4.4.2 / 4.4.2b (regressed, rolled back): archived check-extension experiments.
 - Expected benefit
   - Lower node count for the same depth, higher tactical clarity, fewer drawish loops.
 - Risks / failure modes
@@ -252,6 +253,16 @@ Goal: Reduce early threefolds without changing time caps.
 - Validation
   - Unit tests: deterministic ordering for capture vs block vs king move; king-into-attack penalty.
   - Stockfish tracking rung after Step 1 (planned): Hard 800ms vs Stockfish 500ms (b25).
+
+- Rolled back experiments (4.4.2 / 4.4.2b)
+  - Summary
+    - Both experiments showed avg-plies collapse (~35-37 down to ~28-29) with no Elo improvement.
+    - SF500 b25 runs remained shutouts with mate-heavy endings.
+  - Evidence
+    - 4.4.2 runId: `phase4_4_2-hard800-vs-sf500-b25` (avg plies ~28.5).
+    - 4.4.2b runId: `phase4_4_2b-hard800-vs-sf500-b25` (avg plies ~29.2).
+  - Archive
+    - Preserved at branch `archive/phase-4.4-check-extension-experiments`.
 
 ## Phase 5 - Endgame conversion (target late-game draws)
 
