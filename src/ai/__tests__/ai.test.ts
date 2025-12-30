@@ -929,10 +929,6 @@ describe('AI move selection', () => {
     expect(search.getCheckExtensionDepthForTest(1, true, 99)).toBe(1);
   });
 
-  it('caps total extension at +1 when check and forcing both apply', () => {
-    expect(search.getTotalExtensionForTest(1, true, 0, 1)).toBe(1);
-  });
-
   it('prefers faster mates and delays being mated', () => {
     const fastWin = search.mateScoreForTest('b', 'w', 2);
     const slowWin = search.mateScoreForTest('b', 'w', 4);

@@ -1530,10 +1530,6 @@ function getCheckExtensionDepth(depth: number, inCheck: boolean, ply: number): n
   return depth + CHECK_EXTENSION_PLY;
 }
 
-function getTotalExtension(checkExtension: number, forcingExtension: number): number {
-  return Math.min(1, checkExtension + forcingExtension);
-}
-
 function alphaBeta(
   state: GameState,
   depth: number,
@@ -1685,9 +1681,11 @@ function alphaBeta(
             isQuietForLmr(state, move, currentColor)
           )
         : 0;
-      const forcingExtension = getForcingExtension(state, next, move, currentColor, depth, ply);
-      const totalExtension = getTotalExtension(checkExtension, forcingExtension);
-      const reducedDepth = Math.max(0, depth - 1 - reduction + totalExtension);
+      const extension =
+        checkExtension > 0
+          ? 0
+          : getForcingExtension(state, next, move, currentColor, effectiveDepth, ply);
+      const reducedDepth = Math.max(0, effectiveDepth - 1 - reduction + extension);
       const canPvs = pvsEnabled && index > 0 && Number.isFinite(alpha) && Number.isFinite(beta);
       let nextScore: number;
       if (canPvs) {
@@ -1809,9 +1807,11 @@ function alphaBeta(
           isQuietForLmr(state, move, currentColor)
         )
       : 0;
-    const forcingExtension = getForcingExtension(state, next, move, currentColor, depth, ply);
-    const totalExtension = getTotalExtension(checkExtension, forcingExtension);
-    const reducedDepth = Math.max(0, depth - 1 - reduction + totalExtension);
+    const extension =
+      checkExtension > 0
+        ? 0
+        : getForcingExtension(state, next, move, currentColor, effectiveDepth, ply);
+    const reducedDepth = Math.max(0, effectiveDepth - 1 - reduction + extension);
     const canPvs = pvsEnabled && index > 0 && Number.isFinite(alpha) && Number.isFinite(beta);
     let nextScore: number;
     if (canPvs) {
@@ -2013,16 +2013,6 @@ export function getCheckExtensionDepthForTest(
   ply: number
 ): number {
   return getCheckExtensionDepth(depth, inCheck, ply);
-}
-
-export function getTotalExtensionForTest(
-  depth: number,
-  inCheck: boolean,
-  ply: number,
-  forcingExtension: number
-): number {
-  const checkExtension = getCheckExtensionDepth(depth, inCheck, ply) - depth;
-  return getTotalExtension(checkExtension, forcingExtension);
 }
 
 function scoreMoveHeuristic(
