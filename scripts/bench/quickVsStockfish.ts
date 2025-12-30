@@ -146,7 +146,7 @@ class BenchmarkError extends Error {
 
 const ROOT_OUTPUT_DIR = path.resolve('scripts/bench/quick-results');
 const STATE_PATH = path.resolve('scripts/bench/quick-run-state.json');
-const REPORT_PATH = path.resolve('docs/BrainITVsStockfishReport.md');
+const REPORT_PATH = path.resolve('docs/ScorpionChessEngineVsStockfishReport.md');
 
 const DEFAULT_BATCH_SIZE = 10;
 const DEFAULT_MOVETIME_MS = 100;
@@ -1436,7 +1436,7 @@ async function updateReport(
   const startIndex = text.indexOf(start);
   const endIndex = text.indexOf(end);
   if (startIndex === -1 || endIndex === -1 || endIndex <= startIndex) {
-    throw new Error('Report markers not found in BrainITVsStockfishReport.md');
+    throw new Error('Report markers not found in ScorpionChessEngineVsStockfishReport.md');
   }
 
   const reportBody = buildReportBody(state, config, meta);

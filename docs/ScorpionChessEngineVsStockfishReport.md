@@ -1,13 +1,19 @@
-# Scorpion Chess Engine vs Stockfish Report (Quick Run)
+# ScorpionChessEngineVsStockfish Report (Quick Run)
 
 This report tracks the quick-and-dirty benchmark batches. Each run executes a
 fixed number of games (default: 10) and updates the cumulative results here.
 
-How to run a batch:
+How to run a batch (quick bench):
 
 ```
-npm run bench:quick -- --stockfish "C:\path\to\stockfish.exe" --batch 10 --movetime 200 --mode hard
+npm run bench:quick -- --stockfish "C:\path\to\stockfish.exe" --batch 10 --movetime 200 --mode hard --swap --fenSuite --seed 7000 --runId phase4_2-quick
 ```
+
+Notes:
+- `--batch` is the per-color game count; with `--swap` enabled the run plays `batch * 2` games.
+- `--fenSuite` uses the curated FEN suite (paired across colors when swapping).
+- `--seed` controls opening/FEN selection and engine RNG.
+- Output PGNs + meta JSON + `summary.json` are written to `scripts/bench/quick-results/run-<runId>/`.
 
 Report updates will appear between the markers below.
 

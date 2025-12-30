@@ -1,4 +1,4 @@
-# Stockfish Resources (Scorpion Benchmarks)
+# ScorpionChessEngineVsStockfish Resources
 
 You asked where to get the Stockfish backend. These are the clean, correct
 options, in order of practicality.
@@ -76,7 +76,7 @@ local Stockfish binary is the most honest apples-to-apples reference.
 ## What I recommend you answer Codex with (copy-paste)
 
 ```
-Let's use a local Stockfish binary for Scorpion benchmarks.
+Let's use a local Stockfish binary for ScorpionChessEngineVsStockfish benchmarks.
 
 - I'll download Stockfish from https://stockfishchess.org/download/
 - Assume a UCI-compatible local binary (Threads=1, Hash=64).

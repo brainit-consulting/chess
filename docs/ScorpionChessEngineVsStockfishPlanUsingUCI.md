@@ -1,6 +1,6 @@
-# Scorpion Chess Engine vs Stockfish - Plan Using UCI (Phased)
+# ScorpionChessEngineVsStockfish - Plan Using UCI (Phased)
 
-This document is a step-by-step implementation plan to benchmark **Scorpion Chess Engine** against **Stockfish** using the **UCI (Universal Chess Interface)** protocol, and produce an estimated **Elo** rating via automated self-play matches.
+This document is a step-by-step implementation plan to benchmark **ScorpionChessEngineVsStockfish** using the **UCI (Universal Chess Interface)** protocol, and produce an estimated **Elo** rating via automated self-play matches.
 
 Note: This is a future-facing plan. The current benchmark harness uses a Node runner that calls the engine directly and does not require Scorpion to be UCI-compliant.
 
