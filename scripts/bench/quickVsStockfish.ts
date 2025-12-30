@@ -1,5 +1,6 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { execSync } from 'node:child_process';
 import { performance } from 'node:perf_hooks';
 import { Worker } from 'node:worker_threads';
 import {
@@ -10,7 +11,8 @@ import {
   applyMove,
   createInitialState,
   getAllLegalMoves,
-  getGameStatus
+  getGameStatus,
+  getPositionKey
 } from '../../src/rules';
 import { buildPgn, buildSan, PgnMove } from '../../src/pgn/pgn';
 import { MAX_THINKING_DEPTH_CAP } from '../../src/ai/ai';
@@ -28,6 +30,10 @@ type RunConfig = {
   hashMb: number;
   ponder: boolean;
   maxPlies: number;
+  swap: boolean;
+  fenSuite: boolean;
+  baseSeed: number;
+  outDir: string;
 };
 
 type BatchResult = {
@@ -84,7 +90,9 @@ type GameLog = {
   mode: EngineMode;
   engineColor: Color;
   engineLabel: string;
-  opening: string[];
+  opening: string[] | null;
+  startFen: string | null;
+  seed: number;
   plies: number;
   finalFen: string;
   lastMoveUci: string | null;
@@ -113,6 +121,10 @@ type RunState = {
     hashMb: number;
     ponder: boolean;
     maxPlies: number;
+    swap: boolean;
+    fenSuite: boolean;
+    baseSeed: number;
+    outDir: string;
   };
   totalGames: number;
   wins: number;
@@ -132,7 +144,7 @@ class BenchmarkError extends Error {
   }
 }
 
-const RESULTS_DIR = path.resolve('scripts/bench/quick-results');
+const ROOT_OUTPUT_DIR = path.resolve('scripts/bench/quick-results');
 const STATE_PATH = path.resolve('scripts/bench/quick-run-state.json');
 const REPORT_PATH = path.resolve('docs/BrainITVsStockfishReport.md');
 
@@ -142,6 +154,9 @@ const DEFAULT_MODE: EngineMode = 'max';
 const DEFAULT_THREADS = 1;
 const DEFAULT_HASH_MB = 64;
 const DEFAULT_MAX_PLIES = 200;
+const DEFAULT_BASE_SEED = 1000;
+const DEFAULT_SWAP = false;
+const DEFAULT_FEN_SUITE = false;
 const DEFAULT_STOCKFISH_LADDER = '100,50,20,10,5';
 const ENGINE_TIMEOUT_GRACE_MS = 80;
 const STOCKFISH_TIMEOUT_SLACK_MS = 20;
@@ -162,6 +177,23 @@ const OPENINGS: string[][] = [
   ['e2e4', 'd7d6', 'd2d4', 'g8f6', 'b1c3', 'g7g6']
 ];
 
+const FEN_SEED_OPENINGS: string[][] = [
+  ['e2e4', 'e7e5', 'f2f4', 'e5f4', 'g1f3', 'g7g5', 'h2h4', 'g5g4'],
+  ['d2d4', 'd7d5', 'c2c4', 'd5c4', 'e2e3', 'b7b5', 'a2a4', 'c7c6'],
+  ['e2e4', 'c7c5', 'b2b4', 'c5b4', 'a2a3', 'b4a3', 'b1c3', 'd7d6'],
+  ['e2e4', 'c7c6', 'd2d4', 'd7d5', 'e4d5', 'c6d5', 'c2c4', 'g8f6'],
+  ['e2e4', 'd7d5', 'e4d5', 'd8d5', 'b1c3', 'd5a5', 'd2d4', 'c7c6'],
+  ['e2e4', 'e7e5', 'g1f3', 'b8c6', 'f1b5', 'a7a6', 'b5c6', 'd7c6'],
+  ['e2e4', 'e7e5', 'd2d4', 'e5d4', 'c2c3', 'd4c3', 'b1c3', 'd7d5'],
+  ['e2e4', 'e7e6', 'd2d4', 'd7d5', 'e4e5', 'c7c5', 'c2c3', 'b8c6'],
+  ['d2d4', 'f7f5', 'c2c4', 'g8f6', 'b1c3', 'e7e6', 'g1f3', 'f8b4'],
+  ['d2d4', 'g8f6', 'c2c4', 'g7g6', 'b1c3', 'f8g7', 'e2e4', 'd7d6'],
+  ['e2e4', 'g8f6', 'e4e5', 'f6d5', 'd2d4', 'd7d6', 'g1f3', 'g7g6'],
+  ['d2d4', 'd7d5', 'c2c4', 'c7c6', 'b1c3', 'g8f6', 'c4d5', 'c6d5']
+];
+
+const FEN_SUITE = buildFenSuite(FEN_SEED_OPENINGS);
+
 const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
 const PROMO_MAP: Record<string, PieceType> = {
   q: 'queen',
@@ -178,6 +210,11 @@ async function main(): Promise<void> {
     return;
   }
 
+  const runId = args.runId ?? formatRunId(new Date());
+  const outDir = args.outDir ?? path.join(ROOT_OUTPUT_DIR, `run-${runId}`);
+  const commandLine = process.argv.join(' ');
+  const commitSha = resolveCommitSha();
+
   const config: RunConfig = {
     stockfishPath: args.stockfishPath,
     batchSize: args.batchSize ?? DEFAULT_BATCH_SIZE,
@@ -187,14 +224,19 @@ async function main(): Promise<void> {
     threads: args.threads ?? DEFAULT_THREADS,
     hashMb: args.hashMb ?? DEFAULT_HASH_MB,
     ponder: false,
-    maxPlies: args.maxPlies ?? DEFAULT_MAX_PLIES
+    maxPlies: args.maxPlies ?? DEFAULT_MAX_PLIES,
+    swap: args.swap ?? DEFAULT_SWAP,
+    fenSuite: args.fenSuite ?? DEFAULT_FEN_SUITE,
+    baseSeed: args.baseSeed ?? DEFAULT_BASE_SEED,
+    outDir
   };
 
   const state = await loadRunState(config, args.reset, args.seriesLabel);
-  await fs.mkdir(RESULTS_DIR, { recursive: true });
+  await fs.mkdir(outDir, { recursive: true });
+  await fs.mkdir(ROOT_OUTPUT_DIR, { recursive: true });
 
   if (config.batchSize <= 0) {
-    await updateReport(state, config);
+    await updateReport(state, config, { commitSha, commandLine });
     console.log('Report refreshed (no games played).');
     return;
   }
@@ -235,11 +277,13 @@ async function main(): Promise<void> {
     config.stockfishMovetimes[state.stockfishRungIndex] ??
     config.stockfishMovetimes[config.stockfishMovetimes.length - 1];
 
-  for (let gameIndex = 0; gameIndex < config.batchSize; gameIndex += 1) {
-    const opening = OPENINGS[state.nextOpening % OPENINGS.length];
-    state.nextOpening += 1;
+  const gamesToPlay = config.swap ? config.batchSize * 2 : config.batchSize;
+
+  for (let gameIndex = 0; gameIndex < gamesToPlay; gameIndex += 1) {
+    const openingIndex = config.swap ? Math.floor(state.totalGames / 2) : state.totalGames;
+    const start = selectStartPosition(config, openingIndex);
     const engineColor: Color = state.totalGames % 2 === 0 ? 'w' : 'b';
-    const seed = 1000 + state.totalGames;
+    const seed = config.baseSeed + state.totalGames;
     const gameId = state.totalGames + 1;
 
     const engineLabel = config.mode === 'max' ? 'BrainIT (Max Thinking)' : 'BrainIT (Hard)';
@@ -247,7 +291,8 @@ async function main(): Promise<void> {
     try {
       result = await runSingleGame({
         gameId,
-        opening,
+        opening: start.opening,
+        startFen: start.fen,
         engineColor,
         movetimeMs: config.movetimeMs,
         stockfishMovetimeMs,
@@ -285,12 +330,14 @@ async function main(): Promise<void> {
         }
       });
     } catch (error) {
-      await writeGameError({
+      await writeGameError(outDir, {
         gameId,
         engineColor,
         engineLabel,
         mode: config.mode,
-        opening,
+        opening: start.opening,
+        startFen: start.fen,
+        seed,
         error
       });
       throw error;
@@ -299,6 +346,7 @@ async function main(): Promise<void> {
     endReasons[result.endReason] = (endReasons[result.endReason] ?? 0) + 1;
 
     state.totalGames += 1;
+    state.nextOpening = config.swap ? Math.floor(state.totalGames / 2) : state.totalGames;
     state.updatedAt = new Date().toISOString();
     if (result.outcome === 'win') {
       state.wins += 1;
@@ -312,11 +360,11 @@ async function main(): Promise<void> {
     }
 
     await fs.writeFile(
-      path.join(RESULTS_DIR, `game-${state.totalGames.toString().padStart(4, '0')}.pgn`),
+      path.join(outDir, `game-${state.totalGames.toString().padStart(4, '0')}.pgn`),
       result.pgn,
       'utf8'
     );
-    await writeGameLog(result.log);
+    await writeGameLog(outDir, result.log);
     await saveRunState(state);
     console.log(`Game ${state.totalGames}: ${result.result} (${result.outcome})`);
   }
@@ -353,7 +401,8 @@ async function main(): Promise<void> {
   // Ladder progression is paused until timeout rates and termination validity are verified.
   state.updatedAt = batchFinished;
   await saveRunState(state);
-  await updateReport(state, config);
+  await updateReport(state, config, { commitSha, commandLine });
+  await writeRunSummary(state, config, { commitSha, commandLine });
 
   console.log(
     `Batch complete: ${batchStats.wins}-${batchStats.draws}-${batchStats.losses} ` +
@@ -364,7 +413,8 @@ async function main(): Promise<void> {
 
 async function runSingleGame(options: {
   gameId: number;
-  opening: string[];
+  opening: string[] | null;
+  startFen: string | null;
   engineColor: Color;
   movetimeMs: number;
   stockfishMovetimeMs: number;
@@ -387,15 +437,20 @@ async function runSingleGame(options: {
   endReason: string;
   log: GameLog;
 }> {
-  const state = createInitialState();
+  const state = options.startFen ? createStateFromFen(options.startFen) : createInitialState();
   const pgnMoves: PgnMove[] = [];
   const moveTimings: MoveTiming[] = [];
   let lastMoveUci: string | null = null;
   let lastMoveSan: string | null = null;
-  const openingResult = applyOpening(state, options.opening, pgnMoves);
-  let plies = openingResult.plies;
-  lastMoveUci = openingResult.lastMoveUci;
-  lastMoveSan = openingResult.lastMoveSan;
+  let plies = 0;
+  let startFen = options.startFen ?? null;
+  if (!options.startFen && options.opening && options.opening.length > 0) {
+    const openingResult = applyOpening(state, options.opening, pgnMoves);
+    plies = openingResult.plies;
+    lastMoveUci = openingResult.lastMoveUci;
+    lastMoveSan = openingResult.lastMoveSan;
+    startFen = stateToFen(state);
+  }
   const rng = createSeededRng(options.seed);
   let engineWorker = createEngineWorker();
 
@@ -410,6 +465,8 @@ async function runSingleGame(options: {
             engineColor: options.engineColor,
             engineLabel: options.engineLabel,
             opening: options.opening,
+            startFen,
+            seed: options.seed,
             plies,
             finalFen: stateToFen(state),
             lastMoveUci,
@@ -441,6 +498,8 @@ async function runSingleGame(options: {
             engineColor: options.engineColor,
             engineLabel: options.engineLabel,
             opening: options.opening,
+            startFen,
+            seed: options.seed,
             plies,
             finalFen: stateToFen(state),
             lastMoveUci,
@@ -486,6 +545,8 @@ async function runSingleGame(options: {
           engineColor: options.engineColor,
           engineLabel: options.engineLabel,
           opening: options.opening,
+          startFen,
+          seed: options.seed,
           plies,
           finalFen: stateToFen(state),
           lastMoveUci,
@@ -558,6 +619,8 @@ async function runSingleGame(options: {
       engineColor: options.engineColor,
       engineLabel: options.engineLabel,
       opening: options.opening,
+      startFen,
+      seed: options.seed,
       plies,
       finalFen: stateToFen(state),
       lastMoveUci,
@@ -734,17 +797,21 @@ function finalizeGame(
   return { result, outcome, pgn };
 }
 
-async function writeGameLog(log: GameLog): Promise<void> {
+async function writeGameLog(outDir: string, log: GameLog): Promise<void> {
   const filename = `game-${log.gameId.toString().padStart(4, '0')}-meta.json`;
-  await fs.writeFile(path.join(RESULTS_DIR, filename), JSON.stringify(log, null, 2), 'utf8');
+  await fs.writeFile(path.join(outDir, filename), JSON.stringify(log, null, 2), 'utf8');
 }
 
-async function writeGameError(args: {
+async function writeGameError(
+  outDir: string,
+  args: {
   gameId: number;
   engineColor: Color;
   engineLabel: string;
   mode: EngineMode;
-  opening: string[];
+  opening: string[] | null;
+  startFen: string | null;
+  seed: number;
   error: unknown;
 }): Promise<void> {
   const filename = `game-${args.gameId.toString().padStart(4, '0')}-error.json`;
@@ -757,6 +824,8 @@ async function writeGameError(args: {
           engineColor: args.engineColor,
           engineLabel: args.engineLabel,
           opening: args.opening,
+          startFen: args.startFen,
+          seed: args.seed,
           plies: 0,
           finalFen: 'unknown',
           lastMoveUci: null,
@@ -771,7 +840,7 @@ async function writeGameError(args: {
     error: args.error instanceof Error ? args.error.message : String(args.error),
     details
   };
-  await fs.writeFile(path.join(RESULTS_DIR, filename), JSON.stringify(payload, null, 2), 'utf8');
+  await fs.writeFile(path.join(outDir, filename), JSON.stringify(payload, null, 2), 'utf8');
 }
 
 function applyOpening(
@@ -795,6 +864,52 @@ function applyOpening(
     lastMoveSan = san;
   }
   return { plies, lastMoveUci, lastMoveSan };
+}
+
+function pickOpening(baseSeed: number, index: number): string[] {
+  if (OPENINGS.length === 0) {
+    return [];
+  }
+  const resolved = Math.abs(baseSeed + index) % OPENINGS.length;
+  return OPENINGS[resolved];
+}
+
+function pickFen(baseSeed: number, index: number): string | null {
+  if (FEN_SUITE.length === 0) {
+    return null;
+  }
+  const resolved = Math.abs(baseSeed + index) % FEN_SUITE.length;
+  return FEN_SUITE[resolved];
+}
+
+function selectStartPosition(
+  config: RunConfig,
+  openingIndex: number
+): { fen: string | null; opening: string[] | null } {
+  if (config.fenSuite && FEN_SUITE.length > 0) {
+    return { fen: pickFen(config.baseSeed, openingIndex), opening: null };
+  }
+  return { fen: null, opening: pickOpening(config.baseSeed, openingIndex) };
+}
+
+function buildFenSuite(sequences: string[][]): string[] {
+  const fens: string[] = [];
+  for (const sequence of sequences) {
+    const state = createInitialState();
+    let valid = true;
+    for (const uci of sequence) {
+      const move = uciToMove(state, uci);
+      if (!move) {
+        valid = false;
+        break;
+      }
+      applyMove(state, move);
+    }
+    if (valid) {
+      fens.push(stateToFen(state));
+    }
+  }
+  return fens;
 }
 
 function uciToMove(state: GameState, uci: string): Move | null {
@@ -900,6 +1015,113 @@ function serializeCastling(state: GameState): string {
   return value || '-';
 }
 
+function createStateFromFen(fen: string): GameState {
+  const parts = fen.trim().split(/\s+/);
+  if (parts.length < 4) {
+    throw new Error(`Invalid FEN: ${fen}`);
+  }
+  const [boardPart, activeColorRaw, castlingRaw, enPassantRaw, halfmoveRaw, fullmoveRaw] =
+    parts;
+  const board = Array.from({ length: 8 }, () => Array(8).fill(null)) as (number | null)[][];
+  const pieces = new Map<number, { id: number; type: PieceType; color: Color; hasMoved: boolean }>();
+  let nextId = 1;
+  const ranks = boardPart.split('/');
+  if (ranks.length !== 8) {
+    throw new Error(`Invalid FEN board: ${fen}`);
+  }
+
+  for (let fenRank = 0; fenRank < 8; fenRank += 1) {
+    const rank = 7 - fenRank;
+    let file = 0;
+    for (const char of ranks[fenRank]) {
+      if (char >= '1' && char <= '8') {
+        file += Number(char);
+        continue;
+      }
+      const piece = fenCharToPiece(char);
+      if (!piece) {
+        throw new Error(`Invalid FEN piece: ${fen}`);
+      }
+      if (file > 7) {
+        throw new Error(`Invalid FEN file: ${fen}`);
+      }
+      pieces.set(nextId, { id: nextId, ...piece, hasMoved: false });
+      board[rank][file] = nextId;
+      nextId += 1;
+      file += 1;
+    }
+    if (file !== 8) {
+      throw new Error(`Invalid FEN rank width: ${fen}`);
+    }
+  }
+
+  const activeColor = activeColorRaw === 'b' ? 'b' : 'w';
+  const castlingRights = {
+    wK: castlingRaw.includes('K'),
+    wQ: castlingRaw.includes('Q'),
+    bK: castlingRaw.includes('k'),
+    bQ: castlingRaw.includes('q')
+  };
+  const enPassantTarget =
+    enPassantRaw && enPassantRaw !== '-' ? algebraicToSquare(enPassantRaw) : null;
+  const halfmoveClock = Number(halfmoveRaw ?? 0) || 0;
+  const fullmoveNumber = Number(fullmoveRaw ?? 1) || 1;
+
+  const state: GameState = {
+    board,
+    pieces,
+    activeColor,
+    castlingRights,
+    enPassantTarget: enPassantTarget ? { file: enPassantTarget.file, rank: enPassantTarget.rank } : null,
+    halfmoveClock,
+    fullmoveNumber,
+    lastMove: null,
+    positionCounts: new Map()
+  };
+
+  state.positionCounts?.set(getPositionKey(state), 1);
+  return state;
+}
+
+function fenCharToPiece(char: string): { type: PieceType; color: Color } | null {
+  const lower = char.toLowerCase();
+  const type =
+    lower === 'p'
+      ? 'pawn'
+      : lower === 'n'
+      ? 'knight'
+      : lower === 'b'
+      ? 'bishop'
+      : lower === 'r'
+      ? 'rook'
+      : lower === 'q'
+      ? 'queen'
+      : lower === 'k'
+      ? 'king'
+      : null;
+  if (!type) {
+    return null;
+  }
+  const color: Color = char === lower ? 'b' : 'w';
+  return { type, color };
+}
+
+function formatRunId(date: Date): string {
+  const pad = (value: number) => value.toString().padStart(2, '0');
+  return (
+    `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}-` +
+    `${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`
+  );
+}
+
+function resolveCommitSha(): string {
+  try {
+    return execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim();
+  } catch {
+    return 'unknown';
+  }
+}
+
 function createSeededRng(seed: number): () => number {
   let value = seed >>> 0;
   return () => {
@@ -936,6 +1158,11 @@ function parseArgs(argv: string[]): {
   maxPlies?: number;
   seriesLabel?: string;
   reset?: boolean;
+  swap?: boolean;
+  fenSuite?: boolean;
+  baseSeed?: number;
+  outDir?: string;
+  runId?: string;
 } {
   const result: {
     stockfishPath: string | null;
@@ -947,6 +1174,11 @@ function parseArgs(argv: string[]): {
     maxPlies?: number;
     seriesLabel?: string;
     reset?: boolean;
+    swap?: boolean;
+    fenSuite?: boolean;
+    baseSeed?: number;
+    outDir?: string;
+    runId?: string;
   } = { stockfishPath: null };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -983,6 +1215,23 @@ function parseArgs(argv: string[]): {
       i += 1;
     } else if (arg === '--reset') {
       result.reset = true;
+    } else if (arg === '--swap') {
+      result.swap = true;
+    } else if (arg === '--no-swap') {
+      result.swap = false;
+    } else if (arg === '--fenSuite') {
+      result.fenSuite = true;
+    } else if (arg === '--no-fenSuite') {
+      result.fenSuite = false;
+    } else if (arg === '--seed') {
+      result.baseSeed = Number(argv[i + 1]);
+      i += 1;
+    } else if (arg === '--outDir') {
+      result.outDir = argv[i + 1];
+      i += 1;
+    } else if (arg === '--runId') {
+      result.runId = argv[i + 1];
+      i += 1;
     } else if (arg === '--series-label' || arg === '--label') {
       result.seriesLabel = argv[i + 1] ?? '';
       i += 1;
@@ -1011,8 +1260,12 @@ async function loadRunState(
           parsed.config.mode === config.mode &&
           parsed.config.threads === config.threads &&
           parsed.config.hashMb === config.hashMb &&
-          parsed.config.maxPlies === config.maxPlies
+          parsed.config.maxPlies === config.maxPlies &&
+          parsed.config.swap === config.swap &&
+          parsed.config.fenSuite === config.fenSuite &&
+          parsed.config.baseSeed === config.baseSeed
         ) {
+          parsed.config.outDir = config.outDir;
           return parsed;
         }
       }
@@ -1045,7 +1298,11 @@ async function loadRunState(
       threads: config.threads,
       hashMb: config.hashMb,
       ponder: config.ponder,
-      maxPlies: config.maxPlies
+      maxPlies: config.maxPlies,
+      swap: config.swap,
+      fenSuite: config.fenSuite,
+      baseSeed: config.baseSeed,
+      outDir: config.outDir
     },
     totalGames: 0,
     wins: 0,
@@ -1168,7 +1425,11 @@ function formatElo(value: number | null): string {
   return `${rounded >= 0 ? '+' : ''}${rounded}`;
 }
 
-async function updateReport(state: RunState, config: RunConfig): Promise<void> {
+async function updateReport(
+  state: RunState,
+  config: RunConfig,
+  meta: { commitSha: string; commandLine: string }
+): Promise<void> {
   const text = await fs.readFile(REPORT_PATH, 'utf8');
   const start = '<!-- REPORT:START -->';
   const end = '<!-- REPORT:END -->';
@@ -1178,7 +1439,7 @@ async function updateReport(state: RunState, config: RunConfig): Promise<void> {
     throw new Error('Report markers not found in BrainITVsStockfishReport.md');
   }
 
-  const reportBody = buildReportBody(state, config);
+  const reportBody = buildReportBody(state, config, meta);
   const updated =
     text.slice(0, startIndex + start.length) +
     `\n${reportBody}\n` +
@@ -1186,7 +1447,34 @@ async function updateReport(state: RunState, config: RunConfig): Promise<void> {
   await fs.writeFile(REPORT_PATH, updated, 'utf8');
 }
 
-function buildReportBody(state: RunState, config: RunConfig): string {
+async function writeRunSummary(
+  state: RunState,
+  config: RunConfig,
+  meta: { commitSha: string; commandLine: string }
+): Promise<void> {
+  const payload = {
+    startedAt: state.startedAt,
+    updatedAt: state.updatedAt,
+    seriesLabel: state.seriesLabel ?? 'unspecified',
+    config,
+    commitSha: meta.commitSha,
+    commandLine: meta.commandLine,
+    totals: {
+      games: state.totalGames,
+      wins: state.wins,
+      draws: state.draws,
+      losses: state.losses
+    },
+    batches: state.batches
+  };
+  await fs.writeFile(path.join(config.outDir, 'summary.json'), JSON.stringify(payload, null, 2), 'utf8');
+}
+
+function buildReportBody(
+  state: RunState,
+  config: RunConfig,
+  meta: { commitSha: string; commandLine: string }
+): string {
   const score = state.totalGames
     ? (state.wins + state.draws * 0.5) / state.totalGames
     : 0;
@@ -1205,11 +1493,14 @@ function buildReportBody(state: RunState, config: RunConfig): string {
     `Last updated: ${state.updatedAt}`,
     `Series: ${state.seriesLabel ?? 'unspecified'}`,
     '',
-    `Config: BrainIT ${config.mode} @ ${config.movetimeMs}ms | Stockfish movetime ${lastRung}ms`,
+    `Config: Scorpion ${config.mode} @ ${config.movetimeMs}ms | Stockfish movetime ${lastRung}ms | swap=${config.swap} | fenSuite=${config.fenSuite} | seed=${config.baseSeed}`,
+    `Commit: ${meta.commitSha}`,
+    `Command: ${meta.commandLine}`,
     `Stockfish: ${config.stockfishPath}`,
     `Settings: Threads=${config.threads}, Hash=${config.hashMb}MB, Ponder=${config.ponder ? 'true' : 'false'}`,
     `Movetime targets: BrainIT=${config.movetimeMs}ms, Stockfish=${lastRung}ms`,
     `Next ladder rung: paused (Stockfish=${currentRung}ms)`,
+    `Output: ${config.outDir}`,
     '',
     `Cumulative: ${state.wins}-${state.draws}-${state.losses} (${state.totalGames} games)`,
     `Score: ${score.toFixed(3)}`,
