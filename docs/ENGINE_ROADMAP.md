@@ -167,6 +167,7 @@ Goal: Reduce early threefolds without changing time caps.
     - Root ordering deprioritizes quiet repeat moves when not losing.
   - Phase 4.2 (implemented, locked): bounded selective extensions (recapture-first) with check-extension gating.
   - Phase 4.3 (implemented, commit ecbdd1a): defensive repetition awareness, in-check ordering, mate-distance preference.
+  - Phase 4.4 (step 1 implemented, commit c37ffcc): check-pressure safety bias for in-check evasions.
 - Expected benefit
   - Lower node count for the same depth, higher tactical clarity, fewer drawish loops.
 - Risks / failure modes
@@ -238,6 +239,19 @@ Goal: Reduce early threefolds without changing time caps.
   - No increase in Hard timeouts.
   - Repetition rate stable or lower; mate rate stable or higher.
   - No regression in Hard vs Max ordering.
+
+### Phase 4.4 detail (step 1 implemented, commit c37ffcc)
+
+- Objective
+  - Reduce mate losses by improving the ordering of check evasions (capture > block > king move).
+- Delivered change (step 1)
+  - Added check-pressure safety bias in in-check move ordering:
+    - Capture evasions are prioritized ahead of blocks, with king moves last.
+    - King moves into attacked squares are penalized to avoid unsafe evasions.
+  - Ordering-only change (no evaluation changes, no legality changes).
+- Validation
+  - Unit tests: deterministic ordering for capture vs block vs king move; king-into-attack penalty.
+  - Stockfish tracking rung after Step 1 (planned): Hard 800ms vs Stockfish 500ms (b25).
 
 ## Phase 5 - Endgame conversion (target late-game draws)
 
