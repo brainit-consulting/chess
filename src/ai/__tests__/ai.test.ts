@@ -406,6 +406,30 @@ describe('AI move selection', () => {
     expect(sameMove(chosen as Move, repeatMove)).toBe(true);
   });
 
+  it('detects recaptures on the last move square', () => {
+    const state = createEmptyState();
+    addPiece(state, 'king', 'w', sq(4, 0));
+    addPiece(state, 'king', 'b', sq(4, 7));
+    addPiece(state, 'rook', 'w', sq(0, 0));
+    addPiece(state, 'pawn', 'b', sq(0, 1));
+    addPiece(state, 'pawn', 'b', sq(1, 1));
+    state.activeColor = 'w';
+    state.lastMove = { from: sq(0, 2), to: sq(0, 1) };
+
+    const recapture = { from: sq(0, 0), to: sq(0, 1) };
+    expect(search.isRecaptureForTest(state, recapture)).toBe(true);
+
+    const differentCapture = { from: sq(0, 0), to: sq(1, 1) };
+    expect(search.isRecaptureForTest(state, differentCapture)).toBe(false);
+
+    const noLastMove = cloneState(state);
+    noLastMove.lastMove = null;
+    expect(search.isRecaptureForTest(noLastMove, recapture)).toBe(false);
+
+    const quietMove = { from: sq(0, 0), to: sq(0, 2) };
+    expect(search.isRecaptureForTest(state, quietMove)).toBe(false);
+  });
+
   it('avoids rook shuffle repeats when a quiet improvement exists', () => {
     const state = createEmptyState();
     addPiece(state, 'king', 'w', sq(4, 0));

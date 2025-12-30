@@ -1651,7 +1651,7 @@ function alphaBeta(
       const reduction = maxThinking
         ? getLmrReduction(depth, index, inCheck, isQuietForLmr(state, move, currentColor))
         : 0;
-      const extension = getForcingExtension(next, move, currentColor, depth, ply);
+      const extension = getForcingExtension(state, next, move, currentColor, depth, ply);
       const reducedDepth = Math.max(0, depth - 1 - reduction + extension);
       const canPvs = pvsEnabled && index > 0 && Number.isFinite(alpha) && Number.isFinite(beta);
       let nextScore: number;
@@ -1769,7 +1769,7 @@ function alphaBeta(
     const reduction = maxThinking
       ? getLmrReduction(depth, index, inCheck, isQuietForLmr(state, move, currentColor))
       : 0;
-    const extension = getForcingExtension(next, move, currentColor, depth, ply);
+    const extension = getForcingExtension(state, next, move, currentColor, depth, ply);
     const reducedDepth = Math.max(0, depth - 1 - reduction + extension);
     const canPvs = pvsEnabled && index > 0 && Number.isFinite(alpha) && Number.isFinite(beta);
     let nextScore: number;
@@ -2188,7 +2188,21 @@ function microQuiescence(
   return value;
 }
 
+function isRecapture(state: GameState, move: Move): boolean {
+  if (!state.lastMove) {
+    return false;
+  }
+  if (!isCaptureMove(state, move)) {
+    return false;
+  }
+  return (
+    move.to.file === state.lastMove.to.file &&
+    move.to.rank === state.lastMove.to.rank
+  );
+}
+
 function getForcingExtension(
+  state: GameState,
   next: GameState,
   move: Move,
   currentColor: Color,
@@ -2204,7 +2218,13 @@ function getForcingExtension(
   if (move.promotion) {
     return 1;
   }
-  if (isInCheck(next, opponentColor(currentColor))) {
+  if (depth >= 2 && isRecapture(state, move)) {
+    return 1;
+  }
+  if (
+    isInCheck(next, opponentColor(currentColor)) &&
+    !isMovedPieceHanging(next, move, currentColor)
+  ) {
     return 1;
   }
   return 0;
@@ -2516,6 +2536,10 @@ export function getLmrReductionForTest(
 
 export function shouldAllowNullMoveForTest(state: GameState, color: Color): boolean {
   return shouldAllowNullMove(state, color);
+}
+
+export function isRecaptureForTest(state: GameState, move: Move): boolean {
+  return isRecapture(state, move);
 }
 
 // Test-only: expose avoidance selection with synthetic scores.
