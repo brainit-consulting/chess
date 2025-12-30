@@ -267,6 +267,9 @@ Goal: Reduce early threefolds without changing time caps.
 
 ## Phase 5 - Endgame conversion (target late-game draws)
 
+- Phase 5.1 (implemented, commit 0f7daf8): king ring safety penalty (attack count).
+  - Validation: unit tests + SF500 b25 tracking rung (runId `phase5_1-kingSafety-hard800-vs-sf500-b25`).
+
 - Change list (files)
   - `src/ai/evaluate.ts`
     - Add king activity in endgames, pawn races, opposition heuristics.
