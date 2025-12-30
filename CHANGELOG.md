@@ -8,6 +8,16 @@ Semantic Versioning.
 ## [Unreleased]
 ### Changed
 
+## [1.1.55] - 2025-12-30
+
+### Changed
+
+- Phase 4.3 search improvements: repetition defense when losing, in-check ordering, and mate-distance preference.
+- Benchmark infrastructure stabilization (Stockfish ladder support, timeout tolerance, UTC+ET reporting).
+- Phase 4.4 check-extension experiments (4.4.2/4.4.2b) archived and reverted after regression in SF500 b25 tracking.
+- Confirmed stable baseline vs Stockfish SF500 (Hard 800ms vs SF500 b25 reconfirmation).
+- Update the in-UI version label to v1.1.55.
+
 ## [1.1.54] - 2025-12-30
 
 ### Added

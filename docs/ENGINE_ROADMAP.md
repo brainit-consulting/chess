@@ -184,6 +184,7 @@ Goal: Reduce early threefolds without changing time caps.
   - Phase 4.1c: pending local validation (shuffle-loop focus).
   - Phase 4.2: locked; no further ladder rungs until Phase 4.3 changes land.
   - Phase 4.3: implemented (commit ecbdd1a).
+  - Phase 4.3 baseline reconfirmed: runId `phase4_3-reconfirm-hard800-vs-sf500-b25` (avg plies ~36.3).
 
 ### Phase 4.2 detail (completed and locked)
 
