@@ -1,6 +1,7 @@
 import {
   Color,
   GameState,
+  Move,
   PieceType,
   findKingSquare,
   getAllLegalMoves,
@@ -36,6 +37,9 @@ const QUEEN_OPEN_FILE_BONUS = 6;
 const QUEEN_SEMI_OPEN_FILE_BONUS = 4;
 const KING_OPEN_FILE_PENALTY = 12;
 const MAX_KING_RING_PAWN_PENALTY = 5;
+const ENABLE_KING_RING_ATTACK_PENALTY = true;
+const KING_RING_ATTACK_PENALTY_CP = 6;
+const KING_RING_ENDGAME_SCALE = 0.5;
 
 const KNIGHT_PST = [
   -50, -40, -30, -30, -30, -30, -40, -50,
@@ -105,9 +109,9 @@ export function evaluateState(
     }
   }
 
-  const whiteMoves = getAllLegalMoves(state, 'w').length;
-  const blackMoves = getAllLegalMoves(state, 'b').length;
-  const mobility = (whiteMoves - blackMoves) * MOBILITY_WEIGHT;
+  const whiteLegalMoves = getAllLegalMoves(state, 'w');
+  const blackLegalMoves = getAllLegalMoves(state, 'b');
+  const mobility = (whiteLegalMoves.length - blackLegalMoves.length) * MOBILITY_WEIGHT;
 
   let checkScore = 0;
   if (isInCheck(state, 'w')) {
@@ -126,9 +130,13 @@ export function evaluateState(
   };
   const kingExposure =
     kingExposureScore(state, context, 'w') - kingExposureScore(state, context, 'b');
+  const kingRingPenalty =
+    -kingRingPenaltyScore(state, context, 'w', blackLegalMoves) +
+    kingRingPenaltyScore(state, context, 'b', whiteLegalMoves);
   const filePressure = filePressureScore(state, context);
   const maxScore = options.maxThinking ? evaluateMaxThinking(state, context) : 0;
-  const scoreForWhite = material + mobility + checkScore + kingExposure + filePressure + maxScore;
+  const scoreForWhite =
+    material + mobility + checkScore + kingExposure + kingRingPenalty + filePressure + maxScore;
   return perspective === 'w' ? scoreForWhite : -scoreForWhite;
 }
 
@@ -248,6 +256,64 @@ function filePressureScore(state: GameState, context: EvalContext): number {
   }
 
   return score;
+}
+
+function kingRingPenaltyScore(
+  state: GameState,
+  context: EvalContext,
+  color: Color,
+  opponentMoves: Move[]
+): number {
+  if (!ENABLE_KING_RING_ATTACK_PENALTY) {
+    return 0;
+  }
+  const kingSquare = findKingSquare(state, color);
+  if (!kingSquare) {
+    return 0;
+  }
+  const ringSquares = getKingRingSquares(kingSquare);
+  if (ringSquares.length === 0) {
+    return 0;
+  }
+  const ringSet = new Set(ringSquares.map((square) => ringKey(square.file, square.rank)));
+  const attackCount = countRingAttacks(opponentMoves, ringSet);
+  if (attackCount <= 0) {
+    return 0;
+  }
+  const phaseScale = 1 - (1 - KING_RING_ENDGAME_SCALE) * context.phaseFactor;
+  return attackCount * KING_RING_ATTACK_PENALTY_CP * phaseScale;
+}
+
+function getKingRingSquares(square: { file: number; rank: number }): { file: number; rank: number }[] {
+  const squares: { file: number; rank: number }[] = [];
+  for (let fileOffset = -1; fileOffset <= 1; fileOffset += 1) {
+    for (let rankOffset = -1; rankOffset <= 1; rankOffset += 1) {
+      if (fileOffset === 0 && rankOffset === 0) {
+        continue;
+      }
+      const file = square.file + fileOffset;
+      const rank = square.rank + rankOffset;
+      if (file < 0 || file > 7 || rank < 0 || rank > 7) {
+        continue;
+      }
+      squares.push({ file, rank });
+    }
+  }
+  return squares;
+}
+
+function countRingAttacks(opponentMoves: Move[], ringSet: Set<number>): number {
+  let count = 0;
+  for (const move of opponentMoves) {
+    if (ringSet.has(ringKey(move.to.file, move.to.rank))) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+function ringKey(file: number, rank: number): number {
+  return rank * 8 + file;
 }
 
 function maxKingShieldScore(state: GameState, context: EvalContext, color: Color): number {

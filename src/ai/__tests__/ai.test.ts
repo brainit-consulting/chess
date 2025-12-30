@@ -1002,6 +1002,46 @@ describe('AI move selection', () => {
     expect(exposedNoQueensEval).toBeGreaterThan(exposedEval);
   });
 
+  it('penalizes attacked king ring squares', () => {
+    const safe = createEmptyState();
+    addPiece(safe, 'king', 'w', sq(4, 0));
+    addPiece(safe, 'king', 'b', sq(7, 7));
+    addPiece(safe, 'bishop', 'b', sq(0, 6));
+    addPiece(safe, 'knight', 'b', sq(0, 3));
+    safe.fullmoveNumber = 12;
+
+    const exposed = createEmptyState();
+    addPiece(exposed, 'king', 'w', sq(4, 0));
+    addPiece(exposed, 'king', 'b', sq(7, 7));
+    addPiece(exposed, 'bishop', 'b', sq(2, 4));
+    addPiece(exposed, 'knight', 'b', sq(2, 2));
+    exposed.fullmoveNumber = 12;
+
+    const safeEval = evaluateState(safe, 'w');
+    const exposedEval = evaluateState(exposed, 'w');
+    expect(exposedEval).toBeLessThan(safeEval);
+  });
+
+  it('applies king ring penalties symmetrically for each side', () => {
+    const attackedWhite = createEmptyState();
+    addPiece(attackedWhite, 'king', 'w', sq(4, 0));
+    addPiece(attackedWhite, 'king', 'b', sq(7, 7));
+    addPiece(attackedWhite, 'bishop', 'b', sq(2, 4));
+    addPiece(attackedWhite, 'knight', 'b', sq(2, 2));
+    attackedWhite.fullmoveNumber = 12;
+
+    const attackedBlack = createEmptyState();
+    addPiece(attackedBlack, 'king', 'w', sq(7, 0));
+    addPiece(attackedBlack, 'king', 'b', sq(4, 7));
+    addPiece(attackedBlack, 'bishop', 'w', sq(2, 3));
+    addPiece(attackedBlack, 'knight', 'w', sq(2, 5));
+    attackedBlack.fullmoveNumber = 12;
+
+    const whiteUnderFire = evaluateState(attackedWhite, 'w');
+    const blackUnderFire = evaluateState(attackedBlack, 'w');
+    expect(blackUnderFire).toBeGreaterThan(whiteUnderFire);
+  });
+
   it('rewards rook pressure on open files toward the king', () => {
     const pressure = createEmptyState();
     addPiece(pressure, 'king', 'w', sq(6, 0));
