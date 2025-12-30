@@ -1,5 +1,6 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
 import { performance } from 'node:perf_hooks';
 import { Worker } from 'node:worker_threads';
@@ -37,6 +38,7 @@ type MoveDiagnosticsEntry = {
   ply: number;
   color: Color;
   side: EngineSide;
+  timedOut: boolean;
   chosenMoveReason: string;
   bestRepeatKind: string;
   bestIsRepeat: boolean;
@@ -565,7 +567,8 @@ async function runSingleGame(options: {
           formatMoveDiagnostics(moveResult.diagnostics, {
             ply: plies + 1,
             color: state.activeColor,
-            side
+            side,
+            timedOut: moveResult.timedOut
           })
         );
       }
@@ -657,6 +660,7 @@ async function pickEngineMove(
 }> {
   const start = performance.now();
   const seed = Math.floor(rng() * 1000000000);
+  const diagnosticsGraceMs = options.side === 'hard' ? 150 : 250;
   const result = await runEngineWithTimeout(
     worker,
     state,
@@ -669,7 +673,8 @@ async function pickEngineMove(
       diagnostics: true
     },
     options.targetMs,
-    ENGINE_TIMEOUT_GRACE_MS
+    ENGINE_TIMEOUT_GRACE_MS,
+    diagnosticsGraceMs
   );
   const elapsed = performance.now() - start;
   const timedOut = result.timedOut;
@@ -1158,12 +1163,13 @@ function buildRepetitionDiagnostics(
 
 function formatMoveDiagnostics(
   diagnostics: RootDiagnostics,
-  context: { ply: number; color: Color; side: EngineSide }
+  context: { ply: number; color: Color; side: EngineSide; timedOut: boolean }
 ): MoveDiagnosticsEntry {
   return {
     ply: context.ply,
     color: context.color,
     side: context.side,
+    timedOut: context.timedOut,
     chosenMoveReason: diagnostics.chosenMoveReason,
     bestRepeatKind: diagnostics.bestRepeatKind,
     bestIsRepeat: diagnostics.bestIsRepeat,
@@ -1617,7 +1623,7 @@ function createEngineWorker(): Worker {
   return new Worker(new URL('./engineWorker.cjs', import.meta.url));
 }
 
-async function runEngineWithTimeout(
+export async function runEngineWithTimeout(
   worker: Worker,
   state: GameState,
   options: {
@@ -1629,7 +1635,8 @@ async function runEngineWithTimeout(
     diagnostics?: boolean;
   },
   targetMs: number,
-  graceMs: number
+  graceMs: number,
+  diagnosticsGraceMs = 0
 ): Promise<{
   move: Move | null;
   error?: string;
@@ -1640,6 +1647,7 @@ async function runEngineWithTimeout(
   let activeWorker = worker;
   const requestId = Math.floor(Math.random() * 1e9);
   let timedOut = false;
+  let resolved = false;
 
   const result = await new Promise<{
     move: Move | null;
@@ -1649,21 +1657,40 @@ async function runEngineWithTimeout(
     diagnostics?: RootDiagnostics;
   }>((resolve) => {
     const attachedWorker = activeWorker;
+    const allowDiagnosticsGrace = Boolean(options.diagnostics && diagnosticsGraceMs > 0);
+    let diagnosticsTimer: ReturnType<typeof setTimeout> | null = null;
     const stopTimer = setTimeout(() => {
       attachedWorker.postMessage({ kind: 'stop', id: requestId });
     }, targetMs);
 
     const timeout = setTimeout(() => {
       timedOut = true;
+      if (allowDiagnosticsGrace) {
+        diagnosticsTimer = setTimeout(() => {
+          if (resolved) {
+            return;
+          }
+          cleanup();
+          attachedWorker.terminate();
+          activeWorker = createEngineWorker();
+          resolved = true;
+          resolve({ move: fallbackMove(state), worker: activeWorker, timedOut });
+        }, diagnosticsGraceMs);
+        return;
+      }
       cleanup();
       attachedWorker.terminate();
       activeWorker = createEngineWorker();
+      resolved = true;
       resolve({ move: fallbackMove(state), worker: activeWorker, timedOut });
     }, targetMs + graceMs);
 
     const cleanup = () => {
       clearTimeout(stopTimer);
       clearTimeout(timeout);
+      if (diagnosticsTimer) {
+        clearTimeout(diagnosticsTimer);
+      }
       attachedWorker.off('message', onMessage);
       attachedWorker.off('error', onError);
     };
@@ -1677,7 +1704,11 @@ async function runEngineWithTimeout(
       if (response.id !== requestId) {
         return;
       }
+      if (resolved) {
+        return;
+      }
       cleanup();
+      resolved = true;
       resolve({
         move: response.move,
         error: response.error,
@@ -1688,9 +1719,13 @@ async function runEngineWithTimeout(
     };
 
     const onError = (error: unknown) => {
+      if (resolved) {
+        return;
+      }
       cleanup();
       attachedWorker.terminate();
       activeWorker = createEngineWorker();
+      resolved = true;
       resolve({
         move: null,
         error: error instanceof Error ? error.message : String(error),
@@ -1722,7 +1757,12 @@ function fallbackMove(state: GameState): Move | null {
   return moves[0];
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+const isDirectRun =
+  process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (isDirectRun) {
+  main().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}
