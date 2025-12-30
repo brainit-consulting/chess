@@ -51,14 +51,17 @@ Version: 1.1.53
 - Quiescence: Max uses full quiescence (`QUIESCENCE_MAX_DEPTH` = 4); Hard uses capture-only micro-quiescence at leaf nodes.
 - Null-move pruning: only when `maxThinking` is true; gated by depth/material.
 - LMR (late move reductions): only when `maxThinking` is true.
+- PVS (principal variation search): max-thinking only; non-PV moves are searched with a null window and re-searched on fail-high.
 - Forcing extensions: +1 ply on checks/promotions (depth/ply capped).
 - Move ordering:
   - Base heuristic: promotions, captures, checks, hanging piece penalty, minor development bonus.
-  - Max-thinking adds: SEE capture penalty, larger check bonus, TT best move, killer/history.
+  - Max-thinking adds: SEE capture penalty, larger check bonus, TT best move, killer/history, countermove boosts.
+  - Hard uses a smaller history bonus for quiet moves (no killer/countermove).
 - Transposition table: Max uses a full Map; Hard uses a small fixed-size TT.
 - Repetition avoidance:
   - Only when `playForWin` is passed and `recentPositions` is present.
   - Root scoring applies a repetition penalty that scales with advantage and skips clearly losing or forced-repeat lines.
+  - Root contempt bias further nudges repeat/drawish lines down when not losing (per-difficulty cp bias).
   - Near repetition (position seen once) incurs a mild penalty; immediate threefold risk (seen 2+ times) incurs a larger penalty.
   - Max uses a higher penalty scale and an extra loop multiplier when the same position has already repeated.
   - A root-level tie-breaker prefers a close-scoring non-repetition move when the top move repeats and the side is not losing.
@@ -111,13 +114,14 @@ Source: `src/ai/ai.ts` (`chooseMove`) and `src/game.ts` (`scheduleAiMove`).
   - Otherwise uses `findBestMove` depth 3.
   - Uses a small bounded TT and capture-only micro-quiescence at leaf nodes.
   - Forcing extensions on checks/promotions (depth/ply capped).
-  - No null-move, no LMR, no full quiescence.
+  - No null-move, no LMR, no full quiescence, no PVS.
+  - Modest history ordering for quiet moves.
   - RNG: seeded if provided; otherwise `Math.random`.
 - Max
   - Depth cap: `MAX_THINKING_DEPTH_CAP` (7).
   - Time cap: `MAX_THINKING_CAP_MS` (10,000ms).
   - Uses `findBestMoveTimed` with `maxThinking: true`.
-  - Enables TT, killer/history ordering, quiescence, null-move, LMR, aspiration windows, forcing extensions.
+  - Enables TT, killer/history ordering, countermove ordering, PVS, quiescence, null-move, LMR, aspiration windows, forcing extensions.
   - RNG: seeded if provided; otherwise `Math.random`.
 
 ## Live gameplay time caps (Hard/Max)

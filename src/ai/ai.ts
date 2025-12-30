@@ -1,5 +1,12 @@
 import { Color, GameState, Move, getAllLegalMoves } from '../rules';
-import { createHardTt, findBestMove, findBestMoveTimed } from './search';
+import {
+  createHardTt,
+  createOrderingState,
+  findBestMove,
+  findBestMoveTimed,
+  findBestMoveTimedDebug,
+  type RootDiagnostics
+} from './search';
 
 export type AiDifficulty = 'easy' | 'medium' | 'hard' | 'max';
 
@@ -17,6 +24,8 @@ const HARD_TWO_PLY_REPEAT_PENALTY = 18;
 const MAX_TWO_PLY_REPEAT_PENALTY = 30;
 const TWO_PLY_REPEAT_TOP_N = 6;
 const HARD_MICRO_QUIESCENCE_DEPTH = 1;
+const HARD_CONTEMPT_CP = 10;
+const MAX_CONTEMPT_CP = 20;
 
 export type AiOptions = {
   color?: Color;
@@ -27,6 +36,8 @@ export type AiOptions = {
   recentPositions?: string[];
   repetitionPenaltyScale?: number;
   hardRepetitionNudgeScale?: number;
+  contemptCp?: number;
+  usePvs?: boolean;
   depthOverride?: number;
   maxTimeMs?: number;
   maxDepth?: number;
@@ -41,7 +52,22 @@ const DEPTH_BY_DIFFICULTY: Record<AiDifficulty, number> = {
   max: 3
 };
 
-export function chooseMove(state: GameState, options: AiOptions = {}): Move | null {
+type AiContext = {
+  color: Color;
+  legalMoves: Move[];
+  rng: () => number;
+  difficulty: AiDifficulty;
+  repetitionPenaltyScale: number;
+  hardRepetitionNudgeScale: number;
+  repetitionAvoidWindow: number;
+  drawHoldThreshold: number;
+  twoPlyRepeatPenalty: number;
+  twoPlyRepeatTopN: number;
+  contemptCp: number;
+  usePvs: boolean;
+};
+
+function resolveAiContext(state: GameState, options: AiOptions): AiContext | null {
   const color = options.color ?? 'b';
   const legalMoves = getAllLegalMoves(state, color);
   if (legalMoves.length === 0) {
@@ -75,10 +101,61 @@ export function chooseMove(state: GameState, options: AiOptions = {}): Move | nu
         ? HARD_TWO_PLY_REPEAT_PENALTY
         : 0;
   const twoPlyRepeatTopN = TWO_PLY_REPEAT_TOP_N;
+  const contemptCp =
+    options.contemptCp ??
+    (difficulty === 'max'
+      ? MAX_CONTEMPT_CP
+      : difficulty === 'hard'
+        ? HARD_CONTEMPT_CP
+        : 0);
+  const usePvs = options.usePvs ?? difficulty === 'max';
+
+  return {
+    color,
+    legalMoves,
+    rng,
+    difficulty,
+    repetitionPenaltyScale,
+    hardRepetitionNudgeScale,
+    repetitionAvoidWindow,
+    drawHoldThreshold,
+    twoPlyRepeatPenalty,
+    twoPlyRepeatTopN,
+    contemptCp,
+    usePvs
+  };
+}
+
+export type AiMoveWithDiagnostics = {
+  move: Move | null;
+  diagnostics: RootDiagnostics | null;
+};
+
+export function chooseMove(state: GameState, options: AiOptions = {}): Move | null {
+  const context = resolveAiContext(state, options);
+  if (!context) {
+    return null;
+  }
+
+  const {
+    color,
+    legalMoves,
+    rng,
+    difficulty,
+    repetitionPenaltyScale,
+    hardRepetitionNudgeScale,
+    repetitionAvoidWindow,
+    drawHoldThreshold,
+    twoPlyRepeatPenalty,
+    twoPlyRepeatTopN,
+    contemptCp,
+    usePvs
+  } = context;
 
   if (difficulty === 'max') {
     const maxTimeMs = options.maxTimeMs ?? MAX_THINKING_CAP_MS;
     const maxDepth = options.maxDepth ?? MAX_THINKING_DEPTH_CAP;
+    const ordering = createOrderingState(maxDepth + 4);
     return findBestMoveTimed(state, color, {
       maxDepth,
       maxTimeMs,
@@ -92,7 +169,10 @@ export function chooseMove(state: GameState, options: AiOptions = {}): Move | nu
       drawHoldThreshold,
       twoPlyRepeatPenalty,
       twoPlyRepeatTopN,
+      contemptCp,
       maxThinking: true,
+      usePvs,
+      ordering,
       stopRequested: options.stopRequested,
       onProgress: options.onProgress
     });
@@ -103,6 +183,7 @@ export function chooseMove(state: GameState, options: AiOptions = {}): Move | nu
   const tt = difficulty === 'hard' ? createHardTt() : undefined;
   const microQuiescenceDepth =
     difficulty === 'hard' ? HARD_MICRO_QUIESCENCE_DEPTH : undefined;
+  const ordering = difficulty === 'hard' ? createOrderingState(depth + 2) : undefined;
   if (difficulty === 'hard' && maxTimeMs !== undefined) {
     if (typeof process !== 'undefined' && process.env?.BENCH_DEBUG === '1') {
       console.log('TIMED_HARD_USED');
@@ -120,9 +201,12 @@ export function chooseMove(state: GameState, options: AiOptions = {}): Move | nu
       drawHoldThreshold,
       twoPlyRepeatPenalty,
       twoPlyRepeatTopN,
+      contemptCp,
       microQuiescenceDepth,
       tt,
       maxThinking: false,
+      usePvs,
+      ordering,
       stopRequested: options.stopRequested
     });
   }
@@ -139,12 +223,123 @@ export function chooseMove(state: GameState, options: AiOptions = {}): Move | nu
     drawHoldThreshold,
     twoPlyRepeatPenalty,
     twoPlyRepeatTopN,
+    contemptCp,
     microQuiescenceDepth,
     tt,
     maxThinking: false,
+    usePvs,
+    ordering,
     maxTimeMs,
     stopRequested: options.stopRequested
   });
+}
+
+export function chooseMoveWithDiagnostics(
+  state: GameState,
+  options: AiOptions = {}
+): AiMoveWithDiagnostics {
+  const context = resolveAiContext(state, options);
+  if (!context) {
+    return { move: null, diagnostics: null };
+  }
+
+  const {
+    color,
+    legalMoves,
+    rng,
+    difficulty,
+    repetitionPenaltyScale,
+    hardRepetitionNudgeScale,
+    repetitionAvoidWindow,
+    drawHoldThreshold,
+    twoPlyRepeatPenalty,
+    twoPlyRepeatTopN,
+    contemptCp,
+    usePvs
+  } = context;
+
+  if (difficulty === 'max') {
+    const maxTimeMs = options.maxTimeMs ?? MAX_THINKING_CAP_MS;
+    const maxDepth = options.maxDepth ?? MAX_THINKING_DEPTH_CAP;
+    const ordering = createOrderingState(maxDepth + 4);
+    const report = findBestMoveTimedDebug(state, color, {
+      maxDepth,
+      maxTimeMs,
+      rng,
+      legalMoves,
+      playForWin: options.playForWin,
+      recentPositions: options.recentPositions,
+      repetitionPenaltyScale,
+      hardRepetitionNudgeScale,
+      repetitionAvoidWindow,
+      drawHoldThreshold,
+      twoPlyRepeatPenalty,
+      twoPlyRepeatTopN,
+      contemptCp,
+      microQuiescenceDepth: undefined,
+      maxThinking: true,
+      usePvs,
+      rootDiagnostics: true,
+      ordering,
+      stopRequested: options.stopRequested
+    });
+    return { move: report.move, diagnostics: report.rootDiagnostics ?? null };
+  }
+
+  const depth = options.depthOverride ?? DEPTH_BY_DIFFICULTY[difficulty];
+  const maxTimeMs = difficulty === 'hard' ? options.maxTimeMs : undefined;
+  const tt = difficulty === 'hard' ? createHardTt() : undefined;
+  const microQuiescenceDepth =
+    difficulty === 'hard' ? HARD_MICRO_QUIESCENCE_DEPTH : undefined;
+  const ordering = difficulty === 'hard' ? createOrderingState(depth + 2) : undefined;
+  if (difficulty === 'hard' && maxTimeMs !== undefined) {
+    const report = findBestMoveTimedDebug(state, color, {
+      maxDepth: depth,
+      maxTimeMs,
+      rng,
+      legalMoves,
+      playForWin: options.playForWin,
+      recentPositions: options.recentPositions,
+      repetitionPenaltyScale,
+      hardRepetitionNudgeScale,
+      repetitionAvoidWindow,
+      drawHoldThreshold,
+      twoPlyRepeatPenalty,
+      twoPlyRepeatTopN,
+      contemptCp,
+      microQuiescenceDepth,
+      tt,
+      maxThinking: false,
+      usePvs,
+      rootDiagnostics: true,
+      ordering,
+      stopRequested: options.stopRequested
+    });
+    return { move: report.move, diagnostics: report.rootDiagnostics ?? null };
+  }
+
+  const move = findBestMove(state, color, {
+    depth,
+    rng,
+    legalMoves,
+    playForWin: options.playForWin,
+    recentPositions: options.recentPositions,
+    repetitionPenaltyScale,
+    hardRepetitionNudgeScale,
+    repetitionAvoidWindow,
+    drawHoldThreshold,
+    twoPlyRepeatPenalty,
+    twoPlyRepeatTopN,
+    contemptCp,
+    microQuiescenceDepth,
+    tt,
+    maxThinking: false,
+    usePvs,
+    ordering,
+    maxTimeMs,
+    stopRequested: options.stopRequested
+  });
+  return { move, diagnostics: null };
 }
 
 function createSeededRng(seed: number): () => number {

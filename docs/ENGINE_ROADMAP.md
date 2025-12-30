@@ -152,7 +152,12 @@ Goal: Reduce early threefolds without changing time caps.
 ## Phase 4 - Search efficiency + ordering (browser-friendly)
 
 - Change list (files)
-  - Phase 4.1: PVS + countermove heuristic + improved quiet move ordering (Max first; Hard optional).
+  - Phase 4.1 (implemented):
+    - PVS in alpha-beta for maxThinking (null-window re-search on non-PV moves).
+    - Countermove heuristic for quiet moves (Max only).
+    - Root contempt bias in play-for-win scoring (Hard 10cp, Max 20cp; draw-hold threshold -80cp).
+    - Quiet history ordering strengthened for Max, modest for Hard.
+    - Bench diagnostics: root top moves + chosen move reason in self-play meta.
   - Phase 4.2: bounded selective extensions (recapture optional, strict caps).
   - Phase 4.3: shallow pruning guards (futility/razoring; Max first).
 - Expected benefit
@@ -164,6 +169,8 @@ Goal: Reduce early threefolds without changing time caps.
   - Stockfish quick bench: no regression.
 - Rollback plan
   - Keep changes gated by `maxThinking` first; revert subphase independently.
+- Results
+  - Phase 4.1: pending local fastcheck (`seed 7000`, maxMs 3000 and 10000).
 
 ## Phase 5 - Endgame conversion (target late-game draws)
 

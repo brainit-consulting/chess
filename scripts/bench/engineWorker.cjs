@@ -1,7 +1,7 @@
 require('tsx/cjs');
 
 const { parentPort } = require('node:worker_threads');
-const { chooseMove } = require('../../src/ai/ai');
+const { chooseMove, chooseMoveWithDiagnostics } = require('../../src/ai/ai');
 
 if (!parentPort) {
   throw new Error('engineWorker must be run as a worker thread.');
@@ -21,7 +21,8 @@ parentPort.on('message', (message) => {
     activeId = message.id ?? null;
     stopRequested = false;
     let stopSeen = false;
-    const move = chooseMove(message.state, {
+    const diagnosticsRequested = Boolean(message.options?.diagnostics);
+    const baseOptions = {
       ...message.options,
       color: message.color,
       stopRequested: () => {
@@ -31,7 +32,10 @@ parentPort.on('message', (message) => {
         }
         return false;
       }
-    });
+    };
+    const result = diagnosticsRequested
+      ? chooseMoveWithDiagnostics(message.state, baseOptions)
+      : { move: chooseMove(message.state, baseOptions), diagnostics: null };
     const debug = process.env.BENCH_DEBUG === '1';
     const meta = debug
       ? {
@@ -41,7 +45,12 @@ parentPort.on('message', (message) => {
           stopRequested: stopSeen
         }
       : undefined;
-    parentPort.postMessage({ id: message.id, move, meta });
+    parentPort.postMessage({
+      id: message.id,
+      move: result.move,
+      diagnostics: result.diagnostics,
+      meta
+    });
   } catch (error) {
     parentPort.postMessage({
       id: message.id,

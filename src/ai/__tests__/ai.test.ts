@@ -507,6 +507,122 @@ describe('AI move selection', () => {
     expect(maxChoice).toBe(altMove);
   });
 
+  it('applies contempt to repeating root moves when not losing', () => {
+    const repeatMove: Move = { from: sq(0, 0), to: sq(1, 0) };
+    const altMove: Move = { from: sq(0, 0), to: sq(0, 1) };
+    const scores = [
+      { move: repeatMove, baseScore: 10, score: 10, repeatCount: 1, isRepeat: true },
+      { move: altMove, baseScore: 9, score: 9, repeatCount: 0, isRepeat: false }
+    ];
+
+    const adjusted = search.applyRootContemptForTest(
+      scores,
+      { contemptCp: 10, drawHoldThreshold: -80, recentPositions: ['x'] },
+      true
+    );
+    const repeatScore = adjusted.find((entry) => entry.move === repeatMove)?.score ?? 0;
+    const altScore = adjusted.find((entry) => entry.move === altMove)?.score ?? 0;
+
+    expect(repeatScore).toBeLessThan(altScore);
+  });
+
+  it('allows repetition with contempt when losing', () => {
+    const repeatMove: Move = { from: sq(0, 0), to: sq(1, 0) };
+    const altMove: Move = { from: sq(0, 0), to: sq(0, 1) };
+    const scores = [
+      { move: repeatMove, baseScore: -200, score: -200, repeatCount: 1, isRepeat: true },
+      { move: altMove, baseScore: -210, score: -210, repeatCount: 0, isRepeat: false }
+    ];
+
+    const adjusted = search.applyRootContemptForTest(
+      scores,
+      { contemptCp: 20, drawHoldThreshold: -80, recentPositions: ['x'] },
+      true
+    );
+    const repeatScore = adjusted.find((entry) => entry.move === repeatMove)?.score ?? 0;
+    const altScore = adjusted.find((entry) => entry.move === altMove)?.score ?? 0;
+
+    expect(repeatScore).toBeGreaterThanOrEqual(altScore);
+  });
+
+  it('keeps PVS selection consistent with full-window search', () => {
+    const state = createEmptyState();
+    addPiece(state, 'king', 'w', sq(4, 0));
+    addPiece(state, 'king', 'b', sq(4, 7));
+    addPiece(state, 'queen', 'w', sq(3, 0));
+    addPiece(state, 'rook', 'b', sq(3, 7));
+    addPiece(state, 'pawn', 'b', sq(3, 6));
+    state.activeColor = 'w';
+
+    const legalMoves = getAllLegalMoves(state, 'w');
+    const capture = legalMoves.find(
+      (move) => move.from.file === 3 && move.from.rank === 0 && move.to.file === 3 && move.to.rank === 6
+    );
+    const quiet = legalMoves.find(
+      (move) => move.from.file === 3 && move.from.rank === 0 && move.to.file === 4 && move.to.rank === 1
+    );
+
+    if (!capture || !quiet) {
+      throw new Error('Expected capture and quiet queen moves for PVS test.');
+    }
+
+    const baseline = search.findBestMove(state, 'w', {
+      depth: 2,
+      rng: () => 0,
+      legalMoves: [capture, quiet],
+      maxThinking: true,
+      usePvs: false,
+      topMoveWindow: 0,
+      fairnessWindow: 0
+    });
+    const pvs = search.findBestMove(state, 'w', {
+      depth: 2,
+      rng: () => 0,
+      legalMoves: [capture, quiet],
+      maxThinking: true,
+      usePvs: true,
+      topMoveWindow: 0,
+      fairnessWindow: 0
+    });
+
+    expect(baseline).not.toBeNull();
+    expect(pvs).not.toBeNull();
+    expect(sameMove(baseline as Move, pvs as Move)).toBe(true);
+  });
+
+  it('boosts countermove ordering for quiet moves', () => {
+    const state = createEmptyState();
+    addPiece(state, 'king', 'w', sq(4, 0));
+    addPiece(state, 'king', 'b', sq(4, 7));
+    state.activeColor = 'w';
+
+    const previousMove: Move = { from: sq(4, 7), to: sq(4, 6) };
+    state.lastMove = previousMove;
+
+    const moves = getAllLegalMoves(state, 'w');
+    const counter = moves.find((move) => move.to.file === 4 && move.to.rank === 1);
+    const alternative = moves.find((move) => move.to.file === 3 && move.to.rank === 0);
+
+    if (!counter || !alternative) {
+      throw new Error('Expected two quiet king moves for countermove test.');
+    }
+
+    const ordering = search.createOrderingState(4);
+    const counterIndex =
+      (previousMove.from.rank * 8 + previousMove.from.file) * 64 +
+      (previousMove.to.rank * 8 + previousMove.to.file);
+    ordering.counterMoves[counterIndex] = counter;
+
+    const ordered = search.orderMovesForTest(state, moves, 'w', () => 0.5, {
+      maxThinking: true,
+      ordering,
+      ply: 0,
+      prevMove: state.lastMove
+    });
+
+    expect(sameMove(ordered[0], counter)).toBe(true);
+  });
+
   it('uses hard micro-quiescence to avoid losing captures', () => {
     const state = createEmptyState();
     addPiece(state, 'king', 'w', sq(6, 0));

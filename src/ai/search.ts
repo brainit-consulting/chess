@@ -20,6 +20,7 @@ type SearchOptions = {
   repetitionPenalty?: number;
   repetitionPenaltyScale?: number;
   hardRepetitionNudgeScale?: number;
+  contemptCp?: number;
   microQuiescenceDepth?: number;
   topMoveWindow?: number;
   fairnessWindow?: number;
@@ -28,6 +29,8 @@ type SearchOptions = {
   drawHoldThreshold?: number;
   twoPlyRepeatPenalty?: number;
   twoPlyRepeatTopN?: number;
+  rootDiagnostics?: boolean;
+  usePvs?: boolean;
   tt?: TtStore;
   ordering?: OrderingState;
   maxTimeMs?: number;
@@ -54,6 +57,7 @@ const REPETITION_ESCAPE_MARGIN = 150;
 const REPETITION_AVOID_LOSS_THRESHOLD = -200;
 const DRAW_HOLD_THRESHOLD_DEFAULT = -80;
 const TWO_PLY_REPEAT_TOP_N_DEFAULT = 6;
+const ROOT_DIAGNOSTICS_TOP_N = 5;
 const HARD_TT_SIZE = 4096;
 const HARD_MICRO_QUIESCENCE_MAX_DEPTH = 2;
 const FORCING_EXTENSION_MAX_DEPTH = 2;
@@ -65,6 +69,9 @@ const DEFAULT_ASPIRATION_MAX_RETRIES = 3;
 const SEE_ORDER_PENALTY_THRESHOLD = -200;
 const SEE_ORDER_PENALTY_BASE = 400;
 const SEE_QUIESCENCE_PRUNE_THRESHOLD = -350;
+const COUNTERMOVE_BONUS = 900;
+const HARD_HISTORY_BONUS_CAP = 250;
+const MAX_HISTORY_BONUS_CAP = 1000;
 const LMR_MIN_DEPTH = 3;
 const LMR_START_MOVE = 3;
 const LMR_REDUCTION = 1;
@@ -160,6 +167,25 @@ type RootScore = {
   isRepeat: boolean;
 };
 
+type RootMoveReason =
+  | 'repeat-best-no-close-alt'
+  | 'avoid-repeat-within-window'
+  | 'losing-allow-repeat'
+  | 'non-repeat-best';
+
+export type RootDiagnostics = {
+  rootTopMoves: {
+    move: Move;
+    score: number;
+    baseScore: number;
+    isRepeat: boolean;
+    repeatCount: number;
+  }[];
+  chosenMoveReason: RootMoveReason;
+  bestRepeatKind: 'none' | 'near-repetition' | 'threefold';
+  bestIsRepeat: boolean;
+};
+
 function buildPositionCounts(positions: string[]): Map<string, number> {
   const counts = new Map<string, number>();
   for (const key of positions) {
@@ -230,6 +256,27 @@ function applyRepetitionPolicy(
       penalty *= REPETITION_LOOP_MULTIPLIER;
     }
     return { ...entry, score: entry.score - penalty };
+  });
+}
+
+function applyRootContempt(
+  scores: RootScore[],
+  options: SearchOptions,
+  playForWin: boolean
+): RootScore[] {
+  if (!playForWin || !options.recentPositions?.length) {
+    return scores;
+  }
+  const contempt = options.contemptCp ?? 0;
+  if (contempt <= 0) {
+    return scores;
+  }
+  const drawHoldThreshold = options.drawHoldThreshold ?? DRAW_HOLD_THRESHOLD_DEFAULT;
+  return scores.map((entry) => {
+    if (!entry.isRepeat || entry.baseScore < drawHoldThreshold) {
+      return entry;
+    }
+    return { ...entry, score: entry.score - contempt };
   });
 }
 
@@ -305,6 +352,31 @@ export function applyRepetitionPolicyForTest(
   return applyRepetitionPolicy(scores as RootScore[], options as SearchOptions, playForWin);
 }
 
+// Test-only: expose root contempt adjustments with synthetic scores.
+export function applyRootContemptForTest(
+  scores: {
+    move: Move;
+    baseScore: number;
+    score: number;
+    repeatCount: number;
+    isRepeat: boolean;
+  }[],
+  options: {
+    contemptCp?: number;
+    drawHoldThreshold?: number;
+    recentPositions?: string[];
+  },
+  playForWin: boolean
+): {
+  move: Move;
+  baseScore: number;
+  score: number;
+  repeatCount: number;
+  isRepeat: boolean;
+}[] {
+  return applyRootContempt(scores as RootScore[], options as SearchOptions, playForWin);
+}
+
 // Test-only: expose repetition tie-break candidates with synthetic scores.
 export function getRepetitionTieBreakCandidatesForTest(
   scores: {
@@ -373,6 +445,62 @@ function enforceRootRepetitionAvoidance(
   }
   const bestNonRepeat = candidates[0];
   return windowed.filter((entry) => entry.move === bestNonRepeat.move);
+}
+
+function getRepeatKind(entry: RootScore): 'none' | 'near-repetition' | 'threefold' {
+  if (!entry.isRepeat) {
+    return 'none';
+  }
+  return entry.repeatCount >= 2 ? 'threefold' : 'near-repetition';
+}
+
+function getBestRootScore(scores: RootScore[]): RootScore {
+  let best = scores[0];
+  for (const entry of scores) {
+    if (entry.score > best.score || (entry.score === best.score && entry.baseScore > best.baseScore)) {
+      best = entry;
+    }
+  }
+  return best;
+}
+
+function buildRootDiagnostics(
+  scores: RootScore[],
+  chosen: RootScore,
+  options: SearchOptions,
+  playForWin: boolean
+): RootDiagnostics {
+  const sorted = [...scores].sort(
+    (a, b) => b.score - a.score || b.baseScore - a.baseScore
+  );
+  const topMoves = sorted.slice(0, ROOT_DIAGNOSTICS_TOP_N).map((entry) => ({
+    move: entry.move,
+    score: entry.score,
+    baseScore: entry.baseScore,
+    isRepeat: entry.isRepeat,
+    repeatCount: entry.repeatCount
+  }));
+  const bestEntry = getBestRootScore(scores);
+  const drawHoldThreshold = options.drawHoldThreshold ?? DRAW_HOLD_THRESHOLD_DEFAULT;
+  let reason: RootMoveReason = 'non-repeat-best';
+  if (playForWin) {
+    if (chosen.isRepeat) {
+      reason =
+        chosen.baseScore < drawHoldThreshold
+          ? 'losing-allow-repeat'
+          : 'repeat-best-no-close-alt';
+    } else if (bestEntry.isRepeat) {
+      reason = 'avoid-repeat-within-window';
+    } else {
+      reason = 'non-repeat-best';
+    }
+  }
+  return {
+    rootTopMoves: topMoves,
+    chosenMoveReason: reason,
+    bestRepeatKind: getRepeatKind(bestEntry),
+    bestIsRepeat: bestEntry.isRepeat
+  };
 }
 
 function applyTwoPlyLoopPenalty(
@@ -478,13 +606,15 @@ function storeRootTt(options: SearchOptions, state: GameState, move: Move, score
 export type OrderingState = {
   killerMoves: { primary?: Move; secondary?: Move }[];
   history: number[];
+  counterMoves: (Move | undefined)[];
 };
 
 export function createOrderingState(maxDepth: number): OrderingState {
   const maxPlies = Math.max(8, maxDepth + 6);
   return {
     killerMoves: Array.from({ length: maxPlies }, () => ({})),
-    history: new Array(64 * 64).fill(0)
+    history: new Array(64 * 64).fill(0),
+    counterMoves: new Array(64 * 64).fill(undefined)
   };
 }
 
@@ -513,6 +643,7 @@ export type MateProbeReport = {
   mateInMoves: number | null;
   depthCompleted: number;
   scoredMoves: MateProbeScoredMove[];
+  rootDiagnostics?: RootDiagnostics;
   ttEntries?: number;
   aspirationRetries?: number;
 };
@@ -546,15 +677,16 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
         }
       : undefined;
 
-  const ordering = options.maxThinking
-    ? options.ordering ?? createOrderingState(options.depth + 4)
-    : undefined;
+  const ordering =
+    options.ordering ?? (options.maxThinking ? createOrderingState(options.depth + 4) : undefined);
+  const usePvs = options.usePvs ?? false;
   const preferred = options.tt ? options.tt.get(getPositionKey(state))?.bestMove : undefined;
   const ordered = orderMoves(state, legalMoves, color, options.rng, {
     preferred,
     maxThinking: options.maxThinking,
     ordering,
-    ply: 0
+    ply: 0,
+    prevMove: state.lastMove
   });
   let bestSoFar: Move | null = ordered[0] ?? legalMoves[0] ?? null;
   const playForWin = Boolean(options.playForWin && options.recentPositions?.length);
@@ -582,6 +714,7 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
       color,
       options.rng,
       options.maxThinking ?? false,
+      usePvs,
       1,
       options.tt,
       ordering,
@@ -614,7 +747,8 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
     playForWin,
     positionCounts
   );
-  const scoredMoves = twoPlyAdjusted.map((entry) => ({
+  const contemptAdjusted = applyRootContempt(twoPlyAdjusted, options, playForWin);
+  const scoredMoves = contemptAdjusted.map((entry) => ({
     move: entry.move,
     score: entry.score,
     baseScore: entry.baseScore
@@ -639,7 +773,7 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
   }
 
   const tieBreakCandidates = getRepetitionTieBreakCandidates(
-    twoPlyAdjusted,
+    contemptAdjusted,
     options,
     playForWin
   );
@@ -651,7 +785,7 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
     }
   }
 
-  windowed = enforceRootRepetitionAvoidance(windowed, twoPlyAdjusted, options, playForWin);
+  windowed = enforceRootRepetitionAvoidance(windowed, contemptAdjusted, options, playForWin);
 
   const index = Math.floor(options.rng() * windowed.length);
   const chosen = windowed[index];
@@ -680,9 +814,9 @@ export function findBestMoveTimed(
   let best: Move | null = null;
   let prevScore: number | null = null;
   const tt = options.tt ?? (options.maxThinking ? new Map<string, TTEntry>() : undefined);
-  const ordering = options.maxThinking
-    ? options.ordering ?? createOrderingState(options.maxDepth + 4)
-    : undefined;
+  const ordering =
+    options.ordering ?? (options.maxThinking ? createOrderingState(options.maxDepth + 4) : undefined);
+  const usePvs = options.usePvs ?? false;
   const aspirationWindow = options.maxThinking
     ? options.aspirationWindow ?? DEFAULT_ASPIRATION_WINDOW
     : 0;
@@ -721,10 +855,13 @@ export function findBestMoveTimed(
               drawHoldThreshold: options.drawHoldThreshold,
               twoPlyRepeatPenalty: options.twoPlyRepeatPenalty,
               twoPlyRepeatTopN: options.twoPlyRepeatTopN,
+              contemptCp: options.contemptCp,
               microQuiescenceDepth: options.microQuiescenceDepth,
               topMoveWindow: options.topMoveWindow,
               fairnessWindow: options.fairnessWindow,
               maxThinking: options.maxThinking,
+              usePvs,
+              rootDiagnostics: options.rootDiagnostics,
               tt,
               ordering
             },
@@ -751,10 +888,13 @@ export function findBestMoveTimed(
           drawHoldThreshold: options.drawHoldThreshold,
           twoPlyRepeatPenalty: options.twoPlyRepeatPenalty,
           twoPlyRepeatTopN: options.twoPlyRepeatTopN,
+          contemptCp: options.contemptCp,
           microQuiescenceDepth: options.microQuiescenceDepth,
           topMoveWindow: options.topMoveWindow,
           fairnessWindow: options.fairnessWindow,
           maxThinking: options.maxThinking,
+          usePvs,
+          rootDiagnostics: options.rootDiagnostics,
           tt,
           ordering
         },
@@ -788,10 +928,16 @@ export function findBestMoveTimed(
     repetitionPenalty: options.repetitionPenalty,
     repetitionPenaltyScale: options.repetitionPenaltyScale,
     hardRepetitionNudgeScale: options.hardRepetitionNudgeScale,
+    repetitionAvoidWindow: options.repetitionAvoidWindow,
+    drawHoldThreshold: options.drawHoldThreshold,
+    twoPlyRepeatPenalty: options.twoPlyRepeatPenalty,
+    twoPlyRepeatTopN: options.twoPlyRepeatTopN,
+    contemptCp: options.contemptCp,
     microQuiescenceDepth: options.microQuiescenceDepth,
     topMoveWindow: options.topMoveWindow,
     fairnessWindow: options.fairnessWindow,
     maxThinking: options.maxThinking,
+    usePvs,
     tt,
     ordering
   });
@@ -885,9 +1031,9 @@ export function findBestMoveTimedDebug(
     return now() - start >= options.maxTimeMs;
   };
   const tt = options.tt ?? (options.maxThinking ? new Map<string, TTEntry>() : undefined);
-  const ordering = options.maxThinking
-    ? options.ordering ?? createOrderingState(options.maxDepth + 4)
-    : undefined;
+  const ordering =
+    options.ordering ?? (options.maxThinking ? createOrderingState(options.maxDepth + 4) : undefined);
+  const usePvs = options.usePvs ?? false;
   const aspirationWindow = options.maxThinking
     ? options.aspirationWindow ?? DEFAULT_ASPIRATION_WINDOW
     : 0;
@@ -897,6 +1043,7 @@ export function findBestMoveTimedDebug(
   let bestMove: Move | null = null;
   let bestScore: number | null = null;
   let scoredMoves: MateProbeScoredMove[] = [];
+  let rootDiagnostics: RootDiagnostics | undefined;
   let aspirationRetries = 0;
   let prevScore: number | null = null;
 
@@ -930,10 +1077,17 @@ export function findBestMoveTimedDebug(
               repetitionPenalty: options.repetitionPenalty,
               repetitionPenaltyScale: options.repetitionPenaltyScale,
               hardRepetitionNudgeScale: options.hardRepetitionNudgeScale,
+              repetitionAvoidWindow: options.repetitionAvoidWindow,
+              drawHoldThreshold: options.drawHoldThreshold,
+              twoPlyRepeatPenalty: options.twoPlyRepeatPenalty,
+              twoPlyRepeatTopN: options.twoPlyRepeatTopN,
+              contemptCp: options.contemptCp,
               microQuiescenceDepth: options.microQuiescenceDepth,
               topMoveWindow: options.topMoveWindow,
               fairnessWindow: options.fairnessWindow,
               maxThinking: options.maxThinking,
+              usePvs,
+              rootDiagnostics: options.rootDiagnostics,
               tt,
               ordering
             },
@@ -957,10 +1111,17 @@ export function findBestMoveTimedDebug(
           repetitionPenalty: options.repetitionPenalty,
           repetitionPenaltyScale: options.repetitionPenaltyScale,
           hardRepetitionNudgeScale: options.hardRepetitionNudgeScale,
+          repetitionAvoidWindow: options.repetitionAvoidWindow,
+          drawHoldThreshold: options.drawHoldThreshold,
+          twoPlyRepeatPenalty: options.twoPlyRepeatPenalty,
+          twoPlyRepeatTopN: options.twoPlyRepeatTopN,
+          contemptCp: options.contemptCp,
           microQuiescenceDepth: options.microQuiescenceDepth,
           topMoveWindow: options.topMoveWindow,
           fairnessWindow: options.fairnessWindow,
           maxThinking: options.maxThinking,
+          usePvs,
+          rootDiagnostics: options.rootDiagnostics,
           tt,
           ordering
         },
@@ -979,6 +1140,9 @@ export function findBestMoveTimedDebug(
       bestMove = scored.move;
       bestScore = scored.score;
       scoredMoves = scored.scoredMoves;
+      if (scored.rootDiagnostics) {
+        rootDiagnostics = scored.rootDiagnostics;
+      }
       depthCompleted = depth;
       prevScore = scored.score;
     }
@@ -997,24 +1161,30 @@ export function findBestMoveTimedDebug(
         repetitionPenalty: options.repetitionPenalty,
         repetitionPenaltyScale: options.repetitionPenaltyScale,
         hardRepetitionNudgeScale: options.hardRepetitionNudgeScale,
-        repetitionAvoidWindow: options.repetitionAvoidWindow,
-        drawHoldThreshold: options.drawHoldThreshold,
-        twoPlyRepeatPenalty: options.twoPlyRepeatPenalty,
-        twoPlyRepeatTopN: options.twoPlyRepeatTopN,
-        microQuiescenceDepth: options.microQuiescenceDepth,
-        topMoveWindow: options.topMoveWindow,
-        fairnessWindow: options.fairnessWindow,
-        maxThinking: options.maxThinking,
-        tt,
-        ordering
-      },
-      undefined,
-      shouldStop
-    );
-    bestMove = scored.move;
-    bestScore = scored.score;
-    scoredMoves = scored.scoredMoves;
-    depthCompleted = 1;
+      repetitionAvoidWindow: options.repetitionAvoidWindow,
+      drawHoldThreshold: options.drawHoldThreshold,
+      twoPlyRepeatPenalty: options.twoPlyRepeatPenalty,
+      twoPlyRepeatTopN: options.twoPlyRepeatTopN,
+      contemptCp: options.contemptCp,
+      microQuiescenceDepth: options.microQuiescenceDepth,
+      topMoveWindow: options.topMoveWindow,
+      fairnessWindow: options.fairnessWindow,
+      maxThinking: options.maxThinking,
+      usePvs,
+      rootDiagnostics: options.rootDiagnostics,
+      tt,
+      ordering
+    },
+    undefined,
+    shouldStop
+  );
+  bestMove = scored.move;
+  bestScore = scored.score;
+  scoredMoves = scored.scoredMoves;
+  if (scored.rootDiagnostics) {
+    rootDiagnostics = scored.rootDiagnostics;
+  }
+  depthCompleted = 1;
   }
 
   const mateInfo = bestScore !== null ? getMateInfo(bestScore) : null;
@@ -1025,6 +1195,7 @@ export function findBestMoveTimedDebug(
     mateInMoves: mateInfo?.mateInMoves ?? null,
     depthCompleted,
     scoredMoves,
+    rootDiagnostics,
     ttEntries: getTtSize(tt),
     aspirationRetries
   };
@@ -1036,12 +1207,18 @@ function scoreRootMoves(
   options: SearchOptions,
   window?: { alpha: number; beta: number },
   shouldStop?: () => boolean
-): { move: Move | null; score: number | null; scoredMoves: MateProbeScoredMove[] } {
+): {
+  move: Move | null;
+  score: number | null;
+  scoredMoves: MateProbeScoredMove[];
+  rootDiagnostics?: RootDiagnostics;
+} {
   const ordered = orderMoves(state, options.legalMoves ?? [], color, options.rng, {
     preferred: options.tt ? options.tt.get(getPositionKey(state))?.bestMove : undefined,
     maxThinking: options.maxThinking,
     ordering: options.ordering,
-    ply: 0
+    ply: 0,
+    prevMove: state.lastMove
   });
   const alpha = window?.alpha ?? -Infinity;
   const beta = window?.beta ?? Infinity;
@@ -1070,6 +1247,7 @@ function scoreRootMoves(
       color,
       options.rng,
       options.maxThinking ?? false,
+      options.usePvs ?? false,
       1,
       options.tt,
       options.ordering,
@@ -1101,7 +1279,8 @@ function scoreRootMoves(
     playForWin,
     positionCounts
   );
-  const scoredMoves = twoPlyAdjusted.map((entry) => {
+  const contemptAdjusted = applyRootContempt(twoPlyAdjusted, options, playForWin);
+  const scoredMoves = contemptAdjusted.map((entry) => {
     const mateInfo = getMateInfo(entry.score);
     return {
       move: entry.move,
@@ -1125,13 +1304,19 @@ function scoreRootMoves(
       const baseLeaders = scoredMoves.filter((entry) => entry.baseScore === baseBest);
       const index = Math.floor(options.rng() * baseLeaders.length);
       const chosen = baseLeaders[index];
+      const chosenEntry =
+        contemptAdjusted.find((entry) => entry.move === chosen.move) ?? contemptAdjusted[0];
+      const rootDiagnostics =
+        options.rootDiagnostics && chosenEntry
+          ? buildRootDiagnostics(contemptAdjusted, chosenEntry, options, playForWin)
+          : undefined;
       storeRootTt(options, state, chosen.move, chosen.baseScore);
-      return { move: chosen.move, score: chosen.score, scoredMoves };
+      return { move: chosen.move, score: chosen.score, scoredMoves, rootDiagnostics };
     }
   }
 
   const tieBreakCandidates = getRepetitionTieBreakCandidates(
-    twoPlyAdjusted,
+    contemptAdjusted,
     options,
     playForWin
   );
@@ -1143,12 +1328,17 @@ function scoreRootMoves(
     }
   }
 
-  windowed = enforceRootRepetitionAvoidance(windowed, twoPlyAdjusted, options, playForWin);
+  windowed = enforceRootRepetitionAvoidance(windowed, contemptAdjusted, options, playForWin);
 
   const index = Math.floor(options.rng() * windowed.length);
   const chosen = windowed[index];
+  const chosenEntry = contemptAdjusted.find((entry) => entry.move === chosen.move) ?? contemptAdjusted[0];
+  const rootDiagnostics =
+    options.rootDiagnostics && chosenEntry
+      ? buildRootDiagnostics(contemptAdjusted, chosenEntry, options, playForWin)
+      : undefined;
   storeRootTt(options, state, chosen.move, chosen.baseScore);
-  return { move: chosen.move, score: chosen.score, scoredMoves };
+  return { move: chosen.move, score: chosen.score, scoredMoves, rootDiagnostics };
 }
 
 function getMateInfo(score: number): { mateInPly: number; mateInMoves: number } | null {
@@ -1174,6 +1364,7 @@ function alphaBeta(
   maximizingColor: Color,
   rng: () => number,
   maxThinking: boolean,
+  usePvs: boolean,
   ply: number,
   tt?: TtStore,
   ordering?: OrderingState,
@@ -1253,6 +1444,7 @@ function alphaBeta(
 
   const maximizing = currentColor === maximizingColor;
   const inCheck = maxThinking ? isInCheck(state, currentColor) : false;
+  const pvsEnabled = maxThinking && usePvs;
 
   if (
     maxThinking &&
@@ -1273,6 +1465,7 @@ function alphaBeta(
       maximizingColor,
       rng,
       maxThinking,
+      usePvs,
       ply + 1,
       tt,
       ordering,
@@ -1292,7 +1485,8 @@ function alphaBeta(
     preferred: ttBestMove,
     maxThinking,
     ordering,
-    ply
+    ply,
+    prevMove: state.lastMove
   });
 
   if (maximizing) {
@@ -1311,21 +1505,61 @@ function alphaBeta(
         : 0;
       const extension = getForcingExtension(next, move, currentColor, depth, ply);
       const reducedDepth = Math.max(0, depth - 1 - reduction + extension);
-      let nextScore = alphaBeta(
-        next,
-        reducedDepth,
-        alpha,
-        beta,
-        opponentColor(currentColor),
-        maximizingColor,
-        rng,
-        maxThinking,
-        ply + 1,
-        tt,
-        ordering,
-        stopChecker,
-        microQuiescenceDepth
-      );
+      const canPvs = pvsEnabled && index > 0 && Number.isFinite(alpha) && Number.isFinite(beta);
+      let nextScore: number;
+      if (canPvs) {
+        nextScore = alphaBeta(
+          next,
+          reducedDepth,
+          alpha,
+          alpha + 1,
+          opponentColor(currentColor),
+          maximizingColor,
+          rng,
+          maxThinking,
+          usePvs,
+          ply + 1,
+          tt,
+          ordering,
+          stopChecker,
+          microQuiescenceDepth
+        );
+        if (nextScore > alpha && nextScore < beta) {
+          nextScore = alphaBeta(
+            next,
+            reducedDepth,
+            alpha,
+            beta,
+            opponentColor(currentColor),
+            maximizingColor,
+            rng,
+            maxThinking,
+            usePvs,
+            ply + 1,
+            tt,
+            ordering,
+            stopChecker,
+            microQuiescenceDepth
+          );
+        }
+      } else {
+        nextScore = alphaBeta(
+          next,
+          reducedDepth,
+          alpha,
+          beta,
+          opponentColor(currentColor),
+          maximizingColor,
+          rng,
+          maxThinking,
+          usePvs,
+          ply + 1,
+          tt,
+          ordering,
+          stopChecker,
+          microQuiescenceDepth
+        );
+      }
       if (reduction > 0 && reducedDepth < depth - 1 && nextScore > alpha) {
         nextScore = alphaBeta(
           next,
@@ -1336,6 +1570,7 @@ function alphaBeta(
           maximizingColor,
           rng,
           maxThinking,
+          usePvs,
           ply + 1,
           tt,
           ordering,
@@ -1352,8 +1587,11 @@ function alphaBeta(
       }
       alpha = Math.max(alpha, value);
       if (alpha >= beta) {
-        if (maxThinking && ordering && isQuietForOrdering(state, move, currentColor)) {
-          recordKiller(ordering, ply, move);
+        if (ordering && isQuietForOrdering(state, move, currentColor)) {
+          if (maxThinking) {
+            recordKiller(ordering, ply, move);
+            recordCounterMove(ordering, state.lastMove, move);
+          }
           recordHistory(ordering, move, depth);
         }
         break;
@@ -1385,21 +1623,61 @@ function alphaBeta(
       : 0;
     const extension = getForcingExtension(next, move, currentColor, depth, ply);
     const reducedDepth = Math.max(0, depth - 1 - reduction + extension);
-    let nextScore = alphaBeta(
-      next,
-      reducedDepth,
-      alpha,
-      beta,
-      opponentColor(currentColor),
-      maximizingColor,
-      rng,
-      maxThinking,
-      ply + 1,
-      tt,
-      ordering,
-      stopChecker,
-      microQuiescenceDepth
-    );
+    const canPvs = pvsEnabled && index > 0 && Number.isFinite(alpha) && Number.isFinite(beta);
+    let nextScore: number;
+    if (canPvs) {
+      nextScore = alphaBeta(
+        next,
+        reducedDepth,
+        beta - 1,
+        beta,
+        opponentColor(currentColor),
+        maximizingColor,
+        rng,
+        maxThinking,
+        usePvs,
+        ply + 1,
+        tt,
+        ordering,
+        stopChecker,
+        microQuiescenceDepth
+      );
+      if (nextScore < beta && nextScore > alpha) {
+        nextScore = alphaBeta(
+          next,
+          reducedDepth,
+          alpha,
+          beta,
+          opponentColor(currentColor),
+          maximizingColor,
+          rng,
+          maxThinking,
+          usePvs,
+          ply + 1,
+          tt,
+          ordering,
+          stopChecker,
+          microQuiescenceDepth
+        );
+      }
+    } else {
+      nextScore = alphaBeta(
+        next,
+        reducedDepth,
+        alpha,
+        beta,
+        opponentColor(currentColor),
+        maximizingColor,
+        rng,
+        maxThinking,
+        usePvs,
+        ply + 1,
+        tt,
+        ordering,
+        stopChecker,
+        microQuiescenceDepth
+      );
+    }
     if (reduction > 0 && reducedDepth < depth - 1 && nextScore < beta) {
       nextScore = alphaBeta(
         next,
@@ -1410,6 +1688,7 @@ function alphaBeta(
         maximizingColor,
         rng,
         maxThinking,
+        usePvs,
         ply + 1,
         tt,
         ordering,
@@ -1426,8 +1705,11 @@ function alphaBeta(
     }
     beta = Math.min(beta, value);
     if (alpha >= beta) {
-      if (maxThinking && ordering && isQuietForOrdering(state, move, currentColor)) {
-        recordKiller(ordering, ply, move);
+      if (ordering && isQuietForOrdering(state, move, currentColor)) {
+        if (maxThinking) {
+          recordKiller(ordering, ply, move);
+          recordCounterMove(ordering, state.lastMove, move);
+        }
         recordHistory(ordering, move, depth);
       }
       break;
@@ -1449,18 +1731,26 @@ function orderMoves(
   moves: Move[],
   color: Color,
   rng: () => number,
-  options?: { preferred?: Move; maxThinking?: boolean; ordering?: OrderingState; ply?: number }
+  options?: {
+    preferred?: Move;
+    maxThinking?: boolean;
+    ordering?: OrderingState;
+    ply?: number;
+    prevMove?: Move | null;
+  }
 ): Move[] {
   const preferred = options?.preferred;
   const maxThinking = options?.maxThinking ?? false;
   const ordering = options?.ordering;
   const ply = options?.ply ?? 0;
+  const prevMove = options?.prevMove ?? null;
   const scored = moves.map((move, index) => ({
     move,
     score: buildOrderScore(state, move, color, maxThinking, {
       preferred,
       ordering,
-      ply
+      ply,
+      prevMove
     }),
     tie: maxThinking ? index : rng()
   }));
@@ -1474,7 +1764,13 @@ export function orderMovesForTest(
   moves: Move[],
   color: Color,
   rng: () => number,
-  options?: { preferred?: Move; maxThinking?: boolean; ordering?: OrderingState; ply?: number }
+  options?: {
+    preferred?: Move;
+    maxThinking?: boolean;
+    ordering?: OrderingState;
+    ply?: number;
+    prevMove?: Move | null;
+  }
 ): Move[] {
   return orderMoves(state, moves, color, rng, options);
 }
@@ -1540,7 +1836,12 @@ function buildOrderScore(
   move: Move,
   color: Color,
   maxThinking: boolean,
-  options: { preferred?: Move; ordering?: OrderingState; ply: number }
+  options: {
+    preferred?: Move;
+    ordering?: OrderingState;
+    ply: number;
+    prevMove?: Move | null;
+  }
 ): number {
   let score = scoreMoveHeuristic(state, move, color, maxThinking);
 
@@ -1548,12 +1849,16 @@ function buildOrderScore(
     score += 100000;
   }
 
-  if (maxThinking && options.ordering) {
-    const killerScore = getKillerScore(options.ordering, options.ply, move);
-    const historyScore = isQuietForOrdering(state, move, color)
-      ? Math.min(getHistoryScore(options.ordering, move), 1000)
+  if (options.ordering) {
+    const quiet = isQuietForOrdering(state, move, color);
+    const historyCap = maxThinking ? MAX_HISTORY_BONUS_CAP : HARD_HISTORY_BONUS_CAP;
+    const historyScore = quiet
+      ? Math.min(getHistoryScore(options.ordering, move), historyCap)
       : 0;
-    score += killerScore + historyScore;
+    const killerScore = maxThinking ? getKillerScore(options.ordering, options.ply, move) : 0;
+    const countermoveScore =
+      maxThinking && options.prevMove ? getCounterMoveScore(options.ordering, options.prevMove, move) : 0;
+    score += killerScore + historyScore + countermoveScore;
   }
 
   return score;
@@ -1575,6 +1880,29 @@ function getKillerScore(ordering: OrderingState, ply: number, move: Move): numbe
 
 function getHistoryScore(ordering: OrderingState, move: Move): number {
   return ordering.history[getHistoryIndex(move)] ?? 0;
+}
+
+function getCounterMoveScore(
+  ordering: OrderingState,
+  previousMove: Move,
+  move: Move
+): number {
+  const counter = ordering.counterMoves[getCounterMoveIndex(previousMove)];
+  if (counter && sameMove(counter, move)) {
+    return COUNTERMOVE_BONUS;
+  }
+  return 0;
+}
+
+function recordCounterMove(
+  ordering: OrderingState,
+  previousMove: Move | null | undefined,
+  move: Move
+): void {
+  if (!previousMove) {
+    return;
+  }
+  ordering.counterMoves[getCounterMoveIndex(previousMove)] = move;
 }
 
 function recordKiller(ordering: OrderingState, ply: number, move: Move): void {
@@ -1604,6 +1932,10 @@ function getHistoryIndex(move: Move): number {
   const from = move.from.rank * 8 + move.from.file;
   const to = move.to.rank * 8 + move.to.file;
   return from * 64 + to;
+}
+
+function getCounterMoveIndex(move: Move): number {
+  return getHistoryIndex(move);
 }
 
 function microQuiescence(
@@ -1642,7 +1974,8 @@ function microQuiescence(
   }
 
   const ordered = orderMoves(state, noisyMoves, currentColor, rng, {
-    maxThinking: false
+    maxThinking: false,
+    prevMove: state.lastMove
   });
   const maximizing = currentColor === maximizingColor;
 
@@ -1785,7 +2118,8 @@ function quiescence(
   }
 
   const ordered = orderMoves(state, filtered, currentColor, rng, {
-    maxThinking: true
+    maxThinking: true,
+    prevMove: state.lastMove
   });
 
   if (maximizing) {

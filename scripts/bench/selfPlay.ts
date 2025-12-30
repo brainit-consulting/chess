@@ -20,6 +20,35 @@ import { MAX_THINKING_DEPTH_CAP } from '../../src/ai/ai';
 
 type EngineSide = 'hard' | 'max';
 
+type RootDiagnostics = {
+  rootTopMoves: {
+    move: Move;
+    score: number;
+    baseScore: number;
+    isRepeat: boolean;
+    repeatCount: number;
+  }[];
+  chosenMoveReason: string;
+  bestRepeatKind: string;
+  bestIsRepeat: boolean;
+};
+
+type MoveDiagnosticsEntry = {
+  ply: number;
+  color: Color;
+  side: EngineSide;
+  chosenMoveReason: string;
+  bestRepeatKind: string;
+  bestIsRepeat: boolean;
+  rootTopMoves: {
+    uci: string;
+    score: number;
+    baseScore: number;
+    isRepeat: boolean;
+    repeatCount: number;
+  }[];
+};
+
 type RunConfig = {
   batchSize: number;
   hardMs: number;
@@ -116,6 +145,7 @@ type GameLog = {
     lastMovesUci: string[];
     repeatedFen: string;
   };
+  moveDiagnostics?: MoveDiagnosticsEntry[];
   timings: {
     hard: SideTimings;
     max: SideTimings;
@@ -416,6 +446,7 @@ async function runSingleGame(options: {
   const state = options.startFen ? createStateFromFen(options.startFen) : createInitialState();
   const pgnMoves: PgnMove[] = [];
   const moveTimings: MoveTiming[] = [];
+  const moveDiagnostics: MoveDiagnosticsEntry[] = [];
   const moveHistoryUci: string[] = [];
   const moveStats = { captures: 0, pawnMoves: 0 };
   let lastMoveUci: string | null = null;
@@ -497,6 +528,7 @@ async function runSingleGame(options: {
             captures: moveStats.captures,
             pawnMoves: moveStats.pawnMoves,
             repetitionDiagnostics,
+            moveDiagnostics,
             timings
           }
         };
@@ -528,6 +560,15 @@ async function runSingleGame(options: {
         ms: moveResult.elapsedMs,
         timedOut: moveResult.timedOut
       });
+      if (moveResult.diagnostics) {
+        moveDiagnostics.push(
+          formatMoveDiagnostics(moveResult.diagnostics, {
+            ply: plies + 1,
+            color: state.activeColor,
+            side
+          })
+        );
+      }
 
       const san = buildSan(state, moveResult.move);
       pgnMoves.push({ moveNumber: state.fullmoveNumber, color: state.activeColor, san });
@@ -592,6 +633,7 @@ async function runSingleGame(options: {
       endReason: 'other',
       captures: moveStats.captures,
       pawnMoves: moveStats.pawnMoves,
+      moveDiagnostics,
       timings
     }
   };
@@ -610,6 +652,7 @@ async function pickEngineMove(
   worker: Worker;
   elapsedMs: number;
   timedOut: boolean;
+  diagnostics?: RootDiagnostics;
   message?: string;
 }> {
   const start = performance.now();
@@ -622,7 +665,8 @@ async function pickEngineMove(
       difficulty: options.side,
       maxTimeMs: options.targetMs,
       maxDepth: options.side === 'max' ? MAX_THINKING_DEPTH_CAP : undefined,
-      seed
+      seed,
+      diagnostics: true
     },
     options.targetMs,
     ENGINE_TIMEOUT_GRACE_MS
@@ -635,6 +679,7 @@ async function pickEngineMove(
       worker: result.worker,
       elapsedMs: elapsed,
       timedOut,
+      diagnostics: result.diagnostics,
       message: result.error
     };
   }
@@ -644,6 +689,7 @@ async function pickEngineMove(
       worker: result.worker,
       elapsedMs: elapsed,
       timedOut,
+      diagnostics: result.diagnostics,
       message: 'Engine returned no move.'
     };
   }
@@ -651,7 +697,8 @@ async function pickEngineMove(
     move: result.move,
     worker: result.worker,
     elapsedMs: elapsed,
-    timedOut
+    timedOut,
+    diagnostics: result.diagnostics
   };
 }
 
@@ -1109,6 +1156,27 @@ function buildRepetitionDiagnostics(
   };
 }
 
+function formatMoveDiagnostics(
+  diagnostics: RootDiagnostics,
+  context: { ply: number; color: Color; side: EngineSide }
+): MoveDiagnosticsEntry {
+  return {
+    ply: context.ply,
+    color: context.color,
+    side: context.side,
+    chosenMoveReason: diagnostics.chosenMoveReason,
+    bestRepeatKind: diagnostics.bestRepeatKind,
+    bestIsRepeat: diagnostics.bestIsRepeat,
+    rootTopMoves: diagnostics.rootTopMoves.map((entry) => ({
+      uci: moveToUci(entry.move),
+      score: entry.score,
+      baseScore: entry.baseScore,
+      isRepeat: entry.isRepeat,
+      repeatCount: entry.repeatCount
+    }))
+  };
+}
+
 async function updateReport(summary: RunSummary): Promise<void> {
   const text = await fs.readFile(REPORT_PATH, 'utf8');
   const start = '<!-- REPORT:START -->';
@@ -1558,6 +1626,7 @@ async function runEngineWithTimeout(
     maxTimeMs?: number;
     maxDepth?: number;
     seed: number;
+    diagnostics?: boolean;
   },
   targetMs: number,
   graceMs: number
@@ -1566,6 +1635,7 @@ async function runEngineWithTimeout(
   error?: string;
   worker: Worker;
   timedOut: boolean;
+  diagnostics?: RootDiagnostics;
 }> {
   let activeWorker = worker;
   const requestId = Math.floor(Math.random() * 1e9);
@@ -1576,6 +1646,7 @@ async function runEngineWithTimeout(
     error?: string;
     worker: Worker;
     timedOut: boolean;
+    diagnostics?: RootDiagnostics;
   }>((resolve) => {
     const attachedWorker = activeWorker;
     const stopTimer = setTimeout(() => {
@@ -1597,7 +1668,12 @@ async function runEngineWithTimeout(
       attachedWorker.off('error', onError);
     };
 
-    const onMessage = (response: { id: number; move: Move | null; error?: string }) => {
+    const onMessage = (response: {
+      id: number;
+      move: Move | null;
+      error?: string;
+      diagnostics?: RootDiagnostics | null;
+    }) => {
       if (response.id !== requestId) {
         return;
       }
@@ -1606,7 +1682,8 @@ async function runEngineWithTimeout(
         move: response.move,
         error: response.error,
         worker: activeWorker,
-        timedOut
+        timedOut,
+        diagnostics: response.diagnostics ?? undefined
       });
     };
 
@@ -1618,7 +1695,8 @@ async function runEngineWithTimeout(
         move: null,
         error: error instanceof Error ? error.message : String(error),
         worker: activeWorker,
-        timedOut
+        timedOut,
+        diagnostics: undefined
       });
     };
 
