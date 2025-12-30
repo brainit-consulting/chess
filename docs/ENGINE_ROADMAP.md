@@ -165,7 +165,7 @@ Goal: Reduce early threefolds without changing time caps.
     - Progress bias for quiet development (minor development, castling/king safety, pawn advance).
     - Twofold repulsion multiplier (stronger than generic near-repeat, below threefold).
     - Root ordering deprioritizes quiet repeat moves when not losing.
-  - Phase 4.2: bounded selective extensions (recapture optional, strict caps).
+  - Phase 4.2 (planned): bounded selective extensions (recapture-first, strict caps).
   - Phase 4.3: shallow pruning guards (futility/razoring; Max first).
 - Expected benefit
   - Lower node count for the same depth, higher tactical clarity, fewer drawish loops.
@@ -180,6 +180,37 @@ Goal: Reduce early threefolds without changing time caps.
   - Phase 4.1 fastcheck (seed 7000, maxMs 3000): 0-10-0, repetition 100%, mate 0%.
   - Phase 4.1b: pending local validation (seed 7000).
   - Phase 4.1c: pending local validation (shuffle-loop focus).
+
+### Phase 4.2 detail (planned)
+
+- Objectives
+  - Improve tactical stability and conversion while keeping Hard within ~800ms.
+  - Reduce repetition collapse or keep it stable (no regressions vs Phase 4.1 baseline).
+  - Preserve Max > Hard strength ordering.
+- Planned changes
+  - 4.2A Recapture extension (primary)
+    - Add a +1 ply extension for immediate recaptures at the root and inside search.
+    - Focus on recapture-first to stabilize tactics without opening full tactical explosions.
+  - 4.2B Optional check-extension gating (secondary)
+    - Gate the existing check extension so noisy/hanging checks do not inflate depth.
+    - Only extend checks that are safe or materially sensible.
+- Guardrails / caps
+  - Depth gate: extension only when depth > 0 and a small per-line cap is not exceeded.
+  - Ply gate: cap total extension plies per line (same style as current forcing-extension caps).
+  - Hard-first budget: keep extensions lightweight for Hard; Max can be slightly more permissive.
+  - Time-aware: never bypass the existing stop/timeout checks.
+- Validation plan
+  - Self-play fastcheck: Hard 800ms vs Max 3000ms (`--swap --fenSuite`).
+  - Self-play real cap: Hard 800ms vs Max 10000ms (`--swap --fenSuite`).
+  - Track repetition rate, mate rate, avg plies, timeouts, and W/D/L.
+- Success criteria
+  - No increase in Hard timeouts.
+  - Mate rate stable or higher; repetition rate stable or lower.
+  - No major regression in W/D/L vs Phase 4.1 baseline.
+- Out of scope (Phase 4.2)
+  - No futility/razoring pruning changes.
+  - No evaluation tuning or new eval terms.
+  - No 50-move rule or draw-rule changes.
 
 ## Phase 5 - Endgame conversion (target late-game draws)
 
