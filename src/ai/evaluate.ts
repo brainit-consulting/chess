@@ -1,7 +1,6 @@
 import {
   Color,
   GameState,
-  Move,
   PieceType,
   findKingSquare,
   getAllLegalMoves,
@@ -131,8 +130,8 @@ export function evaluateState(
   const kingExposure =
     kingExposureScore(state, context, 'w') - kingExposureScore(state, context, 'b');
   const kingRingPenalty =
-    -kingRingPenaltyScore(state, context, 'w', blackLegalMoves) +
-    kingRingPenaltyScore(state, context, 'b', whiteLegalMoves);
+    -kingRingPenaltyScore(state, context, 'w') +
+    kingRingPenaltyScore(state, context, 'b');
   const filePressure = filePressureScore(state, context);
   const maxScore = options.maxThinking ? evaluateMaxThinking(state, context) : 0;
   const scoreForWhite =
@@ -261,8 +260,7 @@ function filePressureScore(state: GameState, context: EvalContext): number {
 function kingRingPenaltyScore(
   state: GameState,
   context: EvalContext,
-  color: Color,
-  opponentMoves: Move[]
+  color: Color
 ): number {
   if (!ENABLE_KING_RING_ATTACK_PENALTY) {
     return 0;
@@ -275,8 +273,7 @@ function kingRingPenaltyScore(
   if (ringSquares.length === 0) {
     return 0;
   }
-  const ringSet = new Set(ringSquares.map((square) => ringKey(square.file, square.rank)));
-  const attackCount = countRingAttacks(opponentMoves, ringSet);
+  const attackCount = countRingAttacks(state, ringSquares, opponentColor(color));
   if (attackCount <= 0) {
     return 0;
   }
@@ -302,18 +299,133 @@ function getKingRingSquares(square: { file: number; rank: number }): { file: num
   return squares;
 }
 
-function countRingAttacks(opponentMoves: Move[], ringSet: Set<number>): number {
+function isInside(file: number, rank: number): boolean {
+  return file >= 0 && file <= 7 && rank >= 0 && rank <= 7;
+}
+
+function countRingAttacks(
+  state: GameState,
+  ringSquares: { file: number; rank: number }[],
+  byColor: Color
+): number {
   let count = 0;
-  for (const move of opponentMoves) {
-    if (ringSet.has(ringKey(move.to.file, move.to.rank))) {
-      count += 1;
-    }
+  for (const square of ringSquares) {
+    count += countAttackersOnSquare(state, square, byColor);
   }
   return count;
 }
 
-function ringKey(file: number, rank: number): number {
-  return rank * 8 + file;
+function countAttackersOnSquare(
+  state: GameState,
+  square: { file: number; rank: number },
+  byColor: Color
+): number {
+  let count = 0;
+  const dir = byColor === 'w' ? 1 : -1;
+  const pawnRank = square.rank - dir;
+  for (const fileDelta of [-1, 1]) {
+    const file = square.file + fileDelta;
+    if (!isInside(file, pawnRank)) {
+      continue;
+    }
+    const id = state.board[pawnRank]?.[file];
+    if (!id) {
+      continue;
+    }
+    const piece = state.pieces.get(id);
+    if (piece && piece.color === byColor && piece.type === 'pawn') {
+      count += 1;
+    }
+  }
+
+  const knightOffsets = [
+    [1, 2],
+    [2, 1],
+    [-1, 2],
+    [-2, 1],
+    [1, -2],
+    [2, -1],
+    [-1, -2],
+    [-2, -1]
+  ];
+  for (const [dx, dy] of knightOffsets) {
+    const file = square.file + dx;
+    const rank = square.rank + dy;
+    if (!isInside(file, rank)) {
+      continue;
+    }
+    const id = state.board[rank]?.[file];
+    if (!id) {
+      continue;
+    }
+    const piece = state.pieces.get(id);
+    if (piece && piece.color === byColor && piece.type === 'knight') {
+      count += 1;
+    }
+  }
+
+  count += countAttacksOnLine(state, square, byColor, [
+    [1, 0],
+    [-1, 0],
+    [0, 1],
+    [0, -1]
+  ], ['rook', 'queen']);
+  count += countAttacksOnLine(state, square, byColor, [
+    [1, 1],
+    [1, -1],
+    [-1, 1],
+    [-1, -1]
+  ], ['bishop', 'queen']);
+
+  for (let dx = -1; dx <= 1; dx += 1) {
+    for (let dy = -1; dy <= 1; dy += 1) {
+      if (dx === 0 && dy === 0) {
+        continue;
+      }
+      const file = square.file + dx;
+      const rank = square.rank + dy;
+      if (!isInside(file, rank)) {
+        continue;
+      }
+      const id = state.board[rank]?.[file];
+      if (!id) {
+        continue;
+      }
+      const piece = state.pieces.get(id);
+      if (piece && piece.color === byColor && piece.type === 'king') {
+        count += 1;
+      }
+    }
+  }
+
+  return count;
+}
+
+function countAttacksOnLine(
+  state: GameState,
+  square: { file: number; rank: number },
+  byColor: Color,
+  directions: number[][],
+  types: PieceType[]
+): number {
+  let count = 0;
+  for (const [dx, dy] of directions) {
+    let file = square.file + dx;
+    let rank = square.rank + dy;
+    while (isInside(file, rank)) {
+      const id = state.board[rank]?.[file];
+      if (id) {
+        const piece = state.pieces.get(id);
+        if (piece && piece.color === byColor && types.includes(piece.type)) {
+          count += 1;
+        }
+        break;
+      }
+      file += dx;
+      rank += dy;
+    }
+  }
+  return count;
 }
 
 function maxKingShieldScore(state: GameState, context: EvalContext, color: Color): number {
