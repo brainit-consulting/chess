@@ -74,6 +74,8 @@ const SEE_QUIESCENCE_PRUNE_THRESHOLD = -350;
 const COUNTERMOVE_BONUS = 900;
 const HARD_HISTORY_BONUS_CAP = 250;
 const MAX_HISTORY_BONUS_CAP = 1000;
+const EVASION_ORDER_BONUS = 4000;
+const EVASION_ORDER_PENALTY = 4000;
 const PROGRESS_BONUS_MINOR = 6;
 const PROGRESS_BONUS_CASTLE = 8;
 const PROGRESS_BONUS_KING_SAFETY = 4;
@@ -230,6 +232,7 @@ function applyRepetitionPolicy(
   if (scale <= 0) {
     return scores;
   }
+  const drawHoldThreshold = options.drawHoldThreshold ?? DRAW_HOLD_THRESHOLD_DEFAULT;
   const repeating = scores.filter((entry) => entry.isRepeat);
   if (repeating.length === 0) {
     return scores;
@@ -251,6 +254,9 @@ function applyRepetitionPolicy(
 
   return scores.map((entry) => {
     if (!entry.isRepeat) {
+      return entry;
+    }
+    if (entry.baseScore < drawHoldThreshold) {
       return entry;
     }
     const advantageMultiplier = getRepetitionPenaltyMultiplier(entry.baseScore);
@@ -311,7 +317,8 @@ function getRepetitionTieBreakCandidates(
       bestEntry = entry;
     }
   }
-  if (!bestEntry.isRepeat || bestEntry.baseScore <= REPETITION_CLEAR_DISADVANTAGE) {
+  const drawHoldThreshold = options.drawHoldThreshold ?? DRAW_HOLD_THRESHOLD_DEFAULT;
+  if (!bestEntry.isRepeat || bestEntry.baseScore < drawHoldThreshold) {
     return null;
   }
   let tieBreakWindow = REPETITION_TIEBREAK_WINDOW * scale;
@@ -332,7 +339,7 @@ function getRepetitionTieBreakCandidates(
     (entry) =>
       !entry.isRepeat &&
       entry.baseScore >= bestEntry.baseScore - tieBreakWindow &&
-      entry.baseScore > REPETITION_CLEAR_DISADVANTAGE
+      entry.baseScore >= drawHoldThreshold
   );
   return candidates.length > 0 ? candidates : null;
 }
@@ -351,6 +358,7 @@ export function applyRepetitionPolicyForTest(
     repetitionPenaltyScale?: number;
     hardRepetitionNudgeScale?: number;
     maxThinking?: boolean;
+    drawHoldThreshold?: number;
     recentPositions?: string[];
   },
   playForWin: boolean
@@ -633,12 +641,16 @@ function applyTwoPlyLoopPenalty(
   if (!playForWin || penaltyBase <= 0) {
     return scores;
   }
+  const drawHoldThreshold = options.drawHoldThreshold ?? DRAW_HOLD_THRESHOLD_DEFAULT;
   const recentSet = new Set(options.recentPositions ?? []);
   const topN = options.twoPlyRepeatTopN ?? TWO_PLY_REPEAT_TOP_N_DEFAULT;
   const sorted = [...scores].sort((a, b) => b.score - a.score).slice(0, topN);
 
   const penalizedMoves = new Map<Move, number>();
   for (const entry of sorted) {
+    if (entry.baseScore < drawHoldThreshold) {
+      continue;
+    }
     const penalty = computeTwoPlyPenalty(
       state,
       color,
@@ -1547,11 +1559,7 @@ function alphaBeta(
 
   if (legalMoves.length === 0) {
     if (isInCheck(state, currentColor)) {
-      return maxThinking
-        ? mateScore(currentColor, maximizingColor, ply)
-        : currentColor === maximizingColor
-          ? -MATE_SCORE
-          : MATE_SCORE;
+      return mateScore(currentColor, maximizingColor, ply);
     }
     return 0;
   }
@@ -1892,14 +1900,24 @@ function orderMoves(
   const ordering = options?.ordering;
   const ply = options?.ply ?? 0;
   const prevMove = options?.prevMove ?? null;
+  const inCheck = isInCheck(state, color);
   const scored = moves.map((move, index) => ({
     move,
-    score: buildOrderScore(state, move, color, maxThinking, {
-      preferred,
-      ordering,
-      ply,
-      prevMove
-    }),
+    score:
+      buildOrderScore(state, move, color, maxThinking, {
+        preferred,
+        ordering,
+        ply,
+        prevMove
+      }) +
+      (inCheck
+        ? (() => {
+            const next = cloneState(state);
+            next.activeColor = color;
+            applyMove(next, move);
+            return isInCheck(next, color) ? -EVASION_ORDER_PENALTY : EVASION_ORDER_BONUS;
+          })()
+        : 0),
     tie: maxThinking ? index : rng()
   }));
 
@@ -2510,6 +2528,15 @@ function sameMove(a: Move, b: Move): boolean {
 function mateScore(currentColor: Color, maximizingColor: Color, ply: number): number {
   const sign = currentColor === maximizingColor ? -1 : 1;
   return sign * (MATE_SCORE - ply);
+}
+
+// Test-only: expose mate-distance scoring preference.
+export function mateScoreForTest(
+  currentColor: Color,
+  maximizingColor: Color,
+  ply: number
+): number {
+  return mateScore(currentColor, maximizingColor, ply);
 }
 
 // Test-only helpers for SEE-lite assertions.

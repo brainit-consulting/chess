@@ -406,6 +406,29 @@ describe('AI move selection', () => {
     expect(sameMove(chosen as Move, repeatMove)).toBe(true);
   });
 
+  it('does not penalize repetition when below the draw-hold threshold', () => {
+    const repeatMove: Move = { from: sq(0, 0), to: sq(1, 0) };
+    const altMove: Move = { from: sq(0, 0), to: sq(2, 0) };
+    const scores = [
+      { move: repeatMove, baseScore: -100, score: -100, repeatCount: 1, isRepeat: true },
+      { move: altMove, baseScore: -110, score: -110, repeatCount: 0, isRepeat: false }
+    ];
+
+    const adjusted = search.applyRepetitionPolicyForTest(
+      scores,
+      {
+        repetitionPenalty: 50,
+        repetitionPenaltyScale: 1,
+        drawHoldThreshold: -80,
+        recentPositions: ['x']
+      },
+      true
+    );
+
+    const repeatScore = adjusted.find((entry) => entry.move === repeatMove)?.score ?? 0;
+    expect(repeatScore).toBe(-100);
+  });
+
   it('detects recaptures on the last move square', () => {
     const state = createEmptyState();
     addPiece(state, 'king', 'w', sq(4, 0));
@@ -827,6 +850,35 @@ describe('AI move selection', () => {
     expect(killerIndex).toBeGreaterThan(-1);
     expect(historyIdx).toBeGreaterThan(-1);
     expect(killerIndex).toBeLessThan(historyIdx);
+  });
+
+  it('orders check evasions ahead of non-evasions when in check', () => {
+    const state = createEmptyState();
+    addPiece(state, 'king', 'w', sq(4, 0));
+    addPiece(state, 'rook', 'w', sq(0, 0));
+    addPiece(state, 'rook', 'b', sq(4, 7));
+    addPiece(state, 'king', 'b', sq(7, 7));
+    state.activeColor = 'w';
+
+    const nonEvasion = { from: sq(0, 0), to: sq(0, 1) };
+    const evasion = { from: sq(4, 0), to: sq(5, 0) };
+
+    const ordered = search.orderMovesForTest(state, [nonEvasion, evasion], 'w', () => 0.5, {
+      maxThinking: false,
+      ply: 0
+    });
+
+    expect(sameMove(ordered[0], evasion)).toBe(true);
+  });
+
+  it('prefers faster mates and delays being mated', () => {
+    const fastWin = search.mateScoreForTest('b', 'w', 2);
+    const slowWin = search.mateScoreForTest('b', 'w', 4);
+    expect(fastWin).toBeGreaterThan(slowWin);
+
+    const fastLoss = search.mateScoreForTest('w', 'w', 2);
+    const slowLoss = search.mateScoreForTest('w', 'w', 4);
+    expect(slowLoss).toBeGreaterThan(fastLoss);
   });
 
   it('respects the max thinking time budget', () => {
