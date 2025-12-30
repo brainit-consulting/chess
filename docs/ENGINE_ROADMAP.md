@@ -165,8 +165,8 @@ Goal: Reduce early threefolds without changing time caps.
     - Progress bias for quiet development (minor development, castling/king safety, pawn advance).
     - Twofold repulsion multiplier (stronger than generic near-repeat, below threefold).
     - Root ordering deprioritizes quiet repeat moves when not losing.
-  - Phase 4.2 (planned): bounded selective extensions (recapture-first, strict caps).
-  - Phase 4.3: shallow pruning guards (futility/razoring; Max first).
+  - Phase 4.2 (implemented, locked): bounded selective extensions (recapture-first) with check-extension gating.
+  - Phase 4.3 (planned): defensive repetition awareness, in-check ordering, mate-distance preference.
 - Expected benefit
   - Lower node count for the same depth, higher tactical clarity, fewer drawish loops.
 - Risks / failure modes
@@ -180,14 +180,15 @@ Goal: Reduce early threefolds without changing time caps.
   - Phase 4.1 fastcheck (seed 7000, maxMs 3000): 0-10-0, repetition 100%, mate 0%.
   - Phase 4.1b: pending local validation (seed 7000).
   - Phase 4.1c: pending local validation (shuffle-loop focus).
+  - Phase 4.2: locked; no further ladder rungs until Phase 4.3 changes land.
 
-### Phase 4.2 detail (planned)
+### Phase 4.2 detail (completed and locked)
 
 - Objectives
   - Improve tactical stability and conversion while keeping Hard within ~800ms.
   - Reduce repetition collapse or keep it stable (no regressions vs Phase 4.1 baseline).
   - Preserve Max > Hard strength ordering.
-- Planned changes
+- Changes delivered
   - 4.2A Recapture extension (primary)
     - Add a +1 ply extension for immediate recaptures at the root and inside search.
     - Focus on recapture-first to stabilize tactics without opening full tactical explosions.
@@ -200,8 +201,7 @@ Goal: Reduce early threefolds without changing time caps.
   - Hard-first budget: keep extensions lightweight for Hard; Max can be slightly more permissive.
   - Time-aware: never bypass the existing stop/timeout checks.
 - Validation plan
-  - Self-play fastcheck: Hard 800ms vs Max 3000ms (`--swap --fenSuite`).
-  - Self-play real cap: Hard 800ms vs Max 10000ms (`--swap --fenSuite`).
+  - Stockfish ladder rungs completed for Hard 800ms vs Stockfish 600/500/400ms (swap + FEN suite).
   - Track repetition rate, mate rate, avg plies, timeouts, and W/D/L.
 - Success criteria
   - No increase in Hard timeouts.
@@ -211,6 +211,33 @@ Goal: Reduce early threefolds without changing time caps.
   - No futility/razoring pruning changes.
   - No evaluation tuning or new eval terms.
   - No 50-move rule or draw-rule changes.
+
+### Phase 4.3 detail (planned)
+
+- Objectives
+  - Reduce loop resilience in losing positions without weakening defensive draw chances.
+  - Improve tactical stability by prioritizing evasions when in check.
+  - Prefer faster mates when winning and delay mates when losing.
+- Planned changes
+  - 4.3A Perpetual/repetition awareness when losing
+    - Allow repetition as a defensive resource only when below a losing threshold.
+    - Avoid adding new avoid-repeat penalties in equal/winning positions here.
+  - 4.3B In-check move ordering (evasions first)
+    - When in check, order legal moves so evasions are searched first.
+  - 4.3C Mate-distance preference
+    - Ensure mate scoring prefers shorter mates for the side to move and delays mates when losing.
+- Guardrails / caps
+  - No benchmark harness changes during Phase 4.3.
+  - Preserve Hard ~800ms and Max 10s caps; no extra heavy eval terms.
+  - Keep Max stronger than Hard (Max-only enhancements may be added later if needed).
+- Validation plan
+  - Self-play: repetition rate, mate rate, avg plies, timing.
+  - Stockfish tracking rung: Hard 800ms vs Stockfish 500ms (b25) after Phase 4.3 changes.
+  - Unit tests: in-check ordering and mate-distance preference.
+- Success criteria
+  - No increase in Hard timeouts.
+  - Repetition rate stable or lower; mate rate stable or higher.
+  - No regression in Hard vs Max ordering.
 
 ## Phase 5 - Endgame conversion (target late-game draws)
 
