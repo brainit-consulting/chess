@@ -168,6 +168,7 @@ Goal: Reduce early threefolds without changing time caps.
   - Phase 4.2 (implemented, locked): bounded selective extensions (recapture-first) with check-extension gating.
   - Phase 4.3 (implemented, commit ecbdd1a): defensive repetition awareness, in-check ordering, mate-distance preference.
   - Phase 4.4 (step 1 implemented, commit c37ffcc): check-pressure safety bias for in-check evasions.
+  - Phase 4.4.2 (implemented, commit 714a389): minimal check extension (+1 ply when in check).
 - Expected benefit
   - Lower node count for the same depth, higher tactical clarity, fewer drawish loops.
 - Risks / failure modes
@@ -252,6 +253,13 @@ Goal: Reduce early threefolds without changing time caps.
 - Validation
   - Unit tests: deterministic ordering for capture vs block vs king move; king-into-attack penalty.
   - Stockfish tracking rung after Step 1 (planned): Hard 800ms vs Stockfish 500ms (b25).
+
+- Delivered change (step 2, commit 714a389)
+  - Minimal check extension (+1 ply) when the side to move is in check.
+  - Extension is capped by the forcing extension depth/ply limits and does not stack.
+- Validation (step 2)
+  - Unit tests: check extension depth added and ply guard respected.
+  - Stockfish tracking rung after Step 2 (planned): Hard 800ms vs Stockfish 500ms (b25).
 
 ## Phase 5 - Endgame conversion (target late-game draws)
 
