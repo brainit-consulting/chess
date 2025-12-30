@@ -15,6 +15,7 @@ Semantic Versioning.
 - Strengthen play-for-win repetition handling with twofold repulsion, root repeat avoidance, and repetition-aware root ordering.
 - Add a small progress bias for quiet development (minor development, castling/king safety, pawn advances) to reduce shuffle loops.
 - Update the in-UI version label to v1.1.54.
+- Rebrand Stockfish benchmark docs to ScorpionChessEngineVsStockfish and add ready-to-paste run commands.
 
 ## [1.1.52] - 2025-12-28 10:37
 ### Changed
