@@ -871,6 +871,55 @@ describe('AI move selection', () => {
     expect(sameMove(ordered[0], evasion)).toBe(true);
   });
 
+  it('orders check evasions by capture, block, then king move', () => {
+    const state = createEmptyState();
+    addPiece(state, 'king', 'w', sq(4, 0));
+    addPiece(state, 'pawn', 'w', sq(0, 2));
+    addPiece(state, 'pawn', 'w', sq(2, 1));
+    addPiece(state, 'bishop', 'b', sq(1, 3));
+    addPiece(state, 'king', 'b', sq(7, 7));
+    state.activeColor = 'w';
+
+    const capture = { from: sq(0, 2), to: sq(1, 3) };
+    const block = { from: sq(2, 1), to: sq(2, 2) };
+    const kingMove = { from: sq(4, 0), to: sq(5, 0) };
+
+    const ordered = search.orderMovesForTest(state, [kingMove, block, capture], 'w', () => 0.5, {
+      maxThinking: false,
+      ply: 0
+    });
+
+    expect(sameMove(ordered[0], capture)).toBe(true);
+    expect(sameMove(ordered[1], block)).toBe(true);
+    expect(sameMove(ordered[2], kingMove)).toBe(true);
+  });
+
+  it('ranks unsafe king evasions below safe ones', () => {
+    const state = createEmptyState();
+    addPiece(state, 'king', 'w', sq(4, 0));
+    addPiece(state, 'pawn', 'w', sq(0, 2));
+    addPiece(state, 'bishop', 'b', sq(1, 3));
+    addPiece(state, 'rook', 'b', sq(5, 7));
+    addPiece(state, 'king', 'b', sq(7, 7));
+    state.activeColor = 'w';
+
+    const unsafeKingMove = { from: sq(4, 0), to: sq(5, 0) };
+    const safeKingMove = { from: sq(4, 0), to: sq(3, 0) };
+
+    const ordered = search.orderMovesForTest(
+      state,
+      [unsafeKingMove, safeKingMove],
+      'w',
+      () => 0.5,
+      {
+        maxThinking: false,
+        ply: 0
+      }
+    );
+
+    expect(sameMove(ordered[0], safeKingMove)).toBe(true);
+  });
+
   it('prefers faster mates and delays being mated', () => {
     const fastWin = search.mateScoreForTest('b', 'w', 2);
     const slowWin = search.mateScoreForTest('b', 'w', 4);

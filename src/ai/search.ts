@@ -74,8 +74,10 @@ const SEE_QUIESCENCE_PRUNE_THRESHOLD = -350;
 const COUNTERMOVE_BONUS = 900;
 const HARD_HISTORY_BONUS_CAP = 250;
 const MAX_HISTORY_BONUS_CAP = 1000;
-const EVASION_ORDER_BONUS = 4000;
-const EVASION_ORDER_PENALTY = 4000;
+const CHECK_EVASION_CAPTURE_BONUS = 2000;
+const CHECK_EVASION_BLOCK_BONUS = 1000;
+const CHECK_EVASION_KING_MOVE_PENALTY = 200;
+const CHECK_EVASION_KING_INTO_ATTACK_PENALTY = 800;
 const PROGRESS_BONUS_MINOR = 6;
 const PROGRESS_BONUS_CASTLE = 8;
 const PROGRESS_BONUS_KING_SAFETY = 4;
@@ -1910,19 +1912,52 @@ function orderMoves(
         ply,
         prevMove
       }) +
-      (inCheck
-        ? (() => {
-            const next = cloneState(state);
-            next.activeColor = color;
-            applyMove(next, move);
-            return isInCheck(next, color) ? -EVASION_ORDER_PENALTY : EVASION_ORDER_BONUS;
-          })()
-        : 0),
+      (inCheck ? scoreCheckEvasion(state, move, color) : 0),
     tie: maxThinking ? index : rng()
   }));
 
   scored.sort((a, b) => b.score - a.score || a.tie - b.tie);
   return scored.map((entry) => entry.move);
+}
+
+function scoreCheckEvasion(state: GameState, move: Move, color: Color): number {
+  const next = cloneState(state);
+  next.activeColor = color;
+  applyMove(next, move);
+  if (isInCheck(next, color)) {
+    return -CHECK_EVASION_KING_INTO_ATTACK_PENALTY;
+  }
+
+  const movingPiece = getPieceAt(state, move.from);
+  if (!movingPiece) {
+    return 0;
+  }
+
+  const isCapture = isCaptureMove(state, move);
+  if (isCapture) {
+    return CHECK_EVASION_CAPTURE_BONUS;
+  }
+
+  if (movingPiece.type !== 'king') {
+    return CHECK_EVASION_BLOCK_BONUS;
+  }
+
+  let score = -CHECK_EVASION_KING_MOVE_PENALTY;
+  if (isSquareAttackedByOpponent(next, move.to, color)) {
+    score -= CHECK_EVASION_KING_INTO_ATTACK_PENALTY;
+  }
+  return score;
+}
+
+function isSquareAttackedByOpponent(
+  state: GameState,
+  square: { file: number; rank: number },
+  color: Color
+): boolean {
+  const opponentMoves = getAllLegalMoves(state, opponentColor(color));
+  return opponentMoves.some(
+    (move) => move.to.file === square.file && move.to.rank === square.rank
+  );
 }
 
 export function orderMovesForTest(

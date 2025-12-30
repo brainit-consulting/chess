@@ -58,6 +58,7 @@ Version: 1.1.54
   - Max-thinking adds: SEE capture penalty, larger check bonus, TT best move, killer/history, countermove boosts.
   - Hard uses a smaller history bonus for quiet moves (no killer/countermove).
   - When in check, evasions are ordered first (moves that resolve check).
+  - In-check evasion ordering prefers capture > block > king move and penalizes king moves into attacked squares.
 - Transposition table: Max uses a full Map; Hard uses a small fixed-size TT.
 - Repetition avoidance:
   - Only when `playForWin` is passed and `recentPositions` is present.
