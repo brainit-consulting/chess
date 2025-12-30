@@ -192,8 +192,6 @@ const FEN_SEED_OPENINGS: string[][] = [
   ['d2d4', 'd7d5', 'c2c4', 'c7c6', 'b1c3', 'g8f6', 'c4d5', 'c6d5']
 ];
 
-const FEN_SUITE = buildFenSuite(FEN_SEED_OPENINGS);
-
 const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
 const PROMO_MAP: Record<string, PieceType> = {
   q: 'queen',
@@ -201,6 +199,8 @@ const PROMO_MAP: Record<string, PieceType> = {
   b: 'bishop',
   n: 'knight'
 };
+
+const FEN_SUITE = buildFenSuite(FEN_SEED_OPENINGS);
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));

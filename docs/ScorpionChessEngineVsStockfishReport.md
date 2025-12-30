@@ -18,30 +18,31 @@ Notes:
 Report updates will appear between the markers below.
 
 <!-- REPORT:START -->
-Last updated: 2025-12-28T12:13:35.945Z
+Last updated: 2025-12-30T14:56:38.656Z
 Series: Post-fix baseline series
 
-Config: Scorpion hard @ 200ms | Stockfish movetime 200ms
+Config: Scorpion hard @ 200ms | Stockfish movetime 200ms | swap=true | fenSuite=true | seed=7000
+Commit: f2a396a83792457c4b1d0d9e3bc59e2faf064059
+Command: C:\Program Files\nodejs\node.exe H:\chess\scripts\bench\quickVsStockfish.ts --stockfish C:\Users\snake\Downloads\stockfish-windows-x86-64-avx2\stockfish\stockfish-windows-x86-64-avx2.exe --batch 10 --movetime 200 --mode hard --swap --fenSuite --seed 7000 --runId quick-10-swap --reset
 Stockfish: C:\Users\snake\Downloads\stockfish-windows-x86-64-avx2\stockfish\stockfish-windows-x86-64-avx2.exe
 Settings: Threads=1, Hash=64MB, Ponder=false
-Movetime targets: Scorpion=200ms, Stockfish=200ms
+Movetime targets: BrainIT=200ms, Stockfish=200ms
 Next ladder rung: paused (Stockfish=200ms)
+Output: H:\chess\scripts\bench\quick-results\run-quick-10-swap
 
-Cumulative: 0-0-22 (22 games)
+Cumulative: 0-0-20 (20 games)
 Score: 0.000
 Elo delta: Outside estimation range (shutout).
-Avg plies per game: 36.4
-End reasons: mate=22, stalemate=0, repetition=0, 50-move=0, other=0
-Timed out moves: 11/329
-Avg ms (non-timeout): 203.3, Avg ms (timeout): 290.3
-Max ms (non-timeout): 219.5, Max ms (timeout): 294.4
+Avg plies per game: 29.3
+End reasons: mate=20, stalemate=0, repetition=0, 50-move=0, other=0
+Timed out moves: 10/288
+Avg ms (non-timeout): 202.7, Avg ms (timeout): 288.3
+Max ms (non-timeout): 215.8, Max ms (timeout): 294.6
 
 Batch history:
-Batch | Games | W | D | L | Score | Elo | Scorpion ms (target/avg) | Stockfish ms (target/avg) | Timeouts | Timed-out moves | Avg ms (ok/timeout) | Max ms (ok/timeout) | Stop Latency (avg ms) | Overhead
+Batch | Games | W | D | L | Score | Elo | BrainIT ms (target/avg) | Stockfish ms (target/avg) | Timeouts | Timed-out moves | Avg ms (ok/timeout) | Max ms (ok/timeout) | Stop Latency (avg ms) | Overhead
 --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | ---
-1 | 2 | 0 | 0 | 2 | 0.000 | n/a | 200/207.3 | 200/163.6 | S:1 SF:0 | 1/25 | 203.8/292.1 | 214.5/292.1 | 6.0 | 6
-2 | 10 | 0 | 0 | 10 | 0.000 | n/a | 200/205.7 | 200/176.3 | S:5 SF:0 | 5/159 | 203.0/289.7 | 216.4/294.4 | 2.8 | 41
-3 | 10 | 0 | 0 | 10 | 0.000 | n/a | 200/206.7 | 200/182.1 | S:5 SF:0 | 5/145 | 203.7/290.4 | 219.5/294.2 | 3.7 | 30
+1 | 20 | 0 | 0 | 20 | 0.000 | n/a | 200/205.7 | 200/175.9 | B:10 SF:0 | 10/288 | 202.7/288.3 | 215.8/294.6 | 2.5 | 57
 <!-- REPORT:END -->
 
 Notes
