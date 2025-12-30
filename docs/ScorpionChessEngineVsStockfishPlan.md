@@ -65,6 +65,14 @@ Quick-and-Dirty Comparison (Directional Only)
   - W/D/L and Elo delta (high variance).
   - Average move time and obvious blunders (e.g., missed mate-in-1).
 
+Ladder Runs (Phase Baselines)
+- Start at equal times (e.g., Scorpion 800ms vs Stockfish 800ms) to validate stability.
+- Then step Stockfish down (e.g., 600ms, 400ms, 250ms) until Scorpion starts scoring.
+- Use swap + fenSuite for paired colors and consistent openings.
+- RunId convention: `phase4_2-hard800-vs-sf600-b10` = phase, engine time, Stockfish time, batch size.
+- `--stockfishMovetime` sets Stockfish time separately; if omitted, Stockfish uses `--movetime`.
+- Bench-only timeout tolerance is applied uniformly to both engines to absorb stop latency/jitter.
+
 Quick-run script (batch of 10)
 - Script: `scripts/bench/quickVsStockfish.ts`
 - Report: `docs/ScorpionChessEngineVsStockfishReport.md`
@@ -88,6 +96,11 @@ npm run bench:quick -- --stockfish "C:\path\to\stockfish.exe" --batch 2 --moveti
 ```powershell
 # Max mode example: 5 games per color at 3000ms
 npm run bench:quick -- --stockfish "C:\path\to\stockfish.exe" --batch 5 --movetime 3000 --mode max --swap --fenSuite --seed 7000 --runId max-3000
+```
+
+```powershell
+# Ladder rung example: Scorpion 800ms vs Stockfish 600ms (10 per color)
+npm run bench:quick -- --stockfish "C:\path\to\stockfish.exe" --batch 10 --movetime 800 --stockfishMovetime 600 --mode hard --swap --fenSuite --seed 7000 --runId phase4_2-hard800-vs-sf600-b10
 ```
 
 Notes:

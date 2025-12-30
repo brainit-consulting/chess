@@ -216,12 +216,15 @@ async function main(): Promise<void> {
   const outDir = args.outDir ?? path.join(ROOT_OUTPUT_DIR, `run-${runId}`);
   const commandLine = process.argv.join(' ');
   const commitSha = resolveCommitSha();
+  const stockfishMovetimes =
+    args.stockfishLadder ??
+    [args.stockfishMovetime ?? args.movetimeMs ?? DEFAULT_MOVETIME_MS];
 
   const config: RunConfig = {
     stockfishPath: args.stockfishPath,
     batchSize: args.batchSize ?? DEFAULT_BATCH_SIZE,
     movetimeMs: args.movetimeMs ?? DEFAULT_MOVETIME_MS,
-    stockfishMovetimes: args.stockfishLadder ?? [args.movetimeMs ?? DEFAULT_MOVETIME_MS],
+    stockfishMovetimes,
     mode: args.mode ?? DEFAULT_MODE,
     threads: args.threads ?? DEFAULT_THREADS,
     hashMb: args.hashMb ?? DEFAULT_HASH_MB,
@@ -1153,6 +1156,7 @@ function parseArgs(argv: string[]): {
   stockfishPath: string | null;
   batchSize?: number;
   movetimeMs?: number;
+  stockfishMovetime?: number;
   stockfishLadder?: number[];
   mode?: EngineMode;
   threads?: number;
@@ -1170,6 +1174,7 @@ function parseArgs(argv: string[]): {
     stockfishPath: string | null;
     batchSize?: number;
     movetimeMs?: number;
+    stockfishMovetime?: number;
     mode?: EngineMode;
     threads?: number;
     hashMb?: number;
@@ -1192,6 +1197,9 @@ function parseArgs(argv: string[]): {
       i += 1;
     } else if (arg === '--movetime') {
       result.movetimeMs = Number(argv[i + 1]);
+      i += 1;
+    } else if (arg === '--stockfishMovetime' || arg === '--stockfish-movetime') {
+      result.stockfishMovetime = Number(argv[i + 1]);
       i += 1;
     } else if (arg === '--sf-ladder' || arg === '--stockfish-ladder') {
       const raw = argv[i + 1] ?? DEFAULT_STOCKFISH_LADDER;

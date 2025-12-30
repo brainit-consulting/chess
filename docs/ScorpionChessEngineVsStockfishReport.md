@@ -18,32 +18,32 @@ Notes:
 Report updates will appear between the markers below.
 
 <!-- REPORT:START -->
-Last updated: 2025-12-30T15:39:12.112Z
+Last updated: 2025-12-30T16:06:26.772Z (UTC) | 2025-12-30 11:06:26 ET
 Series: Post-fix baseline series
 
-Config: Scorpion hard @ 800ms | Stockfish movetime 800ms | swap=true | fenSuite=true | seed=7000
-Commit: 20b9601deabad31aadb7e95c725e622de10d1145
-Command: C:\Program Files\nodejs\node.exe H:\chess\scripts\bench\quickVsStockfish.ts --stockfish C:\Users\snake\Downloads\stockfish-windows-x86-64-avx2\stockfish\stockfish-windows-x86-64-avx2.exe --batch 5 --movetime 800 --mode hard --swap --fenSuite --seed 7000 --runId phase4_2-hard800-sanity-grace --reset
+Config: Scorpion hard @ 800ms | Stockfish movetime 600ms | swap=true | fenSuite=true | seed=7000
+Commit: 4919f60f90767034216b7fc1b4de20ae358c514d
+Command: C:\Program Files\nodejs\node.exe H:\chess\scripts\bench\quickVsStockfish.ts --stockfish C:\Users\snake\Downloads\stockfish-windows-x86-64-avx2\stockfish\stockfish-windows-x86-64-avx2.exe --batch 10 --movetime 800 --stockfishMovetime 600 --mode hard --swap --fenSuite --seed 7000 --runId phase4_2-hard800-vs-sf600-b10 --reset
 Stockfish: C:\Users\snake\Downloads\stockfish-windows-x86-64-avx2\stockfish\stockfish-windows-x86-64-avx2.exe
 Settings: Threads=1, Hash=64MB, Ponder=false
-Movetime targets: BrainIT=800ms, Stockfish=800ms
+Movetime targets: BrainIT=800ms, Stockfish=600ms
 Timeout tolerance: +25ms (bench-only stop-latency/jitter slack)
-Next ladder rung: paused (Stockfish=800ms)
-Output: H:\chess\scripts\bench\quick-results\run-phase4_2-hard800-sanity-grace
+Next ladder rung: paused (Stockfish=600ms)
+Output: H:\chess\scripts\bench\quick-results\run-phase4_2-hard800-vs-sf600-b10
 
-Cumulative: 0-0-10 (10 games)
-Score: 0.000
-Elo delta: Outside estimation range (shutout).
-Avg plies per game: 45.3
-End reasons: mate=10, stalemate=0, repetition=0, 50-move=0, other=0
-Timed out moves: 1/224
-Avg ms (non-timeout): 793.6, Avg ms (timeout): 915.8
-Max ms (non-timeout): 907.3, Max ms (timeout): 915.8
+Cumulative: 0-1-19 (20 games)
+Score: 0.025
+Elo delta: -636 (95% CI -1033 to -240)
+Avg plies per game: 33.7
+End reasons: mate=19, stalemate=0, repetition=1, 50-move=0, other=0
+Timed out moves: 3/332
+Avg ms (non-timeout): 798.5, Avg ms (timeout): 911.3
+Max ms (non-timeout): 898.5, Max ms (timeout): 914.3
 
 Batch history:
 Batch | Games | W | D | L | Score | Elo | BrainIT ms (target/avg) | Stockfish ms (target/avg) | Timeouts | Timed-out moves | Avg ms (ok/timeout) | Max ms (ok/timeout) | Stop Latency (avg ms) | Overhead
 --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | ---
-1 | 10 | 0 | 0 | 10 | 0.000 | n/a | 800/794.2 | 800/717.2 | B:1 SF:0 | 1/224 | 793.6/915.8 | 907.3/915.8 | 12.0 | 36
+1 | 20 | 0 | 1 | 19 | 0.025 | -636 | 800/799.5 | 600/515.7 | B:3 SF:0 | 3/332 | 798.5/911.3 | 898.5/914.3 | 11.8 | 63
 <!-- REPORT:END -->
 
 Notes
