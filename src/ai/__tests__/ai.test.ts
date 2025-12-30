@@ -406,6 +406,49 @@ describe('AI move selection', () => {
     expect(sameMove(chosen as Move, repeatMove)).toBe(true);
   });
 
+  it('avoids rook shuffle repeats when a quiet improvement exists', () => {
+    const state = createEmptyState();
+    addPiece(state, 'king', 'w', sq(4, 0));
+    addPiece(state, 'rook', 'w', sq(7, 0));
+    addPiece(state, 'king', 'b', sq(4, 7));
+    state.activeColor = 'w';
+    state.castlingRights = { wK: true, wQ: false, bK: false, bQ: false };
+
+    const legalMoves = getAllLegalMoves(state, 'w');
+    const repeatMove = legalMoves.find(
+      (move) => move.from.file === 7 && move.from.rank === 0 && move.to.file === 7 && move.to.rank === 1
+    );
+    const castleMove = legalMoves.find((move) => move.isCastle);
+
+    if (!repeatMove || !castleMove) {
+      throw new Error('Expected rook shuffle and castling moves for repeat test.');
+    }
+
+    const next = cloneState(state);
+    next.activeColor = 'w';
+    applyMove(next, repeatMove);
+    const repeatKey = getPositionKey(next);
+
+    const chosen = search.findBestMove(state, 'w', {
+      depth: 1,
+      rng: () => 0,
+      legalMoves: [repeatMove, castleMove],
+      playForWin: true,
+      recentPositions: [repeatKey],
+      repetitionPenalty: 0,
+      repetitionPenaltyScale: 0,
+      hardRepetitionNudgeScale: 0,
+      repeatBanWindowCp: 0,
+      twoPlyRepeatPenalty: 0,
+      contemptCp: 0,
+      topMoveWindow: 0,
+      fairnessWindow: 0
+    });
+
+    expect(chosen).not.toBeNull();
+    expect(sameMove(chosen as Move, repeatMove)).toBe(false);
+  });
+
   it('uses a wider tie-break window with higher repetition scale', () => {
     const repeatMove: Move = { from: sq(0, 0), to: sq(1, 0) };
     const altMove: Move = { from: sq(0, 0), to: sq(0, 1) };

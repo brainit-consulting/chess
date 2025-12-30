@@ -49,6 +49,7 @@ const REPETITION_SLIGHT_MULTIPLIER = 1;
 const REPETITION_NEUTRAL_MULTIPLIER = 0.5;
 const REPETITION_LOOP_MULTIPLIER = 1.5;
 const REPETITION_NEAR_MULTIPLIER = 1;
+const REPETITION_TWOFOLD_MULTIPLIER = 2.2;
 const REPETITION_THREEFOLD_MULTIPLIER = 4;
 const REPETITION_TIEBREAK_WINDOW = 15;
 const REPETITION_HARD_NUDGE_ADVANTAGE = 30;
@@ -73,6 +74,12 @@ const SEE_QUIESCENCE_PRUNE_THRESHOLD = -350;
 const COUNTERMOVE_BONUS = 900;
 const HARD_HISTORY_BONUS_CAP = 250;
 const MAX_HISTORY_BONUS_CAP = 1000;
+const PROGRESS_BONUS_MINOR = 6;
+const PROGRESS_BONUS_CASTLE = 8;
+const PROGRESS_BONUS_KING_SAFETY = 4;
+const PROGRESS_BONUS_PAWN = 3;
+const PROGRESS_BONUS_PAWN_ADVANCED = 3;
+const ROOK_SHUFFLE_PENALTY = 6;
 const LMR_MIN_DEPTH = 3;
 const LMR_START_MOVE = 3;
 const LMR_REDUCTION = 1;
@@ -251,7 +258,11 @@ function applyRepetitionPolicy(
       return entry;
     }
     const repeatMultiplier =
-      entry.repeatCount >= 2 ? REPETITION_THREEFOLD_MULTIPLIER : REPETITION_NEAR_MULTIPLIER;
+      entry.repeatCount >= 2
+        ? REPETITION_THREEFOLD_MULTIPLIER
+        : entry.repeatCount === 1
+          ? REPETITION_TWOFOLD_MULTIPLIER
+          : REPETITION_NEAR_MULTIPLIER;
     let penalty = basePenalty * scale * advantageMultiplier * repeatMultiplier;
     if (maxThinking && entry.repeatCount >= 2) {
       penalty *= REPETITION_LOOP_MULTIPLIER;
@@ -504,6 +515,112 @@ function buildRootDiagnostics(
   };
 }
 
+function orderRootMovesForRepeatAvoidance(
+  state: GameState,
+  color: Color,
+  moves: Move[],
+  options: SearchOptions,
+  playForWin: boolean
+): Move[] {
+  if (!playForWin || !options.recentPositions?.length) {
+    return moves;
+  }
+  const drawHoldThreshold = options.drawHoldThreshold ?? DRAW_HOLD_THRESHOLD_DEFAULT;
+  const baseEval = evaluateState(state, color, { maxThinking: Boolean(options.maxThinking) });
+  if (baseEval < drawHoldThreshold) {
+    return moves;
+  }
+  const recentSet = new Set(options.recentPositions);
+  const annotated = moves.map((move, index) => {
+    const quietCandidate = !move.promotion && !isCaptureMove(state, move);
+    if (!quietCandidate) {
+      return { move, index, deprioritize: false };
+    }
+    const next = cloneState(state);
+    next.activeColor = color;
+    applyMove(next, move);
+    const givesCheck = isInCheck(next, opponentColor(color));
+    if (givesCheck) {
+      return { move, index, deprioritize: false };
+    }
+    const repeatKey = getPositionKey(next);
+    return { move, index, deprioritize: recentSet.has(repeatKey) };
+  });
+  if (!annotated.some((entry) => entry.deprioritize)) {
+    return moves;
+  }
+  annotated.sort((a, b) => {
+    if (a.deprioritize !== b.deprioritize) {
+      return a.deprioritize ? 1 : -1;
+    }
+    return a.index - b.index;
+  });
+  return annotated.map((entry) => entry.move);
+}
+
+function getProgressBias(
+  state: GameState,
+  move: Move,
+  color: Color,
+  baseScore: number,
+  options: SearchOptions,
+  playForWin: boolean,
+  givesCheck: boolean,
+  repeatCount: number
+): number {
+  if (!playForWin) {
+    return 0;
+  }
+  const drawHoldThreshold = options.drawHoldThreshold ?? DRAW_HOLD_THRESHOLD_DEFAULT;
+  if (baseScore < drawHoldThreshold) {
+    return 0;
+  }
+  if (isCaptureMove(state, move) || move.promotion || givesCheck) {
+    return 0;
+  }
+  const movingPiece = getPieceAt(state, move.from);
+  if (!movingPiece) {
+    return 0;
+  }
+
+  let bias = 0;
+
+  if (move.isCastle) {
+    bias += PROGRESS_BONUS_CASTLE;
+  }
+
+  if ((movingPiece.type === 'knight' || movingPiece.type === 'bishop') && !movingPiece.hasMoved) {
+    const startRank = color === 'w' ? 0 : 7;
+    if (state.fullmoveNumber <= 12 && move.from.rank === startRank && move.to.rank !== startRank) {
+      bias += PROGRESS_BONUS_MINOR;
+    }
+  }
+
+  if (!move.isCastle && movingPiece.type === 'king') {
+    const fromCenter = move.from.file >= 2 && move.from.file <= 4;
+    const toFlank = move.to.file <= 1 || move.to.file >= 6;
+    if (fromCenter && toFlank) {
+      bias += PROGRESS_BONUS_KING_SAFETY;
+    }
+  }
+
+  if (movingPiece.type === 'pawn') {
+    const forward = color === 'w' ? 1 : -1;
+    if ((move.to.rank - move.from.rank) * forward > 0) {
+      bias += PROGRESS_BONUS_PAWN;
+      if ((color === 'w' && move.to.rank >= 4) || (color === 'b' && move.to.rank <= 3)) {
+        bias += PROGRESS_BONUS_PAWN_ADVANCED;
+      }
+    }
+  }
+
+  if (movingPiece.type === 'rook' && repeatCount > 0) {
+    bias -= ROOK_SHUFFLE_PENALTY;
+  }
+
+  return bias;
+}
+
 function applyTwoPlyLoopPenalty(
   state: GameState,
   color: Color,
@@ -681,16 +798,17 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
   const ordering =
     options.ordering ?? (options.maxThinking ? createOrderingState(options.depth + 4) : undefined);
   const usePvs = options.usePvs ?? false;
+  const playForWin = Boolean(options.playForWin && options.recentPositions?.length);
   const preferred = options.tt ? options.tt.get(getPositionKey(state))?.bestMove : undefined;
-  const ordered = orderMoves(state, legalMoves, color, options.rng, {
+  const orderedBase = orderMoves(state, legalMoves, color, options.rng, {
     preferred,
     maxThinking: options.maxThinking,
     ordering,
     ply: 0,
     prevMove: state.lastMove
   });
+  const ordered = orderRootMovesForRepeatAvoidance(state, color, orderedBase, options, playForWin);
   let bestSoFar: Move | null = ordered[0] ?? legalMoves[0] ?? null;
-  const playForWin = Boolean(options.playForWin && options.recentPositions?.length);
   const positionCounts = playForWin
     ? buildPositionCounts(options.recentPositions ?? [])
     : undefined;
@@ -722,13 +840,24 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
       shouldStopChecked,
       options.microQuiescenceDepth
     );
+    const givesCheck = isInCheck(next, opponentColor(color));
     const repeatKey = playForWin ? getPositionKey(next) : null;
     const repeatCount =
       repeatKey && positionCounts ? positionCounts.get(repeatKey) ?? 0 : 0;
+    const progressBias = getProgressBias(
+      state,
+      move,
+      color,
+      baseScore,
+      options,
+      playForWin,
+      givesCheck,
+      repeatCount
+    );
     rootScores.push({
       move,
       baseScore,
-      score: baseScore,
+      score: baseScore + progressBias,
       repeatCount,
       isRepeat: repeatCount > 0
     });
@@ -1220,16 +1349,17 @@ function scoreRootMoves(
   scoredMoves: MateProbeScoredMove[];
   rootDiagnostics?: RootDiagnostics;
 } {
-  const ordered = orderMoves(state, options.legalMoves ?? [], color, options.rng, {
+  const playForWin = Boolean(options.playForWin && options.recentPositions?.length);
+  const orderedBase = orderMoves(state, options.legalMoves ?? [], color, options.rng, {
     preferred: options.tt ? options.tt.get(getPositionKey(state))?.bestMove : undefined,
     maxThinking: options.maxThinking,
     ordering: options.ordering,
     ply: 0,
     prevMove: state.lastMove
   });
+  const ordered = orderRootMovesForRepeatAvoidance(state, color, orderedBase, options, playForWin);
   const alpha = window?.alpha ?? -Infinity;
   const beta = window?.beta ?? Infinity;
-  const playForWin = Boolean(options.playForWin && options.recentPositions?.length);
   const positionCounts = playForWin
     ? buildPositionCounts(options.recentPositions ?? [])
     : undefined;
@@ -1261,13 +1391,24 @@ function scoreRootMoves(
       shouldStop,
       options.microQuiescenceDepth
     );
+    const givesCheck = isInCheck(next, opponentColor(color));
     const repeatKey = playForWin ? getPositionKey(next) : null;
     const repeatCount =
       repeatKey && positionCounts ? positionCounts.get(repeatKey) ?? 0 : 0;
+    const progressBias = getProgressBias(
+      state,
+      move,
+      color,
+      baseScore,
+      options,
+      playForWin,
+      givesCheck,
+      repeatCount
+    );
     rootScores.push({
       move,
       baseScore,
-      score: baseScore,
+      score: baseScore + progressBias,
       repeatCount,
       isRepeat: repeatCount > 0
     });
