@@ -166,7 +166,7 @@ Goal: Reduce early threefolds without changing time caps.
     - Twofold repulsion multiplier (stronger than generic near-repeat, below threefold).
     - Root ordering deprioritizes quiet repeat moves when not losing.
   - Phase 4.2 (implemented, locked): bounded selective extensions (recapture-first) with check-extension gating.
-  - Phase 4.3 (planned): defensive repetition awareness, in-check ordering, mate-distance preference.
+  - Phase 4.3 (implemented, commit ecbdd1a): defensive repetition awareness, in-check ordering, mate-distance preference.
 - Expected benefit
   - Lower node count for the same depth, higher tactical clarity, fewer drawish loops.
 - Risks / failure modes
@@ -181,6 +181,7 @@ Goal: Reduce early threefolds without changing time caps.
   - Phase 4.1b: pending local validation (seed 7000).
   - Phase 4.1c: pending local validation (shuffle-loop focus).
   - Phase 4.2: locked; no further ladder rungs until Phase 4.3 changes land.
+  - Phase 4.3: implemented (commit ecbdd1a).
 
 ### Phase 4.2 detail (completed and locked)
 
@@ -212,28 +213,27 @@ Goal: Reduce early threefolds without changing time caps.
   - No evaluation tuning or new eval terms.
   - No 50-move rule or draw-rule changes.
 
-### Phase 4.3 detail (planned)
+### Phase 4.3 detail (implemented, commit ecbdd1a)
 
 - Objectives
-  - Reduce loop resilience in losing positions without weakening defensive draw chances.
-  - Improve tactical stability by prioritizing evasions when in check.
+  - Reduced loop resilience in losing positions without weakening defensive draw chances.
+  - Improved tactical stability by prioritizing evasions when in check.
   - Prefer faster mates when winning and delay mates when losing.
-- Planned changes
+- Delivered changes
   - 4.3A Perpetual/repetition awareness when losing
-    - Allow repetition as a defensive resource only when below a losing threshold.
-    - Avoid adding new avoid-repeat penalties in equal/winning positions here.
+    - Repetition penalties and loop penalties are skipped when below the draw-hold threshold.
   - 4.3B In-check move ordering (evasions first)
-    - When in check, order legal moves so evasions are searched first.
+    - When in check, evasions are ordered ahead of non-evasions.
   - 4.3C Mate-distance preference
-    - Ensure mate scoring prefers shorter mates for the side to move and delays mates when losing.
+    - Mate scoring now prefers shorter mates and delays losses for both Hard and Max.
 - Guardrails / caps
   - No benchmark harness changes during Phase 4.3.
   - Preserve Hard ~800ms and Max 10s caps; no extra heavy eval terms.
   - Keep Max stronger than Hard (Max-only enhancements may be added later if needed).
-- Validation plan
-  - Self-play: repetition rate, mate rate, avg plies, timing.
-  - Stockfish tracking rung: Hard 800ms vs Stockfish 500ms (b25) after Phase 4.3 changes.
-  - Unit tests: in-check ordering and mate-distance preference.
+- Validation
+  - Unit tests: `npx vitest run --reporter dot` (added checks for in-check ordering, mate-distance preference, and repetition behavior when losing).
+  - Stockfish tracking rung (planned): Hard 800ms vs Stockfish 500ms (b25) after Phase 4.3 changes.
+  - Stockfish tracking rung (actual baseline): runId `phase4_2-hard800-vs-sf500-b25` (pre-Phase 4.3 reference in `docs/ScorpionChessEngineVsStockfishReport.md`).
 - Success criteria
   - No increase in Hard timeouts.
   - Repetition rate stable or lower; mate rate stable or higher.
