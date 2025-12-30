@@ -1419,6 +1419,27 @@ function average(values: number[]): number {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
+function formatEtTimestamp(iso: string): string {
+  const date = new Date(iso);
+  if (!Number.isFinite(date.getTime())) {
+    return 'unknown ET';
+  }
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
+  const parts = formatter.formatToParts(date);
+  const get = (type: Intl.DateTimeFormatPartTypes): string =>
+    parts.find((part) => part.type === type)?.value ?? '00';
+  return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}:${get('second')} ET`;
+}
+
 function formatElo(value: number | null): string {
   if (value === null || Number.isNaN(value)) {
     return 'n/a';
@@ -1492,7 +1513,7 @@ function buildReportBody(
   const summary = summarizeEndReasons(state.batches);
   const timingSummary = summarizeEngineTimings(state.batches);
   const lines = [
-    `Last updated: ${state.updatedAt}`,
+    `Last updated: ${state.updatedAt} (UTC) | ${formatEtTimestamp(state.updatedAt)}`,
     `Series: ${state.seriesLabel ?? 'unspecified'}`,
     '',
     `Config: Scorpion ${config.mode} @ ${config.movetimeMs}ms | Stockfish movetime ${lastRung}ms | swap=${config.swap} | fenSuite=${config.fenSuite} | seed=${config.baseSeed}`,
