@@ -7,7 +7,7 @@ This guide covers running the self-play benchmark and collecting root-move diagn
 Run a batch with swap + FEN suite:
 
 ```sh
-npm run bench:selfplay -- --hardMs 800 --maxMs 3000 --batch 5 --swap --fenSuite --seed 7000 --runId phase4_1b-fastcheck
+npm run bench:selfplay -- --hardMs 1000 --maxMs 3000 --batch 5 --swap --fenSuite --seed 7000 --runId phase4_1b-fastcheck
 ```
 
 Outputs:

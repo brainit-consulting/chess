@@ -202,7 +202,7 @@ type RunSummary = {
 };
 
 const DEFAULT_BATCH_SIZE = 10;
-const DEFAULT_HARD_MS = 800;
+const DEFAULT_HARD_MS = 1000;
 const DEFAULT_MAX_MS = 10000;
 const DEFAULT_MAX_PLIES = 200;
 const DEFAULT_BASE_SEED = 1000;
@@ -1302,7 +1302,7 @@ function buildRunReadme(): string {
     '',
     '## How to run',
     '- npm run bench:selfplay',
-    '- Optional: --batch 10 --hardMs 800 --maxMs 10000 --swap/--no-swap --fenSuite/--no-fenSuite --outDir <path> --seed 1000',
+    '- Optional: --batch 10 --hardMs 1000 --maxMs 10000 --swap/--no-swap --fenSuite/--no-fenSuite --outDir <path> --seed 1000',
     '',
     '## Metrics',
     '- W/D/L: results from Hard vs Max across all games.',

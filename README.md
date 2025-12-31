@@ -6,7 +6,7 @@ Live demo: https://brainit-consulting.github.io/chess/
 Shareable play link: https://brainit-consulting.github.io/chess/
 
 GitHub Pages: Settings -> Pages -> Source: GitHub Actions
-Current UI version: v1.1.56
+Current UI version: v1.1.57
 
 The UI shows player names (including AI labels) and a running captured-material score.
 You can hide the UI panel or collapse it to a compact view from the header controls.
@@ -50,7 +50,7 @@ npm run test:run
 - Mode selector: Human vs Human, Human vs AI, or AI vs AI.
 - AI vs AI includes Start/Pause/Resume, an AI move delay slider, and Play for Win.
 - Draws include stalemate, insufficient material (e.g., K vs K, K+N/B vs K), and threefold repetition.
-- Hard uses a depth-3 search with a gameplay time cap (~800ms) for responsiveness.
+- Hard uses a depth-3 search with a gameplay time cap (~1000ms) for responsiveness.
 - Max Thinking uses iterative deepening with a 10s cap and supports Force Move Now.
 
 ## Analyze Your Games

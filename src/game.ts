@@ -84,7 +84,7 @@ type Preferences = {
 const DEFAULT_NAMES: PlayerNames = { white: 'White', black: 'Black' };
 const DEFAULT_AI_DELAY_MS = 700;
 const HUMAN_VS_AI_DELAY_MS = 380;
-const HARD_THINKING_MS = 800;
+const HARD_THINKING_MS = 1000;
 const EXPLAIN_TIMEOUT_MS = 10000;
 const STORAGE_KEYS = {
   names: 'chess.playerNames',

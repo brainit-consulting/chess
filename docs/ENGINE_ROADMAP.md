@@ -1,13 +1,14 @@
 # Engine Roadmap (Hard + Max Strength)
 
-This is a phased plan to increase playing strength for Hard and Max while preserving the current time caps (Hard ~800ms, Max 10s with Force Move Now). The plan prioritizes Elo gain per risk/perf cost and keeps Max strictly stronger than Hard.
+This is a phased plan to increase playing strength for Hard and Max while preserving the current time caps (Hard ~1000ms, Max 10s with Force Move Now). The plan prioritizes Elo gain per risk/perf cost and keeps Max strictly stronger than Hard.
 
 ## Constraints
 
-- Do not change time budgets: Hard ~800ms; Max 10s.
+- Default time budgets: Hard ~1000ms; Max 10s.
 - Max must remain stronger than Hard.
 - Repetition rate must be reduced without altering time budgets.
 - Each phase should be measurable with existing benchmarks (self-play + Stockfish).
+- Benchmark baseline (going forward): Hard 1000ms; historical hard800 runIds remain as references.
 
 ## Phase 0 - Baseline discipline (no engine changes)
 
@@ -109,7 +110,7 @@ Goal: Reduce early threefolds without changing time caps.
 
 - Change list (files)
   - `src/ai/search.ts`
-    - Enable a small TT for Hard (limited size) to cut blunders while staying within 800ms.
+    - Enable a small TT for Hard (limited size) to cut blunders while staying within 1000ms.
     - Add basic killer/history ordering for Hard, but keep Max with deeper TT and full ordering.
     - Consider light quiescence for Hard at depth 0 for captures only (optional).
   - `src/ai/ai.ts`
@@ -121,7 +122,7 @@ Goal: Reduce early threefolds without changing time caps.
   - Reduced variation if ordering becomes too rigid.
 - Validation plan
   - Self-play: Hard should improve but Max should remain stronger (W/D/L vs Max).
-  - Track average move time and timeouts; ensure Hard stays ~800ms.
+  - Track average move time and timeouts; ensure Hard stays ~1000ms.
 - Rollback plan
   - Keep ordering and TT sizes configurable; revert to current maxThinking-only path if needed.
 - Results (seed 5000 fastcheck)
@@ -189,7 +190,7 @@ Goal: Reduce early threefolds without changing time caps.
 ### Phase 4.2 detail (completed and locked)
 
 - Objectives
-  - Improve tactical stability and conversion while keeping Hard within ~800ms.
+  - Improve tactical stability and conversion while keeping Hard within ~1000ms.
   - Reduce repetition collapse or keep it stable (no regressions vs Phase 4.1 baseline).
   - Preserve Max > Hard strength ordering.
 - Changes delivered
@@ -231,7 +232,7 @@ Goal: Reduce early threefolds without changing time caps.
     - Mate scoring now prefers shorter mates and delays losses for both Hard and Max.
 - Guardrails / caps
   - No benchmark harness changes during Phase 4.3.
-  - Preserve Hard ~800ms and Max 10s caps; no extra heavy eval terms.
+  - Preserve Hard ~1000ms and Max 10s caps; no extra heavy eval terms.
   - Keep Max stronger than Hard (Max-only enhancements may be added later if needed).
 - Validation
   - Unit tests: `npx vitest run --reporter dot` (added checks for in-check ordering, mate-distance preference, and repetition behavior when losing).
@@ -302,4 +303,68 @@ To preserve the strength gap:
 - Self-play (Hard vs Max): W/D/L, repetition rate, mate rate, avg plies, decisiveness metrics.
 - Stockfish quick bench: verify no regression in baseline.
 - FEN/tactics suite: measure tactical stability and conversion.
-- Time budget guardrails: Hard avg move time stays near 800ms; Max under 10s with Force Move Now.
+- Time budget guardrails: Hard avg move time stays near 1000ms; Max under 10s with Force Move Now.
+
+## Phase 6 — Time Ladder Plan (Hard + Max)
+
+Purpose / hypothesis
+- Increase think-time budgets incrementally (time-only) to see if quality improves before changing depth caps.
+- Quality proxy remains: avg plies per game, plus W/D/L and end reasons (mate/repetition).
+- Ladder runs isolate time budget effects (one axis at a time).
+
+Controls / invariants (checklist)
+- [ ] Same harness, same timeout tolerance.
+- [ ] Stockfish settings fixed: Threads=1, Hash=64MB, Ponder=false.
+- [ ] Same run parameters: seed=7000, swap=true, fenSuite=true, batch=25 (50 games total).
+- [ ] Same opponent time control: Stockfish movetime=500ms.
+- [ ] Engine mode: hard (for the Hard ladder).
+- [ ] Do NOT alter depth caps for these runs (time-only).
+- [ ] Clarification: `--movetime <HARD_MS>` is Scorpion per-move time; `--stockfishMovetime 500` is Stockfish per-move time.
+
+### Run sequence (Hard time ladder, depth unchanged)
+
+A) Baseline reference (already exists, do not rerun unless noted)
+- Reference runId: `phase4_3-reconfirm-hard800-vs-sf500-b25`
+- Notes:
+  - v1.1.55 baseline reconfirm
+  - Used as the comparison point for avg plies and timeout behavior
+
+B) Phase 6 — Hard time ladder (time-only)
+
+Command template (copy verbatim; vary `--movetime` and `--runId` only):
+```
+npm run bench:quick -- --stockfish "C:\\Users\\snake\\Downloads\\stockfish-windows-x86-64-avx2\\stockfish\\stockfish-windows-x86-64-avx2.exe" --batch 25 --movetime <HARD_MS> --stockfishMovetime 500 --mode hard --swap --fenSuite --seed 7000 --runId <RUNID> --reset
+```
+
+Rungs:
+1) HARD_MS = 800
+   - runId: `phase6-time-hard800-vs-sf500-b25`
+   - Note: optional sanity re-run only if drift is suspected
+2) HARD_MS = 1200
+   - runId: `phase6-time-hard1200-vs-sf500-b25`
+3) HARD_MS = 1500
+   - runId: `phase6-time-hard1500-vs-sf500-b25`
+
+### Optional: Max time ladder (if/when we add a comparable bench path)
+
+- Reserved / not yet executed.
+- Do NOT add commands unless the harness supports Max symmetrically.
+- Reserved runIds:
+  - `phase6-time-max10s-vs-sf500-b25`
+  - `phase6-time-max12s-vs-sf500-b25`
+  - `phase6-time-max15s-vs-sf500-b25`
+
+Success / stop criteria
+- Primary success: avg plies increases versus the current baseline without timed-out moves increasing by more than ~10% relative.
+- If timeouts increase materially (e.g., >~5% of moves):
+  - Do NOT change tolerance
+  - Log the result and reassess
+- If avg plies does not improve at higher time budgets:
+  - Do NOT increase depth caps yet
+  - Pivot to search efficiency and/or evaluation improvements instead
+
+Reporting instructions
+- After each rung, append a new result block to `docs/ScorpionChessEngineVsStockfishReport.md`.
+- Keep runId naming consistent.
+- Never overwrite old run folders unless explicitly re-running with `--reset`.
+- Record the engine commit SHA in the report header as usual.

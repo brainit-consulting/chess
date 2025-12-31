@@ -291,7 +291,7 @@ async function main(): Promise<void> {
     const seed = config.baseSeed + state.totalGames;
     const gameId = state.totalGames + 1;
 
-    const engineLabel = config.mode === 'max' ? 'BrainIT (Max Thinking)' : 'BrainIT (Hard)';
+    const engineLabel = config.mode === 'max' ? 'Scorpion (Max Thinking)' : 'Scorpion (Hard)';
     let result: Awaited<ReturnType<typeof runSingleGame>>;
     try {
       result = await runSingleGame({
@@ -795,7 +795,7 @@ function finalizeGame(
     white: engineColor === 'w' ? engineLabel : 'Stockfish',
     black: engineColor === 'b' ? engineLabel : 'Stockfish',
     result,
-    event: 'BrainIT vs Stockfish (Quick)',
+    event: 'Scorpion vs Stockfish (Quick)',
     site: 'Local',
     date: new Date()
   });
@@ -1456,6 +1456,44 @@ function formatElo(value: number | null): string {
   return `${rounded >= 0 ? '+' : ''}${rounded}`;
 }
 
+function resolveRunId(outDir: string): string | null {
+  const base = path.basename(outDir);
+  if (base.startsWith('run-')) {
+    return base.slice(4);
+  }
+  return null;
+}
+
+function resolveRoadmapPhase(runId: string | null): string {
+  if (!runId) {
+    return 'Unknown';
+  }
+  const id = runId.toLowerCase();
+  if (id.startsWith('phase6-')) {
+    return 'Phase 6';
+  }
+  if (id.startsWith('phase5_q1-')) {
+    return 'Phase 5.Q1';
+  }
+  if (id.startsWith('phase5_q2-')) {
+    return 'Phase 5.Q2';
+  }
+  if (id.startsWith('phase5_q3_2-')) {
+    return 'Phase 5.Q3.2';
+  }
+  if (id.startsWith('phase5_q3-')) {
+    return 'Phase 5.Q3';
+  }
+  if (id.startsWith('phase5_q4-')) {
+    return 'Phase 5.Q4';
+  }
+  const match = id.match(/^phase(\d+)_(\d+)/);
+  if (match) {
+    return `Phase ${match[1]}.${match[2]}`;
+  }
+  return 'Unknown';
+}
+
 async function updateReport(
   state: RunState,
   config: RunConfig,
@@ -1471,9 +1509,11 @@ async function updateReport(
   }
 
   const reportBody = buildReportBody(state, config, meta);
+  const existingBody = text.slice(startIndex + start.length, endIndex);
   const updated =
     text.slice(0, startIndex + start.length) +
     `\n${reportBody}\n` +
+    existingBody +
     text.slice(endIndex);
   await fs.writeFile(REPORT_PATH, updated, 'utf8');
 }
@@ -1520,16 +1560,18 @@ function buildReportBody(
       : `Elo delta: ${formatElo(elo)} (95% CI ${formatElo(low)} to ${formatElo(high)})`;
   const summary = summarizeEndReasons(state.batches);
   const timingSummary = summarizeEngineTimings(state.batches);
+  const roadmapPhase = resolveRoadmapPhase(resolveRunId(config.outDir));
   const lines = [
     `Last updated: ${state.updatedAt} (UTC) | ${formatEtTimestamp(state.updatedAt)}`,
     `Series: ${state.seriesLabel ?? 'unspecified'}`,
+    `Roadmap phase: ${roadmapPhase}`,
     '',
     `Config: Scorpion ${config.mode} @ ${config.movetimeMs}ms | Stockfish movetime ${lastRung}ms | swap=${config.swap} | fenSuite=${config.fenSuite} | seed=${config.baseSeed}`,
     `Commit: ${meta.commitSha}`,
     `Command: ${meta.commandLine}`,
     `Stockfish: ${config.stockfishPath}`,
     `Settings: Threads=${config.threads}, Hash=${config.hashMb}MB, Ponder=${config.ponder ? 'true' : 'false'}`,
-    `Movetime targets: BrainIT=${config.movetimeMs}ms, Stockfish=${lastRung}ms`,
+    `Movetime targets: Scorpion=${config.movetimeMs}ms, Stockfish=${lastRung}ms`,
     `Timeout tolerance: +${TIMEOUT_TOLERANCE_BUMP_MS}ms (bench-only stop-latency/jitter slack)`,
     `Next ladder rung: paused (Stockfish=${currentRung}ms)`,
     `Output: ${config.outDir}`,
@@ -1556,7 +1598,7 @@ function buildReportBody(
   if (state.batches.length > 0) {
     lines.push('Batch history:');
     lines.push(
-      'Batch | Games | W | D | L | Score | Elo | BrainIT ms (target/avg) | Stockfish ms (target/avg) | Timeouts | Timed-out moves | Avg ms (ok/timeout) | Max ms (ok/timeout) | Stop Latency (avg ms) | Overhead'
+      'Batch | Games | W | D | L | Score | Elo | Scorpion ms (target/avg) | Stockfish ms (target/avg) | Timeouts | Timed-out moves | Avg ms (ok/timeout) | Max ms (ok/timeout) | Stop Latency (avg ms) | Overhead'
     );
     lines.push('--- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | ---');
     for (const batch of state.batches) {

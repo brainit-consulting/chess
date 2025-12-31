@@ -42,7 +42,7 @@ Max Thinking runs iterative deepening from depth 1 up to the cap and returns the
 
 Hard remains depth-3, but gameplay is time-capped in the app for responsiveness:
 
-- **Hard gameplay cap**: `HARD_THINKING_MS = 800` (defined in `src/game.ts`)
+- **Hard gameplay cap**: `HARD_THINKING_MS = 1000` (defined in `src/game.ts`)
 
 The benchmark harness can pass a different maxTimeMs for Hard when measuring performance.
 
