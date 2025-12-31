@@ -8,6 +8,14 @@ Semantic Versioning.
 ## [Unreleased]
 ### Changed
 
+## [1.1.56] - 2025-12-31
+
+### Changed
+
+- Phase 5.1c: queen-gated king safety evaluation (ring attack penalty).
+- Improves average plies vs SF500 tracking rung without changing time controls.
+- Preserves benchmark history; Phase 5.1b/5.1d remain documented but reverted.
+
 ## [1.1.55] - 2025-12-30
 
 ### Changed
