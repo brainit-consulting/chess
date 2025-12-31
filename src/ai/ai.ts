@@ -110,7 +110,7 @@ function resolveAiContext(state: GameState, options: AiOptions): AiContext | nul
       : difficulty === 'hard'
         ? HARD_CONTEMPT_CP
         : 0);
-  const usePvs = options.usePvs ?? difficulty === 'max';
+  const usePvs = options.usePvs ?? (difficulty === 'max' || difficulty === 'hard');
 
   return {
     color,

@@ -52,7 +52,7 @@ Version: 1.1.57
 - Quiescence: Max uses full quiescence (`QUIESCENCE_MAX_DEPTH` = 4); Hard uses check-only micro-quiescence at leaf nodes.
 - Null-move pruning: only when `maxThinking` is true; gated by depth/material.
 - LMR (late move reductions): only when `maxThinking` is true.
-- PVS (principal variation search): max-thinking only; non-PV moves are searched with a null window and re-searched on fail-high.
+- PVS (principal variation search): enabled for Hard + Max; non-PV moves are searched with a null window and re-searched on fail-high.
 - Forcing extensions: +1 ply on checks/promotions (depth/ply capped).
 - Move ordering:
   - Base heuristic: promotions, captures, checks, hanging piece penalty, minor development bonus.

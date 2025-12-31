@@ -680,6 +680,51 @@ describe('AI move selection', () => {
     expect(sameMove(baseline as Move, pvs as Move)).toBe(true);
   });
 
+  it('keeps PVS selection consistent for hard search', () => {
+    const state = createEmptyState();
+    addPiece(state, 'king', 'w', sq(4, 0));
+    addPiece(state, 'king', 'b', sq(4, 7));
+    addPiece(state, 'queen', 'w', sq(3, 0));
+    addPiece(state, 'rook', 'b', sq(3, 7));
+    addPiece(state, 'pawn', 'b', sq(3, 6));
+    state.activeColor = 'w';
+
+    const legalMoves = getAllLegalMoves(state, 'w');
+    const capture = legalMoves.find(
+      (move) => move.from.file === 3 && move.from.rank === 0 && move.to.file === 3 && move.to.rank === 6
+    );
+    const quiet = legalMoves.find(
+      (move) => move.from.file === 3 && move.from.rank === 0 && move.to.file === 4 && move.to.rank === 1
+    );
+
+    if (!capture || !quiet) {
+      throw new Error('Expected capture and quiet queen moves for hard PVS test.');
+    }
+
+    const baseline = search.findBestMove(state, 'w', {
+      depth: 2,
+      rng: () => 0,
+      legalMoves: [capture, quiet],
+      maxThinking: false,
+      usePvs: false,
+      topMoveWindow: 0,
+      fairnessWindow: 0
+    });
+    const pvs = search.findBestMove(state, 'w', {
+      depth: 2,
+      rng: () => 0,
+      legalMoves: [capture, quiet],
+      maxThinking: false,
+      usePvs: true,
+      topMoveWindow: 0,
+      fairnessWindow: 0
+    });
+
+    expect(baseline).not.toBeNull();
+    expect(pvs).not.toBeNull();
+    expect(sameMove(baseline as Move, pvs as Move)).toBe(true);
+  });
+
   it('boosts countermove ordering for quiet moves', () => {
     const state = createEmptyState();
     addPiece(state, 'king', 'w', sq(4, 0));

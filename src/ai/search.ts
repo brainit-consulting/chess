@@ -1602,7 +1602,7 @@ function alphaBeta(
 
   const maximizing = currentColor === maximizingColor;
   const inCheck = maxThinking ? isInCheck(state, currentColor) : false;
-  const pvsEnabled = maxThinking && usePvs;
+  const pvsEnabled = usePvs;
 
   if (
     maxThinking &&
