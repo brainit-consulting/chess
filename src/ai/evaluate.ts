@@ -39,7 +39,6 @@ const MAX_KING_RING_PAWN_PENALTY = 5;
 const ENABLE_KING_RING_ATTACK_PENALTY = true;
 const KING_RING_ATTACK_PENALTY_CP = 6;
 const KING_RING_ENDGAME_SCALE = 0.5;
-const BISHOP_PAIR_BONUS = 12;
 
 const KNIGHT_PST = [
   -50, -40, -30, -30, -30, -30, -40, -50,
@@ -89,7 +88,6 @@ export function evaluateState(
     w: new Array(8).fill(false),
     b: new Array(8).fill(false)
   };
-  const bishopCounts: Record<Color, number> = { w: 0, b: 0 };
   let queenCount = 0;
   let material = 0;
   for (const piece of state.pieces.values()) {
@@ -107,9 +105,6 @@ export function evaluateState(
     }
     if (piece.type === 'rook' || piece.type === 'queen') {
       rookQueenFiles[piece.color][square.file] = true;
-    }
-    if (piece.type === 'bishop') {
-      bishopCounts[piece.color] += 1;
     }
   }
 
@@ -138,17 +133,9 @@ export function evaluateState(
     -kingRingPenaltyScore(state, context, 'w') +
     kingRingPenaltyScore(state, context, 'b');
   const filePressure = filePressureScore(state, context);
-  const bishopPair = bishopPairScore(bishopCounts, context.phaseFactor);
   const maxScore = options.maxThinking ? evaluateMaxThinking(state, context) : 0;
   const scoreForWhite =
-    material +
-    mobility +
-    checkScore +
-    kingExposure +
-    kingRingPenalty +
-    filePressure +
-    bishopPair +
-    maxScore;
+    material + mobility + checkScore + kingExposure + kingRingPenalty + filePressure + maxScore;
   return perspective === 'w' ? scoreForWhite : -scoreForWhite;
 }
 
@@ -442,16 +429,6 @@ function countAttacksOnLine(
     }
   }
   return count;
-}
-
-function bishopPairScore(
-  bishopCounts: Record<Color, number>,
-  phaseFactor: number
-): number {
-  const scale = Math.max(0, Math.min(1, phaseFactor));
-  const whiteBonus = bishopCounts.w >= 2 ? BISHOP_PAIR_BONUS * scale : 0;
-  const blackBonus = bishopCounts.b >= 2 ? BISHOP_PAIR_BONUS * scale : 0;
-  return whiteBonus - blackBonus;
 }
 
 function maxKingShieldScore(state: GameState, context: EvalContext, color: Color): number {

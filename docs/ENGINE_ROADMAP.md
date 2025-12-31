@@ -316,7 +316,8 @@ Candidate micro-upgrades (plan only)
   - Tests: bishop pair eval > bishop+knight in a mirrored setup.
   - Success criterion: SF500 b25 avg plies >= 38.0 and no timeout regression.
   - Risk: eval noise in simplified positions.
-  - Status: rollback planned (Step 5.Q3.1), runId `phase5_q3-hard800-vs-sf500-b25` (avg plies 37.6 < 38.0).
+  - Status: regressed / rolled back (Step 5.Q3.1).
+  - Evidence: runId `phase5_q3-hard800-vs-sf500-b25` (avg plies 37.6 < 38.0; W/D/L 0-0-50).
 
 - 5.Q4 Eval: add a tiny rook-7th bonus (phase-gated).
   - Why: improves conversion cues in midgame/late middlegame.

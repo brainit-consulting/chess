@@ -51,6 +51,7 @@ Notes
 - \"Timed out moves\" means the harness forced a fallback because a bestmove did not arrive before `movetime + grace`.
 - Use the same Stockfish settings (Threads=1, Hash=64, Ponder=false) for all batches.
 - RunId references: baseline v1.1.55 reconfirm `phase4_3-reconfirm-hard800-vs-sf500-b25`, phase5_1b `phase5_1b-kingSafety-hard800-vs-sf500-b25`, phase5_1c `phase5_1c-kingSafety-queenGate-hard800-vs-sf500-b25`, phase5_1d (reverted) `phase5_1d-kingSafety-queenGate-coeff4-hard800-vs-sf500-b25`.
+- Note: phase5_q3-hard800-vs-sf500-b25 was rolled back due to avg plies 37.6 < 38.0.
 
 
 
