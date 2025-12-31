@@ -140,8 +140,20 @@ body {
   align-items: center;
 }
 
+.advanced-pill-row {
+  display: flex;
+}
+
 .advanced-essentials-toggle {
+  border-radius: 999px;
+  padding: 6px 12px;
   white-space: nowrap;
+}
+
+.advanced-essentials-toggle.active {
+  border-color: rgba(255, 255, 255, 0.32);
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text);
 }
 
 .advanced-content {
@@ -462,6 +474,10 @@ body {
   border-color: rgba(255, 255, 255, 0.32);
   background: rgba(255, 255, 255, 0.12);
   color: var(--text);
+}
+
+.panel-tabs {
+  margin-top: 6px;
 }
 
 .delay-stack {

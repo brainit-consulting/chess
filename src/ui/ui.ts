@@ -19,6 +19,9 @@ export type UiState = {
   historyVisible: boolean;
 };
 
+type PanelView = 'essentials' | 'advanced' | 'both';
+type PanelTab = 'essentials' | 'advanced';
+
 type UIHandlers = {
   onRestart: () => void;
   onSnap: (view: SnapView) => void;
@@ -71,6 +74,8 @@ type UIOptions = {
 };
 
 const UI_STATE_KEY = 'chess.uiState';
+const PANEL_VIEW_KEY = 'chess.uiPanelView';
+const PANEL_VIEW_BY_MODE_KEY = 'chess.uiPanelViewByMode';
 const ADVANCED_STATE_KEY = 'chess.uiAdvancedOpen';
 
 export class GameUI {
@@ -80,8 +85,9 @@ export class GameUI {
   private essentialsSection: HTMLDivElement;
   private advancedSection: HTMLDivElement;
   private advancedContent: HTMLDivElement;
-  private advancedToggle: HTMLButtonElement;
-  private advancedEssentialsToggle: HTMLButtonElement;
+  private panelViewSelect: HTMLSelectElement;
+  private panelTabsRow: HTMLDivElement;
+  private panelTabButtons: Record<PanelTab, HTMLButtonElement>;
   private turnEl: HTMLDivElement;
   private turnRow: HTMLDivElement;
   private statusEl: HTMLDivElement;
@@ -184,8 +190,9 @@ export class GameUI {
   private expandButton: HTMLButtonElement;
   private handlers: UIHandlers;
   private uiState: UiState;
-  private advancedOpen: boolean;
-  private advancedEssentialsOpen: boolean;
+  private panelView: PanelView;
+  private panelTab: PanelTab;
+  private panelViewByMode: Record<GameMode, PanelView>;
   private pgnCopyTimer: number | null = null;
   private collapseMismatchLogged = false;
 
@@ -202,8 +209,11 @@ export class GameUI {
     this.panel.className = 'panel ui-panel';
 
     this.uiState = this.loadUiState();
-    this.advancedOpen = this.loadAdvancedState();
-    this.advancedEssentialsOpen = false;
+    const initialAiEnabled = options.aiEnabled ?? true;
+    const initialMode = options.mode ?? (initialAiEnabled ? 'hvai' : 'hvh');
+    this.panelViewByMode = this.loadPanelViewByMode();
+    this.panelView = this.panelViewByMode[initialMode] ?? 'essentials';
+    this.panelTab = this.panelView === 'advanced' ? 'advanced' : 'essentials';
 
     const header = document.createElement('div');
     header.className = 'panel-header';
@@ -312,8 +322,7 @@ export class GameUI {
 
     this.aiToggle = document.createElement('input');
     this.aiToggle.type = 'checkbox';
-    const initialAiEnabled = options.aiEnabled ?? true;
-    const initialMode = options.mode ?? (initialAiEnabled ? 'hvai' : 'hvh');
+    // initialAiEnabled/initialMode already set above for panel view defaults
     const initialDifficulty = options.aiDifficulty ?? 'medium';
     const initialDelay = options.aiDelayMs ?? 700;
     const initialSoundEnabled = options.soundEnabled ?? true;
@@ -774,21 +783,38 @@ export class GameUI {
       buttonRow
     );
 
-    const advancedToggleRow = document.createElement('div');
-    advancedToggleRow.className = 'advanced-toggle-row';
+    const panelViewRow = document.createElement('div');
+    panelViewRow.className = 'control-row expand-only panel-view-row';
 
-    this.advancedToggle = this.makeButton('Advanced ▸', () =>
-      this.setAdvancedOpen(!this.advancedOpen)
-    );
-    this.advancedToggle.classList.add('ghost', 'advanced-toggle');
-    this.advancedToggle.setAttribute('aria-expanded', 'false');
+    const panelViewLabel = document.createElement('span');
+    panelViewLabel.className = 'stat-label';
+    panelViewLabel.textContent = 'Panels';
 
-    this.advancedEssentialsToggle = this.makeButton('Show Essentials', () =>
-      this.setAdvancedEssentialsOpen(!this.advancedEssentialsOpen)
-    );
-    this.advancedEssentialsToggle.classList.add('ghost', 'advanced-essentials-toggle');
+    this.panelViewSelect = document.createElement('select');
+    this.panelViewSelect.innerHTML = `
+      <option value="essentials">Essentials</option>
+      <option value="advanced">Advanced</option>
+      <option value="both">Both</option>
+    `;
+    this.panelViewSelect.value = this.panelView;
+    this.panelViewSelect.addEventListener('change', () => {
+      this.setPanelView(this.panelViewSelect.value as PanelView);
+    });
 
-    advancedToggleRow.append(this.advancedToggle, this.advancedEssentialsToggle);
+    panelViewRow.append(panelViewLabel, this.panelViewSelect);
+
+    this.panelTabsRow = document.createElement('div');
+    this.panelTabsRow.className = 'segmented panel-tabs expand-only';
+
+    const essentialsTab = this.makeButton('Essentials', () => this.setPanelTab('essentials'));
+    const advancedTab = this.makeButton('Advanced', () => this.setPanelTab('advanced'));
+    essentialsTab.classList.add('segment');
+    advancedTab.classList.add('segment');
+    this.panelTabButtons = {
+      essentials: essentialsTab,
+      advanced: advancedTab
+    };
+    this.panelTabsRow.append(essentialsTab, advancedTab);
 
     this.advancedContent = document.createElement('div');
     this.advancedContent.className = 'advanced-content';
@@ -810,7 +836,7 @@ export class GameUI {
 
     this.advancedSection = document.createElement('div');
     this.advancedSection.className = 'advanced-drawer expand-only';
-    this.advancedSection.append(advancedToggleRow, this.advancedContent);
+    this.advancedSection.append(this.advancedContent);
 
     const versionNote = document.createElement('div');
     versionNote.className = 'ui-version expand-only';
@@ -818,12 +844,14 @@ export class GameUI {
 
     this.panel.append(
       header,
+      panelViewRow,
+      this.panelTabsRow,
       this.essentialsSection,
       this.expandButton,
       this.advancedSection,
       versionNote
     );
-    this.applyAdvancedState();
+    this.applyPanelView();
     this.hud.append(this.panel);
     root.append(this.hud);
 
@@ -1029,7 +1057,15 @@ export class GameUI {
   }
 
   setMode(mode: GameMode): void {
-    this.mode = mode;
+    if (this.mode !== mode) {
+      this.panelViewByMode[this.mode] = this.panelView;
+      this.mode = mode;
+      this.panelView = this.panelViewByMode[mode] ?? this.panelView;
+      this.panelTab = this.panelView === 'advanced' ? 'advanced' : 'essentials';
+      this.panelViewSelect.value = this.panelView;
+      this.persistPanelViewByMode();
+      this.applyPanelView();
+    }
     this.syncModeControls();
   }
 
@@ -1540,7 +1576,13 @@ export class GameUI {
     if (this.mode === mode) {
       return;
     }
+    this.panelViewByMode[this.mode] = this.panelView;
     this.mode = mode;
+    this.panelView = this.panelViewByMode[mode] ?? this.panelView;
+    this.panelTab = this.panelView === 'advanced' ? 'advanced' : 'essentials';
+    this.panelViewSelect.value = this.panelView;
+    this.persistPanelViewByMode();
+    this.applyPanelView();
     this.syncModeControls();
     this.handlers.onModeChange(mode);
   }
@@ -1569,11 +1611,6 @@ export class GameUI {
     this.aiVsAiReady = this.mode === 'aivai' && !this.aiVsAiStarted;
     this.updateAiVsAiControls();
     this.renderAiStatus();
-
-    if (this.advancedOpen && this.advancedEssentialsOpen) {
-      this.advancedEssentialsOpen = false;
-      this.applyEssentialsState();
-    }
   }
 
   private renderAiStatus(): void {
@@ -1658,44 +1695,45 @@ export class GameUI {
     }
   }
 
-  private setAdvancedOpen(open: boolean): void {
-    if (this.advancedOpen === open) {
+  private setPanelView(view: PanelView): void {
+    if (this.panelView === view) {
       return;
     }
-    if (open) {
-      this.advancedEssentialsOpen = false;
+    this.panelView = view;
+    this.panelViewByMode[this.mode] = view;
+    if (view === 'both' && this.panelTab !== 'essentials' && this.panelTab !== 'advanced') {
+      this.panelTab = 'essentials';
     }
-    this.advancedOpen = open;
-    this.persistAdvancedState();
-    this.applyAdvancedState();
+    if (view !== 'both') {
+      this.panelTab = view === 'advanced' ? 'advanced' : 'essentials';
+    }
+    this.persistPanelViewByMode();
+    this.applyPanelView();
   }
 
-  private applyAdvancedState(): void {
-    this.advancedSection.classList.toggle('open', this.advancedOpen);
-    this.advancedToggle.textContent = this.advancedOpen ? 'Advanced ▾' : 'Advanced ▸';
-    this.advancedToggle.setAttribute('aria-expanded', this.advancedOpen ? 'true' : 'false');
-    this.applyEssentialsState();
-  }
-
-  private setAdvancedEssentialsOpen(open: boolean): void {
-    if (this.advancedEssentialsOpen === open) {
+  private setPanelTab(tab: PanelTab): void {
+    if (this.panelTab === tab) {
       return;
     }
-    this.advancedEssentialsOpen = open;
-    this.applyEssentialsState();
+    this.panelTab = tab;
+    this.applyPanelView();
   }
 
-  private applyEssentialsState(): void {
-    const showEssentials = !this.advancedOpen || this.advancedEssentialsOpen;
+  private applyPanelView(): void {
+    const showTabs = this.panelView === 'both';
+    const showEssentials =
+      this.panelView === 'essentials' ||
+      (this.panelView === 'both' && this.panelTab === 'essentials');
+    const showAdvanced =
+      this.panelView === 'advanced' ||
+      (this.panelView === 'both' && this.panelTab === 'advanced');
+    this.panelViewSelect.value = this.panelView;
+    this.panelTabsRow.classList.toggle('hidden', !showTabs);
+    this.panelTabButtons.essentials.classList.toggle('active', showEssentials);
+    this.panelTabButtons.advanced.classList.toggle('active', showAdvanced);
     this.essentialsSection.classList.toggle('advanced-essentials-hidden', !showEssentials);
-    this.advancedEssentialsToggle.classList.toggle('hidden', !this.advancedOpen);
-    this.advancedEssentialsToggle.textContent = showEssentials
-      ? 'Hide Essentials'
-      : 'Show Essentials';
-    this.advancedEssentialsToggle.setAttribute(
-      'aria-pressed',
-      showEssentials ? 'true' : 'false'
-    );
+    this.advancedSection.classList.toggle('open', showAdvanced);
+    this.advancedSection.classList.toggle('hidden', !showAdvanced);
   }
 
   private loadUiState(): UiState {
@@ -1741,35 +1779,72 @@ export class GameUI {
     }
   }
 
-  private loadAdvancedState(): boolean {
+  private loadPanelViewByMode(): Record<GameMode, PanelView> {
+    const fallback: PanelView = 'essentials';
     const storage = this.getStorage();
     if (!storage) {
-      return false;
+      return { hvh: fallback, hvai: fallback, aivai: fallback };
     }
-    const raw = storage.getItem(ADVANCED_STATE_KEY);
-    if (!raw) {
-      storage.setItem(ADVANCED_STATE_KEY, JSON.stringify(false));
-      return false;
-    }
-    try {
-      const parsed = JSON.parse(raw);
-      if (typeof parsed === 'boolean') {
-        return parsed;
+    const raw = storage.getItem(PANEL_VIEW_BY_MODE_KEY);
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw) as Record<string, unknown>;
+        const hvh = parsed.hvh;
+        const hvai = parsed.hvai;
+        const aivai = parsed.aivai;
+        if (
+          (hvh === 'essentials' || hvh === 'advanced' || hvh === 'both') &&
+          (hvai === 'essentials' || hvai === 'advanced' || hvai === 'both') &&
+          (aivai === 'essentials' || aivai === 'advanced' || aivai === 'both')
+        ) {
+          return {
+            hvh: hvh as PanelView,
+            hvai: hvai as PanelView,
+            aivai: aivai as PanelView
+          };
+        }
+      } catch {
+        // ignore malformed values
       }
-    } catch {
-      // ignore malformed values
     }
-    storage.setItem(ADVANCED_STATE_KEY, JSON.stringify(false));
-    return false;
+    let legacyView: PanelView | null = null;
+    const legacy = storage.getItem(PANEL_VIEW_KEY);
+    if (legacy) {
+      try {
+        const parsed = JSON.parse(legacy);
+        if (parsed === 'essentials' || parsed === 'advanced' || parsed === 'both') {
+          legacyView = parsed;
+        }
+      } catch {
+        // ignore malformed values
+      }
+    }
+    if (!legacyView) {
+      const legacyOpen = storage.getItem(ADVANCED_STATE_KEY);
+      if (legacyOpen) {
+        try {
+          const parsed = JSON.parse(legacyOpen);
+          if (parsed === true) {
+            legacyView = 'advanced';
+          }
+        } catch {
+          // ignore malformed values
+        }
+      }
+    }
+    const initial = legacyView ?? fallback;
+    const mapped = { hvh: initial, hvai: initial, aivai: initial };
+    storage.setItem(PANEL_VIEW_BY_MODE_KEY, JSON.stringify(mapped));
+    return mapped;
   }
 
-  private persistAdvancedState(): void {
+  private persistPanelViewByMode(): void {
     const storage = this.getStorage();
     if (!storage) {
       return;
     }
     try {
-      storage.setItem(ADVANCED_STATE_KEY, JSON.stringify(this.advancedOpen));
+      storage.setItem(PANEL_VIEW_BY_MODE_KEY, JSON.stringify(this.panelViewByMode));
     } catch {
       // Ignore persistence failures so UI state updates still apply.
     }
