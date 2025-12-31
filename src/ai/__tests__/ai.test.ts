@@ -1006,6 +1006,8 @@ describe('AI move selection', () => {
     const safe = createEmptyState();
     addPiece(safe, 'king', 'w', sq(4, 0));
     addPiece(safe, 'king', 'b', sq(7, 7));
+    addPiece(safe, 'queen', 'w', sq(3, 0));
+    addPiece(safe, 'queen', 'b', sq(3, 7));
     addPiece(safe, 'bishop', 'b', sq(0, 6));
     addPiece(safe, 'knight', 'b', sq(0, 3));
     safe.fullmoveNumber = 12;
@@ -1013,6 +1015,8 @@ describe('AI move selection', () => {
     const exposed = createEmptyState();
     addPiece(exposed, 'king', 'w', sq(4, 0));
     addPiece(exposed, 'king', 'b', sq(7, 7));
+    addPiece(exposed, 'queen', 'w', sq(3, 0));
+    addPiece(exposed, 'queen', 'b', sq(3, 7));
     addPiece(exposed, 'bishop', 'b', sq(2, 4));
     addPiece(exposed, 'knight', 'b', sq(2, 2));
     exposed.fullmoveNumber = 12;
@@ -1026,6 +1030,8 @@ describe('AI move selection', () => {
     const attackedWhite = createEmptyState();
     addPiece(attackedWhite, 'king', 'w', sq(4, 0));
     addPiece(attackedWhite, 'king', 'b', sq(7, 7));
+    addPiece(attackedWhite, 'queen', 'w', sq(3, 0));
+    addPiece(attackedWhite, 'queen', 'b', sq(3, 7));
     addPiece(attackedWhite, 'bishop', 'b', sq(2, 4));
     addPiece(attackedWhite, 'knight', 'b', sq(2, 2));
     attackedWhite.fullmoveNumber = 12;
@@ -1033,6 +1039,8 @@ describe('AI move selection', () => {
     const attackedBlack = createEmptyState();
     addPiece(attackedBlack, 'king', 'w', sq(7, 0));
     addPiece(attackedBlack, 'king', 'b', sq(4, 7));
+    addPiece(attackedBlack, 'queen', 'w', sq(3, 0));
+    addPiece(attackedBlack, 'queen', 'b', sq(3, 7));
     addPiece(attackedBlack, 'bishop', 'w', sq(2, 3));
     addPiece(attackedBlack, 'knight', 'w', sq(2, 5));
     attackedBlack.fullmoveNumber = 12;
@@ -1040,6 +1048,34 @@ describe('AI move selection', () => {
     const whiteUnderFire = evaluateState(attackedWhite, 'w');
     const blackUnderFire = evaluateState(attackedBlack, 'w');
     expect(blackUnderFire).toBeGreaterThan(whiteUnderFire);
+  });
+
+  it('skips king ring penalties when queens are off the board', () => {
+    const withQueens = createEmptyState();
+    addPiece(withQueens, 'king', 'w', sq(4, 0));
+    addPiece(withQueens, 'king', 'b', sq(7, 7));
+    addPiece(withQueens, 'queen', 'w', sq(3, 0));
+    addPiece(withQueens, 'queen', 'b', sq(3, 7));
+    addPiece(withQueens, 'bishop', 'b', sq(2, 4));
+    addPiece(withQueens, 'knight', 'b', sq(2, 2));
+    withQueens.fullmoveNumber = 12;
+
+    const withoutQueens = cloneState(withQueens);
+    const squares = getPieceSquares(withoutQueens);
+    for (const piece of [...withoutQueens.pieces.values()]) {
+      if (piece.type !== 'queen') {
+        continue;
+      }
+      const square = squares.get(piece.id);
+      if (square) {
+        withoutQueens.board[square.rank][square.file] = null;
+      }
+      withoutQueens.pieces.delete(piece.id);
+    }
+
+    const queenEval = evaluateState(withQueens, 'w');
+    const noQueenEval = evaluateState(withoutQueens, 'w');
+    expect(queenEval).toBeLessThan(noQueenEval);
   });
 
   it('rewards rook pressure on open files toward the king', () => {

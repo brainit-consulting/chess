@@ -15,7 +15,7 @@ Version: 1.1.55
   - `src/ai/evaluate.ts`
     - `evaluateState` (material + mobility + check penalty + optional max-thinking terms)
     - `evaluateMaxThinking` (king safety in opening, early queen penalty, knight/bishop PST)
-    - King ring safety penalty (counts opponent attacks on adjacent king squares; reduced toward endgame)
+    - King ring safety penalty (counts opponent attacks on adjacent king squares; reduced toward endgame; only when queens remain)
 - Search (alpha-beta + quiescence + iterative deepening)
   - `src/ai/search.ts`
     - `findBestMove` (fixed depth)

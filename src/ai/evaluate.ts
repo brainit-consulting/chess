@@ -265,6 +265,9 @@ function kingRingPenaltyScore(
   if (!ENABLE_KING_RING_ATTACK_PENALTY) {
     return 0;
   }
+  if (context.queenCount <= 0) {
+    return 0;
+  }
   const kingSquare = findKingSquare(state, color);
   if (!kingSquare) {
     return 0;
