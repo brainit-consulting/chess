@@ -396,6 +396,23 @@ body {
   flex-wrap: wrap;
 }
 
+.panel-view-row {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.panel-view-group,
+.panel-mode-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.panel-mode-group {
+  margin: 0;
+}
+
 .audio-row {
   align-items: center;
 }

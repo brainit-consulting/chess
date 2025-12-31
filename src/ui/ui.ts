@@ -295,12 +295,12 @@ export class GameUI {
     this.forceMoveButton.title = 'Force the current best move';
     this.aiStatusEl.append(this.aiStatusText, this.aiStatusDots, this.forceMoveButton);
 
-    const modeTitle = document.createElement('div');
-    modeTitle.className = 'section-title expand-only';
-    modeTitle.textContent = 'Mode';
+    const modeLabel = document.createElement('span');
+    modeLabel.className = 'stat-label';
+    modeLabel.textContent = 'Mode';
 
     const modeRow = document.createElement('div');
-    modeRow.className = 'segmented control-row expand-only';
+    modeRow.className = 'segmented panel-mode-group';
 
     this.modeButtons = {
       hvh: this.makeModeButton('Human vs Human', 'hvh'),
@@ -771,8 +771,6 @@ export class GameUI {
       this.turnRow,
       this.statusStack,
       this.aiStatusEl,
-      modeTitle,
-      modeRow,
       this.aiRow,
       this.aiVsAiDifficultyRow,
       this.delayRow,
@@ -785,6 +783,9 @@ export class GameUI {
 
     const panelViewRow = document.createElement('div');
     panelViewRow.className = 'control-row expand-only panel-view-row';
+
+    const panelViewGroup = document.createElement('div');
+    panelViewGroup.className = 'panel-view-group';
 
     const panelViewLabel = document.createElement('span');
     panelViewLabel.className = 'stat-label';
@@ -801,7 +802,13 @@ export class GameUI {
       this.setPanelView(this.panelViewSelect.value as PanelView);
     });
 
-    panelViewRow.append(panelViewLabel, this.panelViewSelect);
+    panelViewGroup.append(panelViewLabel, this.panelViewSelect);
+
+    const modeGroup = document.createElement('div');
+    modeGroup.className = 'panel-mode-wrap';
+    modeGroup.append(modeLabel, modeRow);
+
+    panelViewRow.append(panelViewGroup, modeGroup);
 
     this.panelTabsRow = document.createElement('div');
     this.panelTabsRow.className = 'segmented panel-tabs expand-only';
