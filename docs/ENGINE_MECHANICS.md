@@ -22,7 +22,7 @@ Version: 1.1.56
     - `findBestMoveTimed` (iterative deepening to `maxDepth` with time cap)
     - `alphaBeta` (principal search with optional null-move + LMR when `maxThinking`)
     - `quiescence` (max-thinking only; capture/check filtering + SEE pruning)
-    - Hard micro-quiescence (check-only at leaf; depth 1-2 max)
+    - Hard micro-quiescence (capture/promotions only at leaf; depth 1-2 max)
     - Forcing extensions (+1 ply for checks/promotions; depth/ply capped)
     - `runAspirationSearch` (max-thinking only; aspiration windows)
 - Transposition table
@@ -49,7 +49,7 @@ Version: 1.1.56
 
 - Alpha-beta: `alphaBeta` in `src/ai/search.ts`.
 - Iterative deepening: `findBestMoveTimed` loops depth 1..`maxDepth`.
-- Quiescence: Max uses full quiescence (`QUIESCENCE_MAX_DEPTH` = 4); Hard uses check-only micro-quiescence at leaf nodes.
+- Quiescence: Max uses full quiescence (`QUIESCENCE_MAX_DEPTH` = 4); Hard uses capture-only micro-quiescence at leaf nodes.
 - Null-move pruning: only when `maxThinking` is true; gated by depth/material.
 - LMR (late move reductions): only when `maxThinking` is true.
 - PVS (principal variation search): max-thinking only; non-PV moves are searched with a null window and re-searched on fail-high.
@@ -119,7 +119,7 @@ Source: `src/ai/ai.ts` (`chooseMove`) and `src/game.ts` (`scheduleAiMove`).
   - Depth: 3.
   - If `maxTimeMs` is provided (live gameplay sets 800ms), uses `findBestMoveTimed` with `maxThinking: false`.
   - Otherwise uses `findBestMove` depth 3.
-  - Uses a small bounded TT and check-only micro-quiescence at leaf nodes.
+  - Uses a small bounded TT and capture-only micro-quiescence at leaf nodes.
   - Forcing extensions on checks/promotions (depth/ply capped).
   - No null-move, no LMR, no full quiescence, no PVS.
   - Modest history ordering for quiet moves.
