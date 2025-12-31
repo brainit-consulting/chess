@@ -1078,6 +1078,46 @@ describe('AI move selection', () => {
     expect(queenEval).toBeLessThan(noQueenEval);
   });
 
+  it('rewards passed pawns and preserves symmetry', () => {
+    const whitePassed = createEmptyState();
+    addPiece(whitePassed, 'king', 'w', sq(4, 0));
+    addPiece(whitePassed, 'king', 'b', sq(4, 7));
+    addPiece(whitePassed, 'pawn', 'w', sq(3, 3));
+    addPiece(whitePassed, 'pawn', 'w', sq(0, 3));
+    addPiece(whitePassed, 'pawn', 'b', sq(2, 5));
+    addPiece(whitePassed, 'pawn', 'b', sq(4, 5));
+    whitePassed.fullmoveNumber = 30;
+
+    const whiteBlocked = createEmptyState();
+    addPiece(whiteBlocked, 'king', 'w', sq(4, 0));
+    addPiece(whiteBlocked, 'king', 'b', sq(4, 7));
+    addPiece(whiteBlocked, 'pawn', 'w', sq(3, 3));
+    addPiece(whiteBlocked, 'pawn', 'w', sq(1, 3));
+    addPiece(whiteBlocked, 'pawn', 'b', sq(2, 5));
+    addPiece(whiteBlocked, 'pawn', 'b', sq(4, 5));
+    whiteBlocked.fullmoveNumber = 30;
+
+    const passedEval = evaluateState(whitePassed, 'w');
+    const blockedEval = evaluateState(whiteBlocked, 'w');
+    expect(passedEval).toBeGreaterThan(blockedEval);
+
+    const mirrored = createEmptyState();
+    const squares = getPieceSquares(whitePassed);
+    for (const piece of whitePassed.pieces.values()) {
+      const square = squares.get(piece.id);
+      if (!square) {
+        continue;
+      }
+      const mirroredSquare = { file: square.file, rank: 7 - square.rank };
+      const mirroredColor = piece.color === 'w' ? 'b' : 'w';
+      addPiece(mirrored, piece.type, mirroredColor, mirroredSquare);
+    }
+    mirrored.fullmoveNumber = whitePassed.fullmoveNumber;
+
+    const mirroredEval = evaluateState(mirrored, 'w');
+    expect(mirroredEval).toBeCloseTo(-passedEval, 5);
+  });
+
   it('rewards rook pressure on open files toward the king', () => {
     const pressure = createEmptyState();
     addPiece(pressure, 'king', 'w', sq(6, 0));

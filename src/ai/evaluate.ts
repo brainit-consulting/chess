@@ -39,6 +39,8 @@ const MAX_KING_RING_PAWN_PENALTY = 5;
 const ENABLE_KING_RING_ATTACK_PENALTY = true;
 const KING_RING_ATTACK_PENALTY_CP = 6;
 const KING_RING_ENDGAME_SCALE = 0.5;
+const PASSED_PAWN_BASE_BONUS = 4;
+const PASSED_PAWN_MIN_SCALE = 0.1;
 
 const KNIGHT_PST = [
   -50, -40, -30, -30, -30, -30, -40, -50,
@@ -133,6 +135,9 @@ export function evaluateState(
     -kingRingPenaltyScore(state, context, 'w') +
     kingRingPenaltyScore(state, context, 'b');
   const filePressure = filePressureScore(state, context);
+  const passedPawns =
+    passedPawnScore(state, squares, 'w', context.phaseFactor) -
+    passedPawnScore(state, squares, 'b', context.phaseFactor);
   const maxScore = options.maxThinking ? evaluateMaxThinking(state, context) : 0;
   const scoreForWhite =
     material +
@@ -141,6 +146,7 @@ export function evaluateState(
     kingExposure +
     kingRingPenalty +
     filePressure +
+    passedPawns +
     maxScore;
   return perspective === 'w' ? scoreForWhite : -scoreForWhite;
 }
@@ -435,6 +441,65 @@ function countAttacksOnLine(
     }
   }
   return count;
+}
+
+function passedPawnScore(
+  state: GameState,
+  squares: Map<number, { file: number; rank: number }>,
+  color: Color,
+  phaseFactor: number
+): number {
+  const pawns: { file: number; rank: number }[] = [];
+  const enemyPawns: { file: number; rank: number }[] = [];
+  for (const piece of state.pieces.values()) {
+    if (piece.type !== 'pawn') {
+      continue;
+    }
+    const square = squares.get(piece.id);
+    if (!square) {
+      continue;
+    }
+    if (piece.color === color) {
+      pawns.push(square);
+    } else {
+      enemyPawns.push(square);
+    }
+  }
+
+  if (pawns.length === 0) {
+    return 0;
+  }
+
+  const phaseScale = Math.max(0, Math.min(1, phaseFactor));
+  const scale = PASSED_PAWN_MIN_SCALE + (1 - PASSED_PAWN_MIN_SCALE) * phaseScale;
+  let bonus = 0;
+  for (const pawn of pawns) {
+    if (!isPassedPawn(pawn, enemyPawns, color)) {
+      continue;
+    }
+    bonus += PASSED_PAWN_BASE_BONUS * scale;
+  }
+  return bonus;
+}
+
+function isPassedPawn(
+  pawn: { file: number; rank: number },
+  enemyPawns: { file: number; rank: number }[],
+  color: Color
+): boolean {
+  for (const enemy of enemyPawns) {
+    if (Math.abs(enemy.file - pawn.file) > 1) {
+      continue;
+    }
+    if (color === 'w') {
+      if (enemy.rank > pawn.rank) {
+        return false;
+      }
+    } else if (enemy.rank < pawn.rank) {
+      return false;
+    }
+  }
+  return true;
 }
 
 function maxKingShieldScore(state: GameState, context: EvalContext, color: Color): number {
