@@ -387,7 +387,7 @@ Controls / invariants (checklist)
 - Success criterion: avg plies >= 38.0 with no timeout regression vs baseline rung.
 - Risks: minor node increase in check-rich positions.
 - RunId: `phase7_q1-hardLeafCheckMicroQ-hard1000-vs-sf500-b3` (batch=3, 6 total games with swap).
-- Status: planned (update to accepted/rejected/needs tuning after benchmark).
+- Status: rejected (avg plies 30.8 < 38.0; W/D/L 0-0-6; timed-out moves 2/91).
 
 ### 7.2 Hard PVS enablement (planned)
 - Why: reduces node count so Hard can reach deeper effective depth within the same time cap.

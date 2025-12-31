@@ -18,6 +18,34 @@ Notes:
 Report updates will appear between the markers below.
 
 <!-- REPORT:START -->
+Last updated: 2025-12-31T22:24:15.046Z (UTC) | 2025-12-31 17:24:15 ET
+Series: Post-fix baseline series
+Roadmap phase: Phase 7
+
+Config: Scorpion hard @ 1000ms | Stockfish movetime 500ms | swap=true | fenSuite=true | seed=7000
+Commit: 12351dbc2e5c907bf0fe5268b80decb26cacda0a
+Command: C:\Program Files\nodejs\node.exe H:\chess\scripts\bench\quickVsStockfish.ts --stockfish C:\Users\snake\Downloads\stockfish-windows-x86-64-avx2\stockfish\stockfish-windows-x86-64-avx2.exe --batch 3 --movetime 1000 --stockfishMovetime 500 --mode hard --swap --fenSuite --seed 7000 --runId phase7_q1-hardLeafCheckMicroQ-hard1000-vs-sf500-b3 --reset
+Stockfish: C:\Users\snake\Downloads\stockfish-windows-x86-64-avx2\stockfish\stockfish-windows-x86-64-avx2.exe
+Settings: Threads=1, Hash=64MB, Ponder=false
+Movetime targets: Scorpion=1000ms, Stockfish=500ms
+Timeout tolerance: +25ms (bench-only stop-latency/jitter slack)
+Next ladder rung: paused (Stockfish=500ms)
+Output: H:\chess\scripts\bench\quick-results\run-phase7_q1-hardLeafCheckMicroQ-hard1000-vs-sf500-b3
+
+Cumulative: 0-0-6 (6 games)
+Score: 0.000
+Elo delta: Outside estimation range (shutout).
+Avg plies per game: 30.8
+End reasons: mate=6, stalemate=0, repetition=0, 50-move=0, other=0
+Timed out moves: 2/91
+Avg ms (non-timeout): 988.5, Avg ms (timeout): 1112.7
+Max ms (non-timeout): 1112.7, Max ms (timeout): 1113.8
+
+Batch history:
+Batch | Games | W | D | L | Score | Elo | Scorpion ms (target/avg) | Stockfish ms (target/avg) | Timeouts | Timed-out moves | Avg ms (ok/timeout) | Max ms (ok/timeout) | Stop Latency (avg ms) | Overhead
+--- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | ---
+1 | 6 | 0 | 0 | 6 | 0.000 | n/a | 1000/991.2 | 500/424.4 | B:2 SF:0 | 2/91 | 988.5/1112.7 | 1112.7/1113.8 | 9.7 | 16
+
 Last updated: 2025-12-31T17:38:08.666Z (UTC) | 2025-12-31 12:38:08 ET
 Series: Post-fix baseline series
 Roadmap phase: Phase 6
