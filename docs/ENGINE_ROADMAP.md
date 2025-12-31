@@ -267,6 +267,16 @@ Goal: Reduce early threefolds without changing time caps.
 
 ## Phase 5 - Endgame conversion (target late-game draws)
 
+- Phase 5.1 (implemented, commit 0f7daf8): king ring safety penalty (attack count).
+  - Validation: unit tests + SF500 b25 tracking rung (runId `phase5_1-kingSafety-hard800-vs-sf500-b25`).
+- Phase 5.1b (implemented, commit 9f3512a): king ring penalty without full movegen.
+  - Validation: unit tests + SF500 b25 tracking rung (runId `phase5_1b-kingSafety-hard800-vs-sf500-b25`).
+- Phase 5.1c (implemented, commit 036700e): king ring penalty applies only when queens remain (midgame gate).
+  - Validation: unit tests + SF500 b25 tracking rung (runId `phase5_1c-kingSafety-queenGate-hard800-vs-sf500-b25`).
+- Phase 5.1d (reverted): king ring penalty coefficient probe (4cp).
+  - Reverted (regression): SF500 b25 avg plies 38.3 -> 32.4 at coeff=4; kept 5.1c.
+- Branch status: 5.1c is the current best variant on this branch; 5.1d reverted due to regression (runId `phase5_1d-kingSafety-queenGate-coeff4-hard800-vs-sf500-b25`); next decision is whether to PR/merge 5.1c or keep it experimental.
+
 - Change list (files)
   - `src/ai/evaluate.ts`
     - Add king activity in endgames, pawn races, opposition heuristics.

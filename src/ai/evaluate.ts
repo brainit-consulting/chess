@@ -36,6 +36,9 @@ const QUEEN_OPEN_FILE_BONUS = 6;
 const QUEEN_SEMI_OPEN_FILE_BONUS = 4;
 const KING_OPEN_FILE_PENALTY = 12;
 const MAX_KING_RING_PAWN_PENALTY = 5;
+const ENABLE_KING_RING_ATTACK_PENALTY = true;
+const KING_RING_ATTACK_PENALTY_CP = 6;
+const KING_RING_ENDGAME_SCALE = 0.5;
 
 const KNIGHT_PST = [
   -50, -40, -30, -30, -30, -30, -40, -50,
@@ -105,9 +108,9 @@ export function evaluateState(
     }
   }
 
-  const whiteMoves = getAllLegalMoves(state, 'w').length;
-  const blackMoves = getAllLegalMoves(state, 'b').length;
-  const mobility = (whiteMoves - blackMoves) * MOBILITY_WEIGHT;
+  const whiteLegalMoves = getAllLegalMoves(state, 'w');
+  const blackLegalMoves = getAllLegalMoves(state, 'b');
+  const mobility = (whiteLegalMoves.length - blackLegalMoves.length) * MOBILITY_WEIGHT;
 
   let checkScore = 0;
   if (isInCheck(state, 'w')) {
@@ -126,9 +129,13 @@ export function evaluateState(
   };
   const kingExposure =
     kingExposureScore(state, context, 'w') - kingExposureScore(state, context, 'b');
+  const kingRingPenalty =
+    -kingRingPenaltyScore(state, context, 'w') +
+    kingRingPenaltyScore(state, context, 'b');
   const filePressure = filePressureScore(state, context);
   const maxScore = options.maxThinking ? evaluateMaxThinking(state, context) : 0;
-  const scoreForWhite = material + mobility + checkScore + kingExposure + filePressure + maxScore;
+  const scoreForWhite =
+    material + mobility + checkScore + kingExposure + kingRingPenalty + filePressure + maxScore;
   return perspective === 'w' ? scoreForWhite : -scoreForWhite;
 }
 
@@ -248,6 +255,180 @@ function filePressureScore(state: GameState, context: EvalContext): number {
   }
 
   return score;
+}
+
+function kingRingPenaltyScore(
+  state: GameState,
+  context: EvalContext,
+  color: Color
+): number {
+  if (!ENABLE_KING_RING_ATTACK_PENALTY) {
+    return 0;
+  }
+  if (context.queenCount <= 0) {
+    return 0;
+  }
+  const kingSquare = findKingSquare(state, color);
+  if (!kingSquare) {
+    return 0;
+  }
+  const ringSquares = getKingRingSquares(kingSquare);
+  if (ringSquares.length === 0) {
+    return 0;
+  }
+  const attackCount = countRingAttacks(state, ringSquares, opponentColor(color));
+  if (attackCount <= 0) {
+    return 0;
+  }
+  const phaseScale = 1 - (1 - KING_RING_ENDGAME_SCALE) * context.phaseFactor;
+  return attackCount * KING_RING_ATTACK_PENALTY_CP * phaseScale;
+}
+
+function getKingRingSquares(square: { file: number; rank: number }): { file: number; rank: number }[] {
+  const squares: { file: number; rank: number }[] = [];
+  for (let fileOffset = -1; fileOffset <= 1; fileOffset += 1) {
+    for (let rankOffset = -1; rankOffset <= 1; rankOffset += 1) {
+      if (fileOffset === 0 && rankOffset === 0) {
+        continue;
+      }
+      const file = square.file + fileOffset;
+      const rank = square.rank + rankOffset;
+      if (file < 0 || file > 7 || rank < 0 || rank > 7) {
+        continue;
+      }
+      squares.push({ file, rank });
+    }
+  }
+  return squares;
+}
+
+function isInside(file: number, rank: number): boolean {
+  return file >= 0 && file <= 7 && rank >= 0 && rank <= 7;
+}
+
+function countRingAttacks(
+  state: GameState,
+  ringSquares: { file: number; rank: number }[],
+  byColor: Color
+): number {
+  let count = 0;
+  for (const square of ringSquares) {
+    count += countAttackersOnSquare(state, square, byColor);
+  }
+  return count;
+}
+
+function countAttackersOnSquare(
+  state: GameState,
+  square: { file: number; rank: number },
+  byColor: Color
+): number {
+  let count = 0;
+  const dir = byColor === 'w' ? 1 : -1;
+  const pawnRank = square.rank - dir;
+  for (const fileDelta of [-1, 1]) {
+    const file = square.file + fileDelta;
+    if (!isInside(file, pawnRank)) {
+      continue;
+    }
+    const id = state.board[pawnRank]?.[file];
+    if (!id) {
+      continue;
+    }
+    const piece = state.pieces.get(id);
+    if (piece && piece.color === byColor && piece.type === 'pawn') {
+      count += 1;
+    }
+  }
+
+  const knightOffsets = [
+    [1, 2],
+    [2, 1],
+    [-1, 2],
+    [-2, 1],
+    [1, -2],
+    [2, -1],
+    [-1, -2],
+    [-2, -1]
+  ];
+  for (const [dx, dy] of knightOffsets) {
+    const file = square.file + dx;
+    const rank = square.rank + dy;
+    if (!isInside(file, rank)) {
+      continue;
+    }
+    const id = state.board[rank]?.[file];
+    if (!id) {
+      continue;
+    }
+    const piece = state.pieces.get(id);
+    if (piece && piece.color === byColor && piece.type === 'knight') {
+      count += 1;
+    }
+  }
+
+  count += countAttacksOnLine(state, square, byColor, [
+    [1, 0],
+    [-1, 0],
+    [0, 1],
+    [0, -1]
+  ], ['rook', 'queen']);
+  count += countAttacksOnLine(state, square, byColor, [
+    [1, 1],
+    [1, -1],
+    [-1, 1],
+    [-1, -1]
+  ], ['bishop', 'queen']);
+
+  for (let dx = -1; dx <= 1; dx += 1) {
+    for (let dy = -1; dy <= 1; dy += 1) {
+      if (dx === 0 && dy === 0) {
+        continue;
+      }
+      const file = square.file + dx;
+      const rank = square.rank + dy;
+      if (!isInside(file, rank)) {
+        continue;
+      }
+      const id = state.board[rank]?.[file];
+      if (!id) {
+        continue;
+      }
+      const piece = state.pieces.get(id);
+      if (piece && piece.color === byColor && piece.type === 'king') {
+        count += 1;
+      }
+    }
+  }
+
+  return count;
+}
+
+function countAttacksOnLine(
+  state: GameState,
+  square: { file: number; rank: number },
+  byColor: Color,
+  directions: number[][],
+  types: PieceType[]
+): number {
+  let count = 0;
+  for (const [dx, dy] of directions) {
+    let file = square.file + dx;
+    let rank = square.rank + dy;
+    while (isInside(file, rank)) {
+      const id = state.board[rank]?.[file];
+      if (id) {
+        const piece = state.pieces.get(id);
+        if (piece && piece.color === byColor && types.includes(piece.type)) {
+          count += 1;
+        }
+        break;
+      }
+      file += dx;
+      rank += dy;
+    }
+  }
+  return count;
 }
 
 function maxKingShieldScore(state: GameState, context: EvalContext, color: Color): number {
