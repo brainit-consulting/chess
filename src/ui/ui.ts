@@ -795,7 +795,6 @@ export class GameUI {
     this.panelViewSelect.innerHTML = `
       <option value="essentials">Essentials</option>
       <option value="advanced">Advanced</option>
-      <option value="both">Both</option>
     `;
     this.panelViewSelect.value = this.panelView;
     this.panelViewSelect.addEventListener('change', () => {
