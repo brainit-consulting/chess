@@ -71,13 +71,20 @@ type UIOptions = {
 };
 
 const UI_STATE_KEY = 'chess.uiState';
+const ADVANCED_STATE_KEY = 'chess.uiAdvancedOpen';
 
 export class GameUI {
   private root: HTMLElement;
   private hud: HTMLDivElement;
   private panel: HTMLDivElement;
+  private essentialsSection: HTMLDivElement;
+  private advancedSection: HTMLDivElement;
+  private advancedContent: HTMLDivElement;
+  private advancedToggle: HTMLButtonElement;
   private turnEl: HTMLDivElement;
+  private turnRow: HTMLDivElement;
   private statusEl: HTMLDivElement;
+  private statusStack: HTMLDivElement;
   private noticeEl: HTMLDivElement;
   private aiStatusEl: HTMLDivElement;
   private aiStatusText: HTMLSpanElement;
@@ -132,6 +139,8 @@ export class GameUI {
   private aiVsAiStarted = false;
   private aiVsAiRunning = false;
   private modeButtons: Record<GameMode, HTMLButtonElement>;
+  private aiRow: HTMLDivElement;
+  private aiVsAiDifficultyRow: HTMLDivElement;
   private humanColorGroup: HTMLDivElement;
   private humanColorSelect: HTMLSelectElement;
   private autoSnapRow: HTMLDivElement;
@@ -142,8 +151,11 @@ export class GameUI {
   private mode: GameMode;
   private aiToggle: HTMLInputElement;
   private difficultySelect: HTMLSelectElement;
+  private aiWhiteDifficultySelect: HTMLSelectElement;
+  private aiBlackDifficultySelect: HTMLSelectElement;
   private pieceSetSelect: HTMLSelectElement;
   private playForWinToggle: HTMLInputElement;
+  private playForWinRow: HTMLDivElement;
   private hintRow: HTMLDivElement;
   private hintToggle: HTMLInputElement;
   private soundToggle: HTMLInputElement;
@@ -171,7 +183,9 @@ export class GameUI {
   private expandButton: HTMLButtonElement;
   private handlers: UIHandlers;
   private uiState: UiState;
+  private advancedOpen: boolean;
   private pgnCopyTimer: number | null = null;
+  private collapseMismatchLogged = false;
 
   constructor(root: HTMLElement, handlers: UIHandlers, options: UIOptions = {}) {
     this.root = root;
@@ -186,6 +200,7 @@ export class GameUI {
     this.panel.className = 'panel ui-panel';
 
     this.uiState = this.loadUiState();
+    this.advancedOpen = this.loadAdvancedState();
 
     const header = document.createElement('div');
     header.className = 'panel-header';
@@ -234,34 +249,38 @@ export class GameUI {
     this.turnEl = document.createElement('div');
     this.turnEl.className = 'turn';
 
-    this.statusEl = document.createElement('div');
-    this.statusEl.className = 'status expand-only';
-
-    this.noticeEl = document.createElement('div');
-    this.noticeEl.className = 'notice expand-only';
-
-    this.aiStatusEl = document.createElement('div');
-    this.aiStatusEl.className = 'ai-status expand-only';
-    this.aiStatusText = document.createElement('span');
-    this.aiStatusDots = document.createElement('span');
-    this.aiStatusDots.className = 'ai-thinking-dots';
     this.explainButton = this.makeButton('Why this move?', () =>
       this.handlers.onShowAiExplanation()
     );
     this.explainButton.classList.add('ghost', 'ai-explain-button');
     this.explainButton.disabled = true;
     this.explainButton.title = 'Why this move?';
+
+    this.turnRow = document.createElement('div');
+    this.turnRow.className = 'turn-row expand-only';
+    this.turnRow.append(this.turnEl, this.explainButton);
+
+    this.statusEl = document.createElement('div');
+    this.statusEl.className = 'status expand-only';
+
+    this.noticeEl = document.createElement('div');
+    this.noticeEl.className = 'notice expand-only';
+
+    this.statusStack = document.createElement('div');
+    this.statusStack.className = 'status-stack expand-only';
+    this.statusStack.append(this.statusEl, this.noticeEl);
+
+    this.aiStatusEl = document.createElement('div');
+    this.aiStatusEl.className = 'ai-status expand-only';
+    this.aiStatusText = document.createElement('span');
+    this.aiStatusDots = document.createElement('span');
+    this.aiStatusDots.className = 'ai-thinking-dots';
     this.forceMoveButton = this.makeButton('Force Move Now', () =>
       this.handlers.onForceMoveNow()
     );
     this.forceMoveButton.classList.add('ghost', 'ai-force-button', 'hidden');
     this.forceMoveButton.title = 'Force the current best move';
-    this.aiStatusEl.append(
-      this.aiStatusText,
-      this.aiStatusDots,
-      this.explainButton,
-      this.forceMoveButton
-    );
+    this.aiStatusEl.append(this.aiStatusText, this.aiStatusDots, this.forceMoveButton);
 
     const modeTitle = document.createElement('div');
     modeTitle.className = 'section-title expand-only';
@@ -282,8 +301,8 @@ export class GameUI {
       this.modeButtons.aivai
     );
 
-    const aiRow = document.createElement('div');
-    aiRow.className = 'control-row expand-only';
+    this.aiRow = document.createElement('div');
+    this.aiRow.className = 'control-row expand-only';
 
     const aiLabel = document.createElement('label');
     aiLabel.className = 'toggle';
@@ -316,18 +335,22 @@ export class GameUI {
     aiText.textContent = 'Play vs AI';
     aiLabel.append(this.aiToggle, aiText);
 
-    this.difficultySelect = document.createElement('select');
-    this.difficultySelect.innerHTML = `
+    const difficultyOptions = `
       <option value="easy">Easy</option>
       <option value="medium">Medium</option>
       <option value="hard">Hard</option>
       <option value="max">Max Thinking</option>
     `;
-    this.difficultySelect.value = initialDifficulty;
+
+    const buildDifficultySelect = (): HTMLSelectElement => {
+      const select = document.createElement('select');
+      select.innerHTML = difficultyOptions;
+      select.value = initialDifficulty;
+      return select;
+    };
+
+    this.difficultySelect = buildDifficultySelect();
     this.difficultySelect.disabled = !initialAiEnabled;
-    this.difficultySelect.addEventListener('change', () => {
-      this.handlers.onDifficultyChange(this.difficultySelect.value as AiDifficulty);
-    });
 
     this.humanColorGroup = document.createElement('div');
     this.humanColorGroup.className = 'inline-slider-group';
@@ -348,7 +371,50 @@ export class GameUI {
 
     this.humanColorGroup.append(humanLabel, this.humanColorSelect);
 
-    aiRow.append(aiLabel, this.difficultySelect, this.humanColorGroup);
+    const syncDifficulty = (value: AiDifficulty): void => {
+      this.difficultySelect.value = value;
+      this.aiWhiteDifficultySelect.value = value;
+      this.aiBlackDifficultySelect.value = value;
+    };
+
+    const handleDifficultyChange = (value: AiDifficulty): void => {
+      syncDifficulty(value);
+      this.handlers.onDifficultyChange(value);
+    };
+
+    this.difficultySelect.addEventListener('change', () => {
+      handleDifficultyChange(this.difficultySelect.value as AiDifficulty);
+    });
+
+    this.aiWhiteDifficultySelect = buildDifficultySelect();
+    this.aiWhiteDifficultySelect.addEventListener('change', () => {
+      handleDifficultyChange(this.aiWhiteDifficultySelect.value as AiDifficulty);
+    });
+
+    this.aiBlackDifficultySelect = buildDifficultySelect();
+    this.aiBlackDifficultySelect.addEventListener('change', () => {
+      handleDifficultyChange(this.aiBlackDifficultySelect.value as AiDifficulty);
+    });
+
+    this.aiRow.append(aiLabel, this.difficultySelect, this.humanColorGroup);
+
+    this.aiVsAiDifficultyRow = document.createElement('div');
+    this.aiVsAiDifficultyRow.className = 'control-row expand-only ai-difficulty-row';
+
+    const whiteAiLabel = document.createElement('span');
+    whiteAiLabel.className = 'stat-label';
+    whiteAiLabel.textContent = 'White AI';
+
+    const blackAiLabel = document.createElement('span');
+    blackAiLabel.className = 'stat-label';
+    blackAiLabel.textContent = 'Black AI';
+
+    this.aiVsAiDifficultyRow.append(
+      whiteAiLabel,
+      this.aiWhiteDifficultySelect,
+      blackAiLabel,
+      this.aiBlackDifficultySelect
+    );
 
     const pieceSetTitle = document.createElement('div');
     pieceSetTitle.className = 'section-title expand-only';
@@ -457,6 +523,11 @@ export class GameUI {
     delayGroup.className = 'inline-slider-group';
     delayGroup.append(delayLabel, this.delayInput, this.delayValueEl);
 
+    this.delayRow.append(delayGroup);
+
+    this.playForWinRow = document.createElement('div');
+    this.playForWinRow.className = 'control-row expand-only';
+
     const playForWinLabel = document.createElement('label');
     playForWinLabel.className = 'toggle';
 
@@ -470,8 +541,7 @@ export class GameUI {
     const playForWinText = document.createElement('span');
     playForWinText.textContent = 'Play for Win';
     playForWinLabel.append(this.playForWinToggle, playForWinText);
-
-    this.delayRow.append(delayGroup, playForWinLabel);
+    this.playForWinRow.append(playForWinLabel);
 
     this.aiVsAiRow = document.createElement('div');
     this.aiVsAiRow.className = 'control-row expand-only';
@@ -556,8 +626,8 @@ export class GameUI {
 
     playerGrid.append(playerHeader, nameRow, scoreRow);
 
-    this.expandButton = this.makeButton('Expand', () => this.setUiCollapsed(false));
-    this.expandButton.classList.add('ghost', 'collapse-only');
+    this.expandButton = this.makeButton('Show UI', () => this.setUiCollapsed(false));
+    this.expandButton.classList.add('ghost', 'collapse-only', 'ui-expand-button');
 
     const audioRow = document.createElement('div');
     audioRow.className = 'control-row expand-only audio-row';
@@ -683,40 +753,69 @@ export class GameUI {
 
     buttonRow.append(whiteBtn, blackBtn, isoBtn, topBtn, restartBtn);
 
+    this.essentialsSection = document.createElement('div');
+    this.essentialsSection.className = 'panel-essentials expand-only';
+    this.essentialsSection.append(
+      this.turnRow,
+      this.statusStack,
+      this.aiStatusEl,
+      modeTitle,
+      modeRow,
+      this.aiRow,
+      this.aiVsAiDifficultyRow,
+      this.delayRow,
+      this.playForWinRow,
+      this.aiVsAiRow,
+      playerTitle,
+      playerGrid,
+      buttonRow
+    );
+
+    const advancedToggleRow = document.createElement('div');
+    advancedToggleRow.className = 'advanced-toggle-row';
+
+    this.advancedToggle = this.makeButton('Advanced ▸', () =>
+      this.setAdvancedOpen(!this.advancedOpen)
+    );
+    this.advancedToggle.classList.add('ghost', 'advanced-toggle');
+    this.advancedToggle.setAttribute('aria-expanded', 'false');
+
+    advancedToggleRow.append(this.advancedToggle);
+
+    this.advancedContent = document.createElement('div');
+    this.advancedContent.className = 'advanced-content';
+    this.advancedContent.append(
+      boardTitle,
+      this.coordinateModeRow,
+      this.coordinateDebugRow,
+      this.autoSnapRow,
+      this.hintRow,
+      pieceSetTitle,
+      pieceSetRow,
+      audioRow,
+      this.musicHintEl,
+      analyzerTitle,
+      analyzerRow,
+      helpTitle,
+      helpNote
+    );
+
+    this.advancedSection = document.createElement('div');
+    this.advancedSection.className = 'advanced-drawer expand-only';
+    this.advancedSection.append(advancedToggleRow, this.advancedContent);
+
     const versionNote = document.createElement('div');
     versionNote.className = 'ui-version expand-only';
     versionNote.textContent = APP_VERSION;
 
     this.panel.append(
       header,
-      this.turnEl,
-      this.statusEl,
-      this.noticeEl,
-      this.aiStatusEl,
-      modeTitle,
-      modeRow,
-      pieceSetTitle,
-      pieceSetRow,
-      boardTitle,
-      this.coordinateModeRow,
-      this.coordinateDebugRow,
-      this.autoSnapRow,
-      playerTitle,
-      playerGrid,
+      this.essentialsSection,
       this.expandButton,
-      audioRow,
-      this.musicHintEl,
-      aiRow,
-      this.delayRow,
-      this.aiVsAiRow,
-      this.hintRow,
-      analyzerTitle,
-      analyzerRow,
-      helpTitle,
-      helpNote,
-      buttonRow,
+      this.advancedSection,
       versionNote
     );
+    this.applyAdvancedState();
     this.hud.append(this.panel);
     root.append(this.hud);
 
@@ -1444,13 +1543,21 @@ export class GameUI {
     this.modeButtons.aivai.classList.toggle('active', this.mode === 'aivai');
 
     const aiEnabled = this.mode !== 'hvh';
+    const hvaiMode = this.mode === 'hvai';
+    const aiVsAiMode = this.mode === 'aivai';
     this.aiToggle.checked = aiEnabled;
+    this.aiStatusEl.classList.toggle('hidden', this.mode === 'hvh');
     this.difficultySelect.disabled = !aiEnabled;
-    this.humanColorGroup.classList.toggle('hidden', this.mode !== 'hvai');
-    this.autoSnapRow.classList.toggle('hidden', this.mode !== 'hvai');
-    this.delayRow.classList.toggle('hidden', this.mode !== 'aivai');
-    this.hintRow.classList.toggle('hidden', this.mode !== 'hvai');
-    this.hintToggle.disabled = this.mode !== 'hvai';
+    this.aiWhiteDifficultySelect.disabled = !aiVsAiMode;
+    this.aiBlackDifficultySelect.disabled = !aiVsAiMode;
+    this.aiRow.classList.toggle('hidden', !hvaiMode);
+    this.aiVsAiDifficultyRow.classList.toggle('hidden', !aiVsAiMode);
+    this.humanColorGroup.classList.toggle('hidden', !hvaiMode);
+    this.autoSnapRow.classList.toggle('hidden', !hvaiMode);
+    this.delayRow.classList.toggle('hidden', this.mode === 'hvh');
+    this.playForWinRow.classList.toggle('hidden', !aiVsAiMode);
+    this.hintRow.classList.toggle('hidden', !hvaiMode);
+    this.hintToggle.disabled = !hvaiMode;
     this.aiVsAiReady = this.mode === 'aivai' && !this.aiVsAiStarted;
     this.updateAiVsAiControls();
     this.renderAiStatus();
@@ -1500,13 +1607,13 @@ export class GameUI {
   }
 
   private setUiCollapsed(collapsed: boolean): void {
-    if (this.uiState.collapsed === collapsed) {
-      return;
-    }
+    const changed = this.uiState.collapsed !== collapsed;
     this.uiState.collapsed = collapsed;
     this.persistUiState();
     this.applyUiState();
-    this.handlers.onUiStateChange({ ...this.uiState });
+    if (changed) {
+      this.handlers.onUiStateChange({ ...this.uiState });
+    }
   }
 
   private setHistoryVisible(visible: boolean): void {
@@ -1526,17 +1633,31 @@ export class GameUI {
       this.root.classList.add('ui-hidden');
     }
 
-    if (this.uiState.collapsed) {
-      this.root.classList.add('ui-collapsed');
-    } else {
-      this.root.classList.remove('ui-collapsed');
-    }
+    const collapsed = this.uiState.collapsed;
+    this.root.classList.toggle('ui-collapsed', collapsed);
+    this.panel.classList.toggle('ui-collapsed', collapsed);
+    this.assertCollapseState();
 
     if (this.uiState.historyVisible) {
       this.root.classList.remove('history-hidden');
     } else {
       this.root.classList.add('history-hidden');
     }
+  }
+
+  private setAdvancedOpen(open: boolean): void {
+    if (this.advancedOpen === open) {
+      return;
+    }
+    this.advancedOpen = open;
+    this.persistAdvancedState();
+    this.applyAdvancedState();
+  }
+
+  private applyAdvancedState(): void {
+    this.advancedSection.classList.toggle('open', this.advancedOpen);
+    this.advancedToggle.textContent = this.advancedOpen ? 'Advanced ▾' : 'Advanced ▸';
+    this.advancedToggle.setAttribute('aria-expanded', this.advancedOpen ? 'true' : 'false');
   }
 
   private loadUiState(): UiState {
@@ -1575,7 +1696,62 @@ export class GameUI {
     if (!storage) {
       return;
     }
-    storage.setItem(UI_STATE_KEY, JSON.stringify(this.uiState));
+    try {
+      storage.setItem(UI_STATE_KEY, JSON.stringify(this.uiState));
+    } catch {
+      // Ignore persistence failures so UI state updates still apply.
+    }
+  }
+
+  private loadAdvancedState(): boolean {
+    const storage = this.getStorage();
+    if (!storage) {
+      return false;
+    }
+    const raw = storage.getItem(ADVANCED_STATE_KEY);
+    if (!raw) {
+      storage.setItem(ADVANCED_STATE_KEY, JSON.stringify(false));
+      return false;
+    }
+    try {
+      const parsed = JSON.parse(raw);
+      if (typeof parsed === 'boolean') {
+        return parsed;
+      }
+    } catch {
+      // ignore malformed values
+    }
+    storage.setItem(ADVANCED_STATE_KEY, JSON.stringify(false));
+    return false;
+  }
+
+  private persistAdvancedState(): void {
+    const storage = this.getStorage();
+    if (!storage) {
+      return;
+    }
+    try {
+      storage.setItem(ADVANCED_STATE_KEY, JSON.stringify(this.advancedOpen));
+    } catch {
+      // Ignore persistence failures so UI state updates still apply.
+    }
+  }
+
+  private assertCollapseState(): void {
+    if (this.collapseMismatchLogged) {
+      return;
+    }
+    const collapsed = this.uiState.collapsed;
+    const rootCollapsed = this.root.classList.contains('ui-collapsed');
+    const panelCollapsed = this.panel.classList.contains('ui-collapsed');
+    if (rootCollapsed !== collapsed || panelCollapsed !== collapsed) {
+      this.collapseMismatchLogged = true;
+      console.warn('[UI] Collapse state mismatch', {
+        state: collapsed,
+        rootCollapsed,
+        panelCollapsed
+      });
+    }
   }
 
   private getStorage(): Storage | null {
