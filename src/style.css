@@ -104,6 +104,10 @@ body {
   gap: 8px;
 }
 
+.advanced-essentials-hidden {
+  display: none;
+}
+
 .turn-row {
   display: flex;
   align-items: center;
@@ -124,13 +128,20 @@ body {
 
 .advanced-toggle-row {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .advanced-toggle {
-  width: 100%;
+  flex: 1;
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.advanced-essentials-toggle {
+  white-space: nowrap;
 }
 
 .advanced-content {
@@ -139,7 +150,7 @@ body {
   padding-top: 8px;
   margin-top: 4px;
   gap: 8px;
-  max-height: 240px;
+  max-height: calc(100vh - 240px);
   overflow-y: auto;
   padding-right: 4px;
 }

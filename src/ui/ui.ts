@@ -81,6 +81,7 @@ export class GameUI {
   private advancedSection: HTMLDivElement;
   private advancedContent: HTMLDivElement;
   private advancedToggle: HTMLButtonElement;
+  private advancedEssentialsToggle: HTMLButtonElement;
   private turnEl: HTMLDivElement;
   private turnRow: HTMLDivElement;
   private statusEl: HTMLDivElement;
@@ -184,6 +185,7 @@ export class GameUI {
   private handlers: UIHandlers;
   private uiState: UiState;
   private advancedOpen: boolean;
+  private advancedEssentialsOpen: boolean;
   private pgnCopyTimer: number | null = null;
   private collapseMismatchLogged = false;
 
@@ -201,6 +203,7 @@ export class GameUI {
 
     this.uiState = this.loadUiState();
     this.advancedOpen = this.loadAdvancedState();
+    this.advancedEssentialsOpen = false;
 
     const header = document.createElement('div');
     header.className = 'panel-header';
@@ -780,7 +783,12 @@ export class GameUI {
     this.advancedToggle.classList.add('ghost', 'advanced-toggle');
     this.advancedToggle.setAttribute('aria-expanded', 'false');
 
-    advancedToggleRow.append(this.advancedToggle);
+    this.advancedEssentialsToggle = this.makeButton('Show Essentials', () =>
+      this.setAdvancedEssentialsOpen(!this.advancedEssentialsOpen)
+    );
+    this.advancedEssentialsToggle.classList.add('ghost', 'advanced-essentials-toggle');
+
+    advancedToggleRow.append(this.advancedToggle, this.advancedEssentialsToggle);
 
     this.advancedContent = document.createElement('div');
     this.advancedContent.className = 'advanced-content';
@@ -1561,6 +1569,11 @@ export class GameUI {
     this.aiVsAiReady = this.mode === 'aivai' && !this.aiVsAiStarted;
     this.updateAiVsAiControls();
     this.renderAiStatus();
+
+    if (this.advancedOpen && this.advancedEssentialsOpen) {
+      this.advancedEssentialsOpen = false;
+      this.applyEssentialsState();
+    }
   }
 
   private renderAiStatus(): void {
@@ -1649,6 +1662,9 @@ export class GameUI {
     if (this.advancedOpen === open) {
       return;
     }
+    if (open) {
+      this.advancedEssentialsOpen = false;
+    }
     this.advancedOpen = open;
     this.persistAdvancedState();
     this.applyAdvancedState();
@@ -1658,6 +1674,28 @@ export class GameUI {
     this.advancedSection.classList.toggle('open', this.advancedOpen);
     this.advancedToggle.textContent = this.advancedOpen ? 'Advanced ▾' : 'Advanced ▸';
     this.advancedToggle.setAttribute('aria-expanded', this.advancedOpen ? 'true' : 'false');
+    this.applyEssentialsState();
+  }
+
+  private setAdvancedEssentialsOpen(open: boolean): void {
+    if (this.advancedEssentialsOpen === open) {
+      return;
+    }
+    this.advancedEssentialsOpen = open;
+    this.applyEssentialsState();
+  }
+
+  private applyEssentialsState(): void {
+    const showEssentials = !this.advancedOpen || this.advancedEssentialsOpen;
+    this.essentialsSection.classList.toggle('advanced-essentials-hidden', !showEssentials);
+    this.advancedEssentialsToggle.classList.toggle('hidden', !this.advancedOpen);
+    this.advancedEssentialsToggle.textContent = showEssentials
+      ? 'Hide Essentials'
+      : 'Show Essentials';
+    this.advancedEssentialsToggle.setAttribute(
+      'aria-pressed',
+      showEssentials ? 'true' : 'false'
+    );
   }
 
   private loadUiState(): UiState {
