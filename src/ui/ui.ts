@@ -242,9 +242,17 @@ export class GameUI {
     const headerActions = document.createElement('div');
     headerActions.className = 'panel-actions expand-only';
 
-    this.helpButton = this.makeButton('ⓘ', () => {
+    this.helpButton = this.makeButton('', () => {
       window.open(PLAYER_GUIDE_URL, '_blank', 'noopener');
     });
+    this.helpButton.innerHTML = `
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.6" />
+        <path d="M10.5 10.25a1.75 1.75 0 1 1 3.5 0c0 1.3-1.75 1.5-1.75 3"
+          fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+        <circle cx="12" cy="16.8" r="1" fill="currentColor" />
+      </svg>
+    `;
     this.helpButton.classList.add('ghost', 'info-button');
     this.helpButton.setAttribute('aria-label', 'Player Guide');
     this.helpButton.title = 'Player Guide';
@@ -270,7 +278,7 @@ export class GameUI {
     this.explainButton.title = 'Why this move?';
 
     this.turnRow = document.createElement('div');
-    this.turnRow.className = 'turn-row expand-only';
+    this.turnRow.className = 'turn-row expand-only collapse-visible';
     this.turnRow.append(this.turnEl, this.explainButton);
 
     this.statusEl = document.createElement('div');

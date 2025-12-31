@@ -108,6 +108,11 @@ body {
   display: none;
 }
 
+.ui-collapsed .panel-essentials,
+.ui-panel.ui-collapsed .panel-essentials {
+  display: grid;
+}
+
 .turn-row {
   display: flex;
   align-items: center;
@@ -278,6 +283,12 @@ body {
   opacity: 0.85;
 }
 
+.info-button svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
 .info-button:hover,
 .info-button:focus-visible {
   opacity: 1;
@@ -322,6 +333,16 @@ body {
 .ui-collapsed .collapse-only,
 .ui-panel.ui-collapsed .collapse-only {
   display: inline-flex;
+}
+
+.ui-collapsed .collapse-visible,
+.ui-panel.ui-collapsed .collapse-visible {
+  display: flex;
+}
+
+.ui-collapsed .panel-essentials.expand-only,
+.ui-panel.ui-collapsed .panel-essentials.expand-only {
+  display: grid;
 }
 
 .panel h1 {
