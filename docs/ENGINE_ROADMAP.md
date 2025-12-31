@@ -273,8 +273,8 @@ Goal: Reduce early threefolds without changing time caps.
   - Validation: unit tests + SF500 b25 tracking rung (runId `phase5_1b-kingSafety-hard800-vs-sf500-b25`).
 - Phase 5.1c (implemented, commit 036700e): king ring penalty applies only when queens remain (midgame gate).
   - Validation: unit tests + SF500 b25 tracking rung (runId `phase5_1c-kingSafety-queenGate-hard800-vs-sf500-b25`).
-- Phase 5.1d (planned/in progress): adjust king ring penalty coefficient only (from 6cp to 4cp).
-  - Validation: SF500 b25 tracking rung (runId `phase5_1d-kingSafety-queenGate-coeff4-hard800-vs-sf500-b25`); success = avg plies >= 38.0 with no material timeout increase.
+- Phase 5.1d (implemented, commit 1671c63): adjust king ring penalty coefficient only (from 6cp to 4cp).
+  - Validation: unit tests + SF500 b25 tracking rung (runId `phase5_1d-kingSafety-queenGate-coeff4-hard800-vs-sf500-b25`); success = avg plies >= 38.0 with no material timeout increase.
 
 - Change list (files)
   - `src/ai/evaluate.ts`
