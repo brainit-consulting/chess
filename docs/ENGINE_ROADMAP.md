@@ -395,6 +395,8 @@ Controls / invariants (checklist)
 - Tests: deterministic position where PVS returns same best move as full-window search.
 - Success criterion: avg plies >= 38.0 with stable timeouts.
 - Risks: incorrect window handling could cause PV instability if bugs exist.
+- RunId: `phase7_q2-hardPvs-hard1000-vs-sf500-b3` (batch=3, 6 total games with swap).
+- Status: planned (update to accepted/rejected/needs tuning after benchmark).
 
 ### 7.3 Hard conservative LMR/null-move gating (planned)
 - Why: cut obvious quiet move branches to allow deeper tactical lines.
