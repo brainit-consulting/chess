@@ -713,30 +713,32 @@ describe('AI move selection', () => {
     expect(sameMove(ordered[0], counter)).toBe(true);
   });
 
-  it('uses hard micro-quiescence to avoid losing captures', () => {
+  it('uses hard micro-quiescence to avoid a leaf checking refutation', () => {
     const state = createEmptyState();
     addPiece(state, 'king', 'w', sq(6, 0));
-    addPiece(state, 'king', 'b', sq(6, 7));
-    addPiece(state, 'queen', 'w', sq(4, 1));
-    addPiece(state, 'rook', 'b', sq(4, 7));
-    addPiece(state, 'pawn', 'b', sq(4, 6));
+    addPiece(state, 'queen', 'w', sq(3, 0));
+    addPiece(state, 'rook', 'w', sq(4, 0));
+    addPiece(state, 'pawn', 'w', sq(3, 1));
+    addPiece(state, 'king', 'b', sq(4, 7));
+    addPiece(state, 'queen', 'b', sq(0, 4));
+    addPiece(state, 'pawn', 'b', sq(4, 2));
     state.activeColor = 'w';
 
     const legalMoves = getAllLegalMoves(state, 'w');
-    const capture = legalMoves.find(
-      (move) => move.from.file === 4 && move.from.rank === 1 && move.to.file === 4 && move.to.rank === 6
+    const pawnAdvance = legalMoves.find(
+      (move) => move.from.file === 3 && move.from.rank === 1 && move.to.file === 4 && move.to.rank === 2
     );
-    const safe = legalMoves.find(
-      (move) => move.from.file === 4 && move.from.rank === 1 && move.to.file === 4 && move.to.rank === 3
+    const checkingMove = legalMoves.find(
+      (move) => move.from.file === 3 && move.from.rank === 0 && move.to.file === 7 && move.to.rank === 4
     );
-    if (!capture || !safe) {
-      throw new Error('Expected capture and quiet queen moves for micro-quiescence test.');
+    if (!pawnAdvance || !checkingMove) {
+      throw new Error('Expected pawn capture and checking queen move for micro-quiescence test.');
     }
 
     const noMicroQ = search.findBestMove(state, 'w', {
       depth: 1,
       rng: createSequenceRng([0.9, 0.1, 0]),
-      legalMoves: [capture, safe],
+      legalMoves: [pawnAdvance, checkingMove],
       topMoveWindow: 0,
       fairnessWindow: 0,
       maxThinking: false
@@ -744,7 +746,7 @@ describe('AI move selection', () => {
     const withMicroQ = search.findBestMove(state, 'w', {
       depth: 1,
       rng: createSequenceRng([0.9, 0.1, 0]),
-      legalMoves: [capture, safe],
+      legalMoves: [pawnAdvance, checkingMove],
       microQuiescenceDepth: 1,
       topMoveWindow: 0,
       fairnessWindow: 0,
@@ -753,8 +755,49 @@ describe('AI move selection', () => {
 
     expect(noMicroQ).not.toBeNull();
     expect(withMicroQ).not.toBeNull();
-    expect(sameMove(noMicroQ as Move, capture)).toBe(true);
-    expect(sameMove(withMicroQ as Move, safe)).toBe(true);
+    expect(sameMove(noMicroQ as Move, pawnAdvance)).toBe(true);
+    expect(sameMove(withMicroQ as Move, checkingMove)).toBe(true);
+  });
+
+  it('keeps hard leaf selection stable when no checking moves exist', () => {
+    const state = createEmptyState();
+    addPiece(state, 'king', 'w', sq(4, 0));
+    addPiece(state, 'king', 'b', sq(4, 7));
+    addPiece(state, 'pawn', 'w', sq(0, 1));
+    state.activeColor = 'w';
+
+    const legalMoves = getAllLegalMoves(state, 'w');
+    const a3 = legalMoves.find(
+      (move) => move.from.file === 0 && move.from.rank === 1 && move.to.file === 0 && move.to.rank === 2
+    );
+    const a4 = legalMoves.find(
+      (move) => move.from.file === 0 && move.from.rank === 1 && move.to.file === 0 && move.to.rank === 3
+    );
+    if (!a3 || !a4) {
+      throw new Error('Expected two pawn advances for micro-quiescence guard test.');
+    }
+
+    const noMicroQ = search.findBestMove(state, 'w', {
+      depth: 1,
+      rng: createSequenceRng([0.9, 0.1, 0]),
+      legalMoves: [a3, a4],
+      topMoveWindow: 0,
+      fairnessWindow: 0,
+      maxThinking: false
+    });
+    const withMicroQ = search.findBestMove(state, 'w', {
+      depth: 1,
+      rng: createSequenceRng([0.9, 0.1, 0]),
+      legalMoves: [a3, a4],
+      microQuiescenceDepth: 1,
+      topMoveWindow: 0,
+      fairnessWindow: 0,
+      maxThinking: false
+    });
+
+    expect(noMicroQ).not.toBeNull();
+    expect(withMicroQ).not.toBeNull();
+    expect(sameMove(withMicroQ as Move, noMicroQ as Move)).toBe(true);
   });
 
   it('reuses hard TT best moves across repeated searches', () => {

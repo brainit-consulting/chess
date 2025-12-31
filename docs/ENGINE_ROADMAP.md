@@ -302,6 +302,7 @@ Candidate micro-upgrades (plan only)
   - Tests: construct a position where a checking quiet move refutes a tactic; expect Hard to select it at leaf depth.
   - Success criterion: SF500 b25 avg plies >= 38.0 and Hard timeouts do not exceed the Phase 5.1c rung by >10%.
   - Risk: node count spike in check-rich positions.
+  - Status: planned (runId `phase5_q1-hardLeafCheckMicroQ-hard800-vs-sf500-b25`).
 
 - 5.Q2 Hard move ordering: add a tiny killer-lite bonus for quiet moves (one slot).
   - Why: improves PV stability and reduces blunders at fixed depth.

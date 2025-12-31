@@ -2167,14 +2167,7 @@ function microQuiescence(
     return standPat;
   }
 
-  const noisyMoves = legalMoves.filter(
-    (move) => isCaptureMove(state, move) || Boolean(move.promotion)
-  );
-  if (noisyMoves.length === 0) {
-    return standPat;
-  }
-
-  const ordered = orderMoves(state, noisyMoves, currentColor, rng, {
+  const ordered = orderMoves(state, legalMoves, currentColor, rng, {
     maxThinking: false,
     prevMove: state.lastMove
   });
@@ -2182,6 +2175,7 @@ function microQuiescence(
 
   if (maximizing) {
     let value = standPat;
+    let foundCheck = false;
     for (const move of ordered) {
       if (stopChecker && stopChecker()) {
         return value;
@@ -2189,6 +2183,10 @@ function microQuiescence(
       const next = cloneState(state);
       next.activeColor = currentColor;
       applyMove(next, move);
+      if (!isInCheck(next, opponentColor(currentColor))) {
+        continue;
+      }
+      foundCheck = true;
       value = Math.max(
         value,
         microQuiescence(
@@ -2208,10 +2206,11 @@ function microQuiescence(
         break;
       }
     }
-    return value;
+    return foundCheck ? value : standPat;
   }
 
   let value = standPat;
+  let foundCheck = false;
   for (const move of ordered) {
     if (stopChecker && stopChecker()) {
       return value;
@@ -2219,6 +2218,10 @@ function microQuiescence(
     const next = cloneState(state);
     next.activeColor = currentColor;
     applyMove(next, move);
+    if (!isInCheck(next, opponentColor(currentColor))) {
+      continue;
+    }
+    foundCheck = true;
     value = Math.min(
       value,
       microQuiescence(
@@ -2238,7 +2241,7 @@ function microQuiescence(
       break;
     }
   }
-  return value;
+  return foundCheck ? value : standPat;
 }
 
 function isRecapture(state: GameState, move: Move): boolean {
