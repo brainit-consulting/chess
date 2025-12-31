@@ -318,6 +318,13 @@ Candidate micro-upgrades (plan only)
   - Risk: eval noise in simplified positions.
   - Status: regressed / rolled back (Step 5.Q3.1).
   - Evidence: runId `phase5_q3-hard800-vs-sf500-b25` (avg plies 37.6 < 38.0; W/D/L 0-0-50).
+- 5.Q3.2 Eval: add a tiny passed-pawn bonus (phase-gated, no movegen).
+  - Why: improves conversion and evaluation stability in simplified positions.
+  - Files: `src/ai/evaluate.ts`.
+  - Tests: passed pawn eval > non-passed pawn; mirrored color symmetry check.
+  - Success criterion: SF500 b25 avg plies >= 38.0 and no timeout regression.
+  - Risk: overvaluing passers in middlegames if gating is too weak.
+  - Status: planned (Step 5.Q3.2), runId `phase5_q3_2-passedPawn-hard800-vs-sf500-b25`.
 
 - 5.Q4 Eval: add a tiny rook-7th bonus (phase-gated).
   - Why: improves conversion cues in midgame/late middlegame.

@@ -1078,6 +1078,44 @@ describe('AI move selection', () => {
     expect(queenEval).toBeLessThan(noQueenEval);
   });
 
+  it('rewards passed pawns and preserves symmetry', () => {
+    const whitePassed = createEmptyState();
+    addPiece(whitePassed, 'king', 'w', sq(4, 0));
+    addPiece(whitePassed, 'king', 'b', sq(4, 7));
+    addPiece(whitePassed, 'pawn', 'w', sq(3, 3));
+    addPiece(whitePassed, 'pawn', 'b', sq(0, 6));
+    whitePassed.fullmoveNumber = 30;
+
+    const whiteBlocked = createEmptyState();
+    addPiece(whiteBlocked, 'king', 'w', sq(4, 0));
+    addPiece(whiteBlocked, 'king', 'b', sq(4, 7));
+    addPiece(whiteBlocked, 'pawn', 'w', sq(3, 3));
+    addPiece(whiteBlocked, 'pawn', 'b', sq(2, 5));
+    whiteBlocked.fullmoveNumber = 30;
+
+    const passedEval = evaluateState(whitePassed, 'w');
+    const blockedEval = evaluateState(whiteBlocked, 'w');
+    expect(passedEval).toBeGreaterThan(blockedEval);
+
+    const blackPassed = createEmptyState();
+    addPiece(blackPassed, 'king', 'w', sq(4, 0));
+    addPiece(blackPassed, 'king', 'b', sq(4, 7));
+    addPiece(blackPassed, 'pawn', 'b', sq(3, 4));
+    addPiece(blackPassed, 'pawn', 'w', sq(0, 1));
+    blackPassed.fullmoveNumber = 30;
+
+    const blackBlocked = createEmptyState();
+    addPiece(blackBlocked, 'king', 'w', sq(4, 0));
+    addPiece(blackBlocked, 'king', 'b', sq(4, 7));
+    addPiece(blackBlocked, 'pawn', 'b', sq(3, 4));
+    addPiece(blackBlocked, 'pawn', 'w', sq(2, 2));
+    blackBlocked.fullmoveNumber = 30;
+
+    const blackPassedEval = evaluateState(blackPassed, 'w');
+    const blackBlockedEval = evaluateState(blackBlocked, 'w');
+    expect(blackPassedEval).toBeLessThan(blackBlockedEval);
+  });
+
   it('rewards rook pressure on open files toward the king', () => {
     const pressure = createEmptyState();
     addPiece(pressure, 'king', 'w', sq(6, 0));
