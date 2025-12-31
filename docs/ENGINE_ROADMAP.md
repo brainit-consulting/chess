@@ -368,3 +368,49 @@ Reporting instructions
 - Keep runId naming consistent.
 - Never overwrite old run folders unless explicitly re-running with `--reset`.
 - Record the engine commit SHA in the report header as usual.
+
+## Phase 7 — Tactical Depth & Threat Awareness (Hard + Max)
+
+Purpose / hypothesis
+- Improve tactical accuracy by effectively looking 2–3 plies deeper in forcing lines without changing time budgets.
+- Focus on search efficiency and leaf-level threat awareness, not broad eval changes.
+
+Controls / invariants (checklist)
+- [ ] No time-budget changes in Phase 7 (Hard/Max caps stay as-is).
+- [ ] No benchmark harness changes.
+- [ ] Same tracking rung for comparability (Hard vs SF500 b25, swap, fenSuite, seed=7000).
+
+### 7.1 Hard leaf check-only micro-quiescence (planned)
+- Why: catches immediate checking threats at leaf without full quiescence cost.
+- Files: `src/ai/search.ts`.
+- Tests: leaf position where a checking move refutes a tactic at depth boundary.
+- Success criterion: avg plies >= 38.0 with no timeout regression vs baseline rung.
+- Risks: minor node increase in check-rich positions.
+
+### 7.2 Hard PVS enablement (planned)
+- Why: reduces node count so Hard can reach deeper effective depth within the same time cap.
+- Files: `src/ai/search.ts`, `src/ai/ai.ts` (wiring `usePvs` for Hard).
+- Tests: deterministic position where PVS returns same best move as full-window search.
+- Success criterion: avg plies >= 38.0 with stable timeouts.
+- Risks: incorrect window handling could cause PV instability if bugs exist.
+
+### 7.3 Hard conservative LMR/null-move gating (planned)
+- Why: cut obvious quiet move branches to allow deeper tactical lines.
+- Files: `src/ai/search.ts`.
+- Tests: ensure LMR/null-move is disabled in check and in low-material endgames.
+- Success criterion: avg plies >= 38.0 and timeout rate not worse than baseline.
+- Risks: over-pruning can miss tactics; must be tightly gated.
+
+### 7.4 Forcing-extension cap tuning (planned)
+- Why: deepen recapture/check lines by +1 ply without opening broad search.
+- Files: `src/ai/search.ts`.
+- Tests: recapture/check line where extension improves tactical stability.
+- Success criterion: avg plies >= 38.0 and no timeouts regression.
+- Risks: time spikes in tactical positions if caps are too loose.
+
+### 7.5 In-check node extension (planned)
+- Why: add 1 ply only when side to move is in check to improve defense.
+- Files: `src/ai/search.ts`.
+- Tests: in-check position where one evasion fails on next ply and one survives.
+- Success criterion: avg plies >= 38.0 with stable timeouts.
+- Risks: depth blowup if applied outside strict guardrails.
