@@ -74,6 +74,7 @@ const SEE_QUIESCENCE_PRUNE_THRESHOLD = -350;
 const COUNTERMOVE_BONUS = 900;
 const HARD_HISTORY_BONUS_CAP = 250;
 const MAX_HISTORY_BONUS_CAP = 1000;
+const HARD_KILLER_BONUS = 200;
 const CHECK_EVASION_CAPTURE_BONUS = 2000;
 const CHECK_EVASION_BLOCK_BONUS = 1000;
 const CHECK_EVASION_KING_MOVE_PENALTY = 200;
@@ -1749,6 +1750,8 @@ function alphaBeta(
           if (maxThinking) {
             recordKiller(ordering, ply, move);
             recordCounterMove(ordering, state.lastMove, move);
+          } else {
+            recordHardKiller(ordering, ply, move);
           }
           recordHistory(ordering, move, depth);
         }
@@ -1867,6 +1870,8 @@ function alphaBeta(
         if (maxThinking) {
           recordKiller(ordering, ply, move);
           recordCounterMove(ordering, state.lastMove, move);
+        } else {
+          recordHardKiller(ordering, ply, move);
         }
         recordHistory(ordering, move, depth);
       }
@@ -2056,7 +2061,9 @@ function buildOrderScore(
     const historyScore = quiet
       ? Math.min(getHistoryScore(options.ordering, move), historyCap)
       : 0;
-    const killerScore = maxThinking ? getKillerScore(options.ordering, options.ply, move) : 0;
+    const killerScore = maxThinking
+      ? getKillerScore(options.ordering, options.ply, move)
+      : getHardKillerScore(options.ordering, options.ply, move, quiet);
     const countermoveScore =
       maxThinking && options.prevMove ? getCounterMoveScore(options.ordering, options.prevMove, move) : 0;
     score += killerScore + historyScore + countermoveScore;
@@ -2075,6 +2082,22 @@ function getKillerScore(ordering: OrderingState, ply: number, move: Move): numbe
   }
   if (slot.secondary && sameMove(slot.secondary, move)) {
     return 2000;
+  }
+  return 0;
+}
+
+function getHardKillerScore(
+  ordering: OrderingState,
+  ply: number,
+  move: Move,
+  quiet: boolean
+): number {
+  if (!quiet) {
+    return 0;
+  }
+  const slot = ordering.killerMoves[ply];
+  if (slot?.primary && sameMove(slot.primary, move)) {
+    return HARD_KILLER_BONUS;
   }
   return 0;
 }
@@ -2115,6 +2138,17 @@ function recordKiller(ordering: OrderingState, ply: number, move: Move): void {
     return;
   }
   slot.secondary = slot.primary;
+  slot.primary = move;
+}
+
+function recordHardKiller(ordering: OrderingState, ply: number, move: Move): void {
+  if (!ordering.killerMoves[ply]) {
+    ordering.killerMoves[ply] = {};
+  }
+  const slot = ordering.killerMoves[ply];
+  if (slot.primary && sameMove(slot.primary, move)) {
+    return;
+  }
   slot.primary = move;
 }
 
@@ -2602,6 +2636,17 @@ export function shouldAllowNullMoveForTest(state: GameState, color: Color): bool
 
 export function isRecaptureForTest(state: GameState, move: Move): boolean {
   return isRecapture(state, move);
+}
+
+// Test-only: expose hard killer-lite scoring behavior.
+export function getHardKillerScoreForTest(
+  ordering: OrderingState,
+  ply: number,
+  move: Move,
+  state: GameState,
+  color: Color
+): number {
+  return getHardKillerScore(ordering, ply, move, isQuietForOrdering(state, move, color));
 }
 
 // Test-only: expose avoidance selection with synthetic scores.

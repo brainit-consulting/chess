@@ -291,7 +291,7 @@ async function main(): Promise<void> {
     const seed = config.baseSeed + state.totalGames;
     const gameId = state.totalGames + 1;
 
-    const engineLabel = config.mode === 'max' ? 'BrainIT (Max Thinking)' : 'BrainIT (Hard)';
+    const engineLabel = config.mode === 'max' ? 'Scorpion (Max Thinking)' : 'Scorpion (Hard)';
     let result: Awaited<ReturnType<typeof runSingleGame>>;
     try {
       result = await runSingleGame({
@@ -795,7 +795,7 @@ function finalizeGame(
     white: engineColor === 'w' ? engineLabel : 'Stockfish',
     black: engineColor === 'b' ? engineLabel : 'Stockfish',
     result,
-    event: 'BrainIT vs Stockfish (Quick)',
+    event: 'Scorpion vs Stockfish (Quick)',
     site: 'Local',
     date: new Date()
   });
@@ -1529,7 +1529,7 @@ function buildReportBody(
     `Command: ${meta.commandLine}`,
     `Stockfish: ${config.stockfishPath}`,
     `Settings: Threads=${config.threads}, Hash=${config.hashMb}MB, Ponder=${config.ponder ? 'true' : 'false'}`,
-    `Movetime targets: BrainIT=${config.movetimeMs}ms, Stockfish=${lastRung}ms`,
+    `Movetime targets: Scorpion=${config.movetimeMs}ms, Stockfish=${lastRung}ms`,
     `Timeout tolerance: +${TIMEOUT_TOLERANCE_BUMP_MS}ms (bench-only stop-latency/jitter slack)`,
     `Next ladder rung: paused (Stockfish=${currentRung}ms)`,
     `Output: ${config.outDir}`,
@@ -1556,7 +1556,7 @@ function buildReportBody(
   if (state.batches.length > 0) {
     lines.push('Batch history:');
     lines.push(
-      'Batch | Games | W | D | L | Score | Elo | BrainIT ms (target/avg) | Stockfish ms (target/avg) | Timeouts | Timed-out moves | Avg ms (ok/timeout) | Max ms (ok/timeout) | Stop Latency (avg ms) | Overhead'
+      'Batch | Games | W | D | L | Score | Elo | Scorpion ms (target/avg) | Stockfish ms (target/avg) | Timeouts | Timed-out moves | Avg ms (ok/timeout) | Max ms (ok/timeout) | Stop Latency (avg ms) | Overhead'
     );
     lines.push('--- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | ---');
     for (const batch of state.batches) {
