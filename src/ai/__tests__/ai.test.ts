@@ -1078,6 +1078,26 @@ describe('AI move selection', () => {
     expect(queenEval).toBeLessThan(noQueenEval);
   });
 
+  it('scales king ring penalties with the configured coefficient', () => {
+    const attacked = createEmptyState();
+    addPiece(attacked, 'king', 'w', sq(4, 0));
+    addPiece(attacked, 'king', 'b', sq(4, 7));
+    addPiece(attacked, 'queen', 'w', sq(0, 0));
+    addPiece(attacked, 'knight', 'b', sq(4, 3));
+    attacked.fullmoveNumber = 10;
+
+    const safe = createEmptyState();
+    addPiece(safe, 'king', 'w', sq(4, 0));
+    addPiece(safe, 'king', 'b', sq(4, 7));
+    addPiece(safe, 'queen', 'w', sq(0, 0));
+    addPiece(safe, 'knight', 'b', sq(2, 4));
+    safe.fullmoveNumber = 10;
+
+    const attackedEval = evaluateState(attacked, 'w');
+    const safeEval = evaluateState(safe, 'w');
+    expect(safeEval - attackedEval).toBe(12);
+  });
+
   it('rewards rook pressure on open files toward the king', () => {
     const pressure = createEmptyState();
     addPiece(pressure, 'king', 'w', sq(6, 0));
