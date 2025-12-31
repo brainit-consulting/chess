@@ -378,7 +378,7 @@ Purpose / hypothesis
 Controls / invariants (checklist)
 - [ ] No time-budget changes in Phase 7 (Hard/Max caps stay as-is).
 - [ ] No benchmark harness changes.
-- [ ] Same tracking rung for comparability (Hard vs SF500 b25, swap, fenSuite, seed=7000).
+- [ ] Same tracking rung for comparability (Hard 1000ms vs SF500 b3, swap, fenSuite, seed=7000).
 
 ### 7.1 Hard leaf check-only micro-quiescence (planned)
 - Why: catches immediate checking threats at leaf without full quiescence cost.
@@ -386,6 +386,8 @@ Controls / invariants (checklist)
 - Tests: leaf position where a checking move refutes a tactic at depth boundary.
 - Success criterion: avg plies >= 38.0 with no timeout regression vs baseline rung.
 - Risks: minor node increase in check-rich positions.
+- RunId: `phase7_q1-hardLeafCheckMicroQ-hard1000-vs-sf500-b3` (batch=3, 6 total games with swap).
+- Status: planned (update to accepted/rejected/needs tuning after benchmark).
 
 ### 7.2 Hard PVS enablement (planned)
 - Why: reduces node count so Hard can reach deeper effective depth within the same time cap.
