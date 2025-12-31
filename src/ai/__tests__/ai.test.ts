@@ -852,42 +852,6 @@ describe('AI move selection', () => {
     expect(killerIndex).toBeLessThan(historyIdx);
   });
 
-  it('prioritizes hard killer-lite quiet moves and ignores captures', () => {
-    const state = createEmptyState();
-    addPiece(state, 'king', 'w', sq(4, 0));
-    addPiece(state, 'king', 'b', sq(4, 7));
-    addPiece(state, 'pawn', 'w', sq(0, 1));
-    addPiece(state, 'pawn', 'b', sq(1, 2));
-    state.activeColor = 'w';
-
-    const moves = getAllLegalMoves(state, 'w');
-    const quietMove = moves.find(
-      (move) => move.from.file === 4 && move.from.rank === 0 && move.to.file === 3 && move.to.rank === 0
-    );
-    const otherQuiet = moves.find(
-      (move) => move.from.file === 4 && move.from.rank === 0 && move.to.file === 5 && move.to.rank === 0
-    );
-    const capture = moves.find(
-      (move) => move.from.file === 0 && move.from.rank === 1 && move.to.file === 1 && move.to.rank === 2
-    );
-    if (!quietMove || !otherQuiet || !capture) {
-      throw new Error('Expected quiet king moves and a pawn capture for killer-lite test.');
-    }
-
-    const ordering = search.createOrderingState(4);
-    ordering.killerMoves[0].primary = quietMove;
-
-    const ordered = search.orderMovesForTest(state, [otherQuiet, quietMove], 'w', () => 0.5, {
-      maxThinking: false,
-      ordering,
-      ply: 0
-    });
-    expect(sameMove(ordered[0], quietMove)).toBe(true);
-
-    const captureBonus = search.getHardKillerScoreForTest(ordering, 0, capture, state, 'w');
-    expect(captureBonus).toBe(0);
-  });
-
   it('orders check evasions ahead of non-evasions when in check', () => {
     const state = createEmptyState();
     addPiece(state, 'king', 'w', sq(4, 0));

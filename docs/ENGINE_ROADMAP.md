@@ -314,7 +314,8 @@ Candidate micro-upgrades (plan only)
   - Tests: verify ordering prefers a stored killer move over other quiets.
   - Success criterion: SF500 b25 avg plies >= 38.0 with no increased timeouts.
   - Risk: over-bias can hide tactical resources.
-  - Status: planned (runId `phase5_q2-killerLite-hard800-vs-sf500-b25`).
+  - Status: regressed / rolled back (commit 53ddc6b).
+  - Evidence: runId `phase5_q2-killerLite-hard800-vs-sf500-b25` (avg plies 34.7 < 38.0; W/D/L 0-1-49; timed-out moves 18/855).
 
 - 5.Q3 Eval: add a small bishop-pair bonus (phase-gated).
   - Why: stabilizes positional evaluation with minimal cost.
