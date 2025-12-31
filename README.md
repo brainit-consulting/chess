@@ -50,7 +50,7 @@ npm run test:run
 - Mode selector: Human vs Human, Human vs AI, or AI vs AI.
 - AI vs AI includes Start/Pause/Resume, an AI move delay slider, and Play for Win.
 - Draws include stalemate, insufficient material (e.g., K vs K, K+N/B vs K), and threefold repetition.
-- Hard uses a depth-3 search with a gameplay time cap (~800ms) for responsiveness.
+- Hard uses a depth-3 search with a gameplay time cap (~1000ms) for responsiveness.
 - Max Thinking uses iterative deepening with a 10s cap and supports Force Move Now.
 
 ## Analyze Your Games

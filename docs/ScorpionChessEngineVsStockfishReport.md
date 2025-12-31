@@ -6,7 +6,7 @@ fixed number of games (default: 10) and updates the cumulative results here.
 How to run a batch (quick bench):
 
 ```
-npm run bench:quick -- --stockfish "C:\path\to\stockfish.exe" --batch 10 --movetime 200 --mode hard --swap --fenSuite --seed 7000 --runId phase4_2-quick
+npm run bench:quick -- --stockfish "C:\path\to\stockfish.exe" --batch 10 --movetime 1000 --mode hard --swap --fenSuite --seed 7000 --runId phase4_2-quick
 ```
 
 Notes:
@@ -163,6 +163,7 @@ Notes
 - \"Timed out moves\" means the harness forced a fallback because a bestmove did not arrive before `movetime + grace`.
 - Use the same Stockfish settings (Threads=1, Hash=64, Ponder=false) for all batches.
 - RunId references: baseline v1.1.55 reconfirm `phase4_3-reconfirm-hard800-vs-sf500-b25`, phase5_1b `phase5_1b-kingSafety-hard800-vs-sf500-b25`, phase5_1c `phase5_1c-kingSafety-queenGate-hard800-vs-sf500-b25`, phase5_1d (reverted) `phase5_1d-kingSafety-queenGate-coeff4-hard800-vs-sf500-b25`.
+- New baseline going forward: hard1000 (hard800 runIds are historical references).
 
 
 

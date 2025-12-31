@@ -117,7 +117,7 @@ Source: `src/ai/ai.ts` (`chooseMove`) and `src/game.ts` (`scheduleAiMove`).
   - RNG: seeded if provided; otherwise `Math.random`.
 - Hard
   - Depth: 3.
-  - If `maxTimeMs` is provided (live gameplay sets 800ms), uses `findBestMoveTimed` with `maxThinking: false`.
+  - If `maxTimeMs` is provided (live gameplay sets 1000ms), uses `findBestMoveTimed` with `maxThinking: false`.
   - Otherwise uses `findBestMove` depth 3.
   - Uses a small bounded TT and capture-only micro-quiescence at leaf nodes.
   - Forcing extensions on checks/promotions (depth/ply capped).
@@ -134,7 +134,7 @@ Source: `src/ai/ai.ts` (`chooseMove`) and `src/game.ts` (`scheduleAiMove`).
 ## Live gameplay time caps (Hard/Max)
 
 - Hard:
-  - `HARD_THINKING_MS = 800` in `src/game.ts`.
+  - `HARD_THINKING_MS = 1000` in `src/game.ts`.
   - Set in `scheduleAiMove` via `maxTimeMs` when difficulty is `hard`.
 - Max:
   - `MAX_THINKING_CAP_MS = 10000` in `src/ai/ai.ts` and `src/game.ts`.

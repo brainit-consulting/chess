@@ -81,7 +81,7 @@ https://brainit-consulting.github.io/chess/
 
 - **Easy**: simple, non-optimal moves.
 - **Medium**: balanced play.
-- **Hard**: depth-3 search with a gameplay time cap (~800ms).
+- **Hard**: depth-3 search with a gameplay time cap (~1000ms).
 - **Max Thinking**: iterative deepening with a 10s cap for deeper analysis.
 
 ### Force Move Now (Max Thinking only)

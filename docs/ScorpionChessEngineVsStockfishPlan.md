@@ -66,10 +66,10 @@ Quick-and-Dirty Comparison (Directional Only)
   - Average move time and obvious blunders (e.g., missed mate-in-1).
 
 Ladder Runs (Phase Baselines)
-- Start at equal times (e.g., Scorpion 800ms vs Stockfish 800ms) to validate stability.
+- Start at equal times (e.g., Scorpion 1000ms vs Stockfish 1000ms) to validate stability.
 - Then step Stockfish down (e.g., 600ms, 400ms, 250ms) until Scorpion starts scoring.
 - Use swap + fenSuite for paired colors and consistent openings.
-- RunId convention: `phase4_2-hard800-vs-sf600-b10` = phase, engine time, Stockfish time, batch size.
+- RunId convention: `phase6-time-hard1000-vs-sf600-b10` = phase, engine time, Stockfish time, batch size.
 - `--stockfishMovetime` sets Stockfish time separately; if omitted, Stockfish uses `--movetime`.
 - Bench-only timeout tolerance is applied uniformly to both engines to absorb stop latency/jitter.
 
@@ -99,8 +99,8 @@ npm run bench:quick -- --stockfish "C:\path\to\stockfish.exe" --batch 5 --moveti
 ```
 
 ```powershell
-# Ladder rung example: Scorpion 800ms vs Stockfish 600ms (10 per color)
-npm run bench:quick -- --stockfish "C:\path\to\stockfish.exe" --batch 10 --movetime 800 --stockfishMovetime 600 --mode hard --swap --fenSuite --seed 7000 --runId phase4_2-hard800-vs-sf600-b10
+# Ladder rung example: Scorpion 1000ms vs Stockfish 600ms (10 per color)
+npm run bench:quick -- --stockfish "C:\path\to\stockfish.exe" --batch 10 --movetime 1000 --stockfishMovetime 600 --mode hard --swap --fenSuite --seed 7000 --runId phase6-time-hard1000-vs-sf600-b10
 ```
 
 Notes:
@@ -129,5 +129,5 @@ Decisions Needed
 - OK to add dev dependency for runner (e.g., tsx).
 
 Current timing notes
-- Gameplay Hard uses depth 3 with a UI time cap (~800ms) for responsiveness.
+- Gameplay Hard uses depth 3 with a UI time cap (~1000ms) for responsiveness.
 - Max Thinking uses iterative deepening with a hard 10s cap.
