@@ -324,7 +324,7 @@ Candidate micro-upgrades (plan only)
   - Tests: passed pawn eval > non-passed pawn; mirrored color symmetry check.
   - Success criterion: SF500 b25 avg plies >= 38.0 and no timeout regression.
   - Risk: overvaluing passers in middlegames if gating is too weak.
-  - Status: planned (Step 5.Q3.2), runId `phase5_q3_2-passedPawn-hard800-vs-sf500-b25`.
+  - Status: implemented (commit ca3e2b1), runId `phase5_q3_2-passedPawn-hard800-vs-sf500-b25` (avg plies 34.8 < 38.0; W/D/L 0-1-49).
 
 - 5.Q4 Eval: add a tiny rook-7th bonus (phase-gated).
   - Why: improves conversion cues in midgame/late middlegame.
