@@ -6,7 +6,7 @@ Live demo: https://brainit-consulting.github.io/chess/
 Shareable play link: https://brainit-consulting.github.io/chess/
 
 GitHub Pages: Settings -> Pages -> Source: GitHub Actions
-Current UI version: v1.1.56
+Current UI version: v1.1.57
 
 The UI shows player names (including AI labels) and a running captured-material score.
 You can hide the UI panel or collapse it to a compact view from the header controls.

@@ -8,6 +8,14 @@ Semantic Versioning.
 ## [Unreleased]
 ### Changed
 
+## [1.1.57] - 2025-12-31
+
+### Changed
+
+- Hard default movetime: 1000ms (was 800ms).
+- Phase 6 time ladder plan added.
+- Bench report template improvements (Scorpion labels, roadmap phase, newest-first).
+
 ## [1.1.56] - 2025-12-31
 
 ### Changed
