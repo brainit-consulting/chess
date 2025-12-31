@@ -1078,6 +1078,34 @@ describe('AI move selection', () => {
     expect(queenEval).toBeLessThan(noQueenEval);
   });
 
+  it('adds a bishop pair bonus in base evaluation', () => {
+    const base = createEmptyState();
+    addPiece(base, 'king', 'w', sq(4, 0));
+    addPiece(base, 'king', 'b', sq(4, 7));
+    addPiece(base, 'pawn', 'w', sq(1, 1));
+    addPiece(base, 'pawn', 'w', sq(3, 1));
+    addPiece(base, 'pawn', 'w', sq(4, 1));
+    addPiece(base, 'pawn', 'w', sq(6, 1));
+    addPiece(base, 'pawn', 'w', sq(4, 2));
+    addPiece(base, 'pawn', 'w', sq(6, 2));
+    addPiece(base, 'pawn', 'w', sq(7, 1));
+
+    const bishopPair = cloneState(base);
+    addPiece(bishopPair, 'bishop', 'w', sq(2, 0));
+    addPiece(bishopPair, 'bishop', 'w', sq(5, 0));
+    bishopPair.fullmoveNumber = 15;
+
+    const bishopKnight = cloneState(base);
+    addPiece(bishopKnight, 'bishop', 'w', sq(2, 0));
+    addPiece(bishopKnight, 'knight', 'w', sq(5, 0));
+    bishopKnight.fullmoveNumber = 15;
+
+    const bishopPairEval = evaluateState(bishopPair, 'w');
+    const bishopKnightEval = evaluateState(bishopKnight, 'w');
+
+    expect(bishopPairEval - bishopKnightEval).toBe(16);
+  });
+
   it('rewards rook pressure on open files toward the king', () => {
     const pressure = createEmptyState();
     addPiece(pressure, 'king', 'w', sq(6, 0));
