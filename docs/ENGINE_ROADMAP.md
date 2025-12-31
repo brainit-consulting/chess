@@ -274,7 +274,8 @@ Goal: Reduce early threefolds without changing time caps.
 - Phase 5.1c (implemented, commit 036700e): king ring penalty applies only when queens remain (midgame gate).
   - Validation: unit tests + SF500 b25 tracking rung (runId `phase5_1c-kingSafety-queenGate-hard800-vs-sf500-b25`).
 - Phase 5.1d (reverted): king ring penalty coefficient probe (4cp).
-  - Reverted (regression): SF500 b25 avg plies 38.3 → 32.4 at coeff=4; kept 5.1c.
+  - Reverted (regression): SF500 b25 avg plies 38.3 -> 32.4 at coeff=4; kept 5.1c.
+- Branch status: 5.1c is the current best variant on this branch; 5.1d reverted due to regression (runId `phase5_1d-kingSafety-queenGate-coeff4-hard800-vs-sf500-b25`); next decision is whether to PR/merge 5.1c or keep it experimental.
 
 - Change list (files)
   - `src/ai/evaluate.ts`
