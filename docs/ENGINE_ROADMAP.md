@@ -303,3 +303,67 @@ To preserve the strength gap:
 - Stockfish quick bench: verify no regression in baseline.
 - FEN/tactics suite: measure tactical stability and conversion.
 - Time budget guardrails: Hard avg move time stays near 800ms; Max under 10s with Force Move Now.
+
+## Phase 6 — Time Ladder Plan (Hard + Max)
+
+Purpose / hypothesis
+- Increase think-time budgets incrementally (time-only) to see if quality improves before changing depth caps.
+- Quality proxy remains: avg plies per game, plus W/D/L and end reasons (mate/repetition).
+- Ladder runs isolate time budget effects (one axis at a time).
+
+Controls / invariants (checklist)
+- [ ] Same harness, same timeout tolerance.
+- [ ] Stockfish settings fixed: Threads=1, Hash=64MB, Ponder=false.
+- [ ] Same run parameters: seed=7000, swap=true, fenSuite=true, batch=25 (50 games total).
+- [ ] Same opponent time control: Stockfish movetime=500ms.
+- [ ] Engine mode: hard (for the Hard ladder).
+- [ ] Do NOT alter depth caps for these runs (time-only).
+- [ ] Clarification: `--movetime <HARD_MS>` is Scorpion per-move time; `--stockfishMovetime 500` is Stockfish per-move time.
+
+### Run sequence (Hard time ladder, depth unchanged)
+
+A) Baseline reference (already exists, do not rerun unless noted)
+- Reference runId: `phase4_3-reconfirm-hard800-vs-sf500-b25`
+- Notes:
+  - v1.1.55 baseline reconfirm
+  - Used as the comparison point for avg plies and timeout behavior
+
+B) Phase 6 — Hard time ladder (time-only)
+
+Command template (copy verbatim; vary `--movetime` and `--runId` only):
+```
+npm run bench:quick -- --stockfish "C:\\Users\\snake\\Downloads\\stockfish-windows-x86-64-avx2\\stockfish\\stockfish-windows-x86-64-avx2.exe" --batch 25 --movetime <HARD_MS> --stockfishMovetime 500 --mode hard --swap --fenSuite --seed 7000 --runId <RUNID> --reset
+```
+
+Rungs:
+1) HARD_MS = 800
+   - runId: `phase6-time-hard800-vs-sf500-b25`
+   - Note: optional sanity re-run only if drift is suspected
+2) HARD_MS = 1200
+   - runId: `phase6-time-hard1200-vs-sf500-b25`
+3) HARD_MS = 1500
+   - runId: `phase6-time-hard1500-vs-sf500-b25`
+
+### Optional: Max time ladder (if/when we add a comparable bench path)
+
+- Reserved / not yet executed.
+- Do NOT add commands unless the harness supports Max symmetrically.
+- Reserved runIds:
+  - `phase6-time-max10s-vs-sf500-b25`
+  - `phase6-time-max12s-vs-sf500-b25`
+  - `phase6-time-max15s-vs-sf500-b25`
+
+Success / stop criteria
+- Primary success: avg plies increases versus the current baseline without timed-out moves increasing by more than ~10% relative.
+- If timeouts increase materially (e.g., >~5% of moves):
+  - Do NOT change tolerance
+  - Log the result and reassess
+- If avg plies does not improve at higher time budgets:
+  - Do NOT increase depth caps yet
+  - Pivot to search efficiency and/or evaluation improvements instead
+
+Reporting instructions
+- After each rung, append a new result block to `docs/ScorpionChessEngineVsStockfishReport.md`.
+- Keep runId naming consistent.
+- Never overwrite old run folders unless explicitly re-running with `--reset`.
+- Record the engine commit SHA in the report header as usual.
