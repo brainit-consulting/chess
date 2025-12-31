@@ -290,6 +290,40 @@ Goal: Reduce early threefolds without changing time caps.
 - Rollback plan
   - Wrap endgame heuristics behind a feature flag; disable if regressions appear.
 
+## Phase 5 — Quality & Adaptation (Hard + Max)
+
+Goal: small, testable, reversible micro-upgrades that improve tactical stability without changing time caps.
+
+Candidate micro-upgrades (plan only)
+
+- 5.Q1 Hard micro-quiescence: allow checking moves only (depth 1, hard-capped).
+  - Why: reduces tactical misses without a full quiescence cost.
+  - Files: `src/ai/search.ts`.
+  - Tests: construct a position where a checking quiet move refutes a tactic; expect Hard to select it at leaf depth.
+  - Success criterion: SF500 b25 avg plies >= 38.0 and Hard timeouts do not exceed the Phase 5.1c rung by >10%.
+  - Risk: node count spike in check-rich positions.
+
+- 5.Q2 Hard move ordering: add a tiny killer-lite bonus for quiet moves (one slot).
+  - Why: improves PV stability and reduces blunders at fixed depth.
+  - Files: `src/ai/search.ts`.
+  - Tests: verify ordering prefers a stored killer move over other quiets.
+  - Success criterion: SF500 b25 avg plies >= 38.0 with no increased timeouts.
+  - Risk: over-bias can hide tactical resources.
+
+- 5.Q3 Eval: add a small bishop-pair bonus (phase-gated).
+  - Why: stabilizes positional evaluation with minimal cost.
+  - Files: `src/ai/evaluate.ts`.
+  - Tests: bishop pair eval > bishop+knight in a mirrored setup.
+  - Success criterion: SF500 b25 avg plies >= 38.0 and no timeout regression.
+  - Risk: eval noise in simplified positions.
+
+- 5.Q4 Eval: add a tiny rook-7th bonus (phase-gated).
+  - Why: improves conversion cues in midgame/late middlegame.
+  - Files: `src/ai/evaluate.ts`.
+  - Tests: rook on 7th rank scores higher than rook on 2nd in a controlled position.
+  - Success criterion: SF500 b25 avg plies >= 38.0 with stable timeouts.
+  - Risk: over-rewarding superficial activity.
+
 ## Max remains stronger than Hard
 
 To preserve the strength gap:
