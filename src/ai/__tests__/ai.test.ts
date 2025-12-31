@@ -713,48 +713,29 @@ describe('AI move selection', () => {
     expect(sameMove(ordered[0], counter)).toBe(true);
   });
 
-  it('uses hard micro-quiescence to avoid losing captures', () => {
+  it('uses hard leaf check micro-quiescence to account for opponent checking replies', () => {
     const state = createEmptyState();
-    addPiece(state, 'king', 'w', sq(6, 0));
+    addPiece(state, 'king', 'w', sq(4, 0));
     addPiece(state, 'king', 'b', sq(6, 7));
-    addPiece(state, 'queen', 'w', sq(4, 1));
     addPiece(state, 'rook', 'b', sq(4, 7));
-    addPiece(state, 'pawn', 'b', sq(4, 6));
-    state.activeColor = 'w';
+    state.activeColor = 'b';
 
-    const legalMoves = getAllLegalMoves(state, 'w');
-    const capture = legalMoves.find(
-      (move) => move.from.file === 4 && move.from.rank === 1 && move.to.file === 4 && move.to.rank === 6
-    );
-    const safe = legalMoves.find(
-      (move) => move.from.file === 4 && move.from.rank === 1 && move.to.file === 4 && move.to.rank === 3
-    );
-    if (!capture || !safe) {
-      throw new Error('Expected capture and quiet queen moves for micro-quiescence test.');
-    }
+    const standPat = evaluateState(state, 'w', { maxThinking: false });
+    const microScore = search.hardCheckMicroQuiescenceForTest(state, 'b', 'w');
 
-    const noMicroQ = search.findBestMove(state, 'w', {
-      depth: 1,
-      rng: createSequenceRng([0.9, 0.1, 0]),
-      legalMoves: [capture, safe],
-      topMoveWindow: 0,
-      fairnessWindow: 0,
-      maxThinking: false
-    });
-    const withMicroQ = search.findBestMove(state, 'w', {
-      depth: 1,
-      rng: createSequenceRng([0.9, 0.1, 0]),
-      legalMoves: [capture, safe],
-      microQuiescenceDepth: 1,
-      topMoveWindow: 0,
-      fairnessWindow: 0,
-      maxThinking: false
-    });
+    expect(microScore).toBeLessThan(standPat);
+  });
 
-    expect(noMicroQ).not.toBeNull();
-    expect(withMicroQ).not.toBeNull();
-    expect(sameMove(noMicroQ as Move, capture)).toBe(true);
-    expect(sameMove(withMicroQ as Move, safe)).toBe(true);
+  it('returns stand pat when no checking moves exist at the hard leaf', () => {
+    const state = createEmptyState();
+    addPiece(state, 'king', 'w', sq(4, 0));
+    addPiece(state, 'king', 'b', sq(4, 7));
+    state.activeColor = 'b';
+
+    const standPat = evaluateState(state, 'w', { maxThinking: false });
+    const microScore = search.hardCheckMicroQuiescenceForTest(state, 'b', 'w');
+
+    expect(microScore).toBe(standPat);
   });
 
   it('reuses hard TT best moves across repeated searches', () => {

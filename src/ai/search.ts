@@ -2167,14 +2167,12 @@ function microQuiescence(
     return standPat;
   }
 
-  const noisyMoves = legalMoves.filter(
-    (move) => isCaptureMove(state, move) || Boolean(move.promotion)
-  );
-  if (noisyMoves.length === 0) {
+  const checkMoves = legalMoves.filter((move) => givesCheck(state, move, currentColor));
+  if (checkMoves.length === 0) {
     return standPat;
   }
 
-  const ordered = orderMoves(state, noisyMoves, currentColor, rng, {
+  const ordered = orderMoves(state, checkMoves, currentColor, rng, {
     maxThinking: false,
     prevMove: state.lastMove
   });
@@ -2602,6 +2600,24 @@ export function shouldAllowNullMoveForTest(state: GameState, color: Color): bool
 
 export function isRecaptureForTest(state: GameState, move: Move): boolean {
   return isRecapture(state, move);
+}
+
+// Test-only: expose hard leaf check-only micro-quiescence scoring.
+export function hardCheckMicroQuiescenceForTest(
+  state: GameState,
+  currentColor: Color,
+  maximizingColor: Color
+): number {
+  return microQuiescence(
+    state,
+    -Infinity,
+    Infinity,
+    currentColor,
+    maximizingColor,
+    () => 0.5,
+    0,
+    1
+  );
 }
 
 // Test-only: expose avoidance selection with synthetic scores.
