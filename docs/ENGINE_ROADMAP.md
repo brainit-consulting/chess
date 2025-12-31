@@ -271,6 +271,8 @@ Goal: Reduce early threefolds without changing time caps.
   - Validation: unit tests + SF500 b25 tracking rung (runId `phase5_1-kingSafety-hard800-vs-sf500-b25`).
 - Phase 5.1b (implemented, commit 9f3512a): king ring penalty without full movegen.
   - Validation: unit tests + SF500 b25 tracking rung (runId `phase5_1b-kingSafety-hard800-vs-sf500-b25`).
+- Phase 5.1c (planned/in progress): king ring penalty applies only when queens remain (midgame gate).
+  - Validation: SF500 b25 tracking rung (runId `phase5_1c-kingSafety-queenGate-hard800-vs-sf500-b25`).
 
 - Change list (files)
   - `src/ai/evaluate.ts`
