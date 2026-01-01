@@ -2273,6 +2273,9 @@ function getForcingExtension(
   if (depth > FORCING_EXTENSION_MAX_DEPTH || ply >= FORCING_EXTENSION_MAX_PLY) {
     return 0;
   }
+  if (depth >= 2 && isInCheck(state, currentColor)) {
+    return 1;
+  }
   if (move.promotion) {
     return 1;
   }
@@ -2607,6 +2610,17 @@ export function shouldAllowNullMoveForTest(state: GameState, color: Color): bool
 
 export function isRecaptureForTest(state: GameState, move: Move): boolean {
   return isRecapture(state, move);
+}
+
+export function getForcingExtensionForTest(
+  state: GameState,
+  next: GameState,
+  move: Move,
+  currentColor: Color,
+  depth: number,
+  ply: number
+): number {
+  return getForcingExtension(state, next, move, currentColor, depth, ply);
 }
 
 // Test-only: expose avoidance selection with synthetic scores.

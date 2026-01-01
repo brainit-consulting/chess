@@ -1193,6 +1193,46 @@ describe('AI move selection', () => {
     expect(search.getLmrReductionForTest(4, 4, false, false)).toBe(0);
   });
 
+  it('extends by one ply when side to move is in check', () => {
+    const state = createEmptyState();
+    addPiece(state, 'king', 'w', sq(4, 0));
+    addPiece(state, 'king', 'b', sq(0, 7));
+    addPiece(state, 'rook', 'b', sq(4, 7));
+    state.activeColor = 'w';
+
+    const legalMoves = getAllLegalMoves(state, 'w');
+    if (legalMoves.length === 0) {
+      throw new Error('Expected evasions while in check.');
+    }
+    const move = legalMoves[0];
+    const next = cloneState(state);
+    applyMove(next, move);
+    const extension = search.getForcingExtensionForTest(state, next, move, 'w', 2, 0);
+    expect(extension).toBe(1);
+  });
+
+  it('extends by one ply on direct recaptures', () => {
+    const state = createEmptyState();
+    addPiece(state, 'king', 'w', sq(4, 0));
+    addPiece(state, 'king', 'b', sq(7, 7));
+    addPiece(state, 'rook', 'w', sq(3, 0));
+    addPiece(state, 'rook', 'b', sq(3, 3));
+    state.activeColor = 'w';
+    state.lastMove = { from: sq(3, 6), to: sq(3, 3) };
+
+    const legalMoves = getAllLegalMoves(state, 'w');
+    const recapture = legalMoves.find(
+      (move) => move.from.file === 3 && move.from.rank === 0 && move.to.file === 3 && move.to.rank === 3
+    );
+    if (!recapture) {
+      throw new Error('Expected a recapture move.');
+    }
+    const next = cloneState(state);
+    applyMove(next, recapture);
+    const extension = search.getForcingExtensionForTest(state, next, recapture, 'w', 2, 0);
+    expect(extension).toBe(1);
+  });
+
   it('disables null-move pruning in pawn-only endgames', () => {
     const state = createEmptyState();
     addPiece(state, 'king', 'w', sq(4, 0));
