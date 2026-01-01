@@ -380,7 +380,7 @@ Controls / invariants (checklist)
 - [ ] Keep benchmarks and runId conventions consistent.
 - [ ] Track ACPL, blunder rate, and loss-type breakdown in addition to Elo.
 
-### 8.1 NNUE primary evaluation (planned)
+### 8.1 NNUE primary evaluation (in progress)
 - Why: stronger, smoother evaluation; better positional judgment.
 - Deliverables: NNUE feature encoder + accumulator updates; wired into leaf eval; legacy eval minimized.
 - Validation: tactical + positional suites; no large regressions in king safety/endgames.

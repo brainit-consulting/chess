@@ -1,8 +1,18 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { chooseMove } from '../ai';
 import { explainMove } from '../aiExplain';
 import { computeAiMove } from '../aiWorker';
 import { evaluateState } from '../evaluate';
+import {
+  buildAccumulator,
+  createZeroWeights,
+  getNnueWeights,
+  parseNnueWeights,
+  setNnueWeights,
+  updateAccumulatorForMove
+} from '../nnue';
 import {
   shouldApplyAiResponse,
   shouldApplyExplainResponse,
@@ -1456,5 +1466,111 @@ describe('AI move selection', () => {
     expect(withoutQuiescence).not.toBeNull();
     expect(withQuiescence).not.toBeNull();
     expect(sameMove(withQuiescence as Move, capture)).toBe(false);
+  });
+});
+
+describe('NNUE scaffolding', () => {
+  function createTestWeights() {
+    const weights = createZeroWeights(768, 2);
+    const whiteFeatureCount = 6 * 64;
+    for (let feature = 0; feature < 768; feature += 1) {
+      const offset = feature * 2;
+      if (feature < whiteFeatureCount) {
+        weights.w1[offset] = 1;
+      } else {
+        weights.w1[offset + 1] = 1;
+      }
+    }
+    weights.w2[0] = 1;
+    weights.w2[1] = -1;
+    return weights;
+  }
+
+  function mirrorState(state: GameState): GameState {
+    const mirrored = createEmptyState();
+    const squares = getPieceSquares(state);
+    for (const piece of state.pieces.values()) {
+      const square = squares.get(piece.id);
+      if (!square) {
+        continue;
+      }
+      const mirrorSquare = { file: 7 - square.file, rank: 7 - square.rank };
+      addPiece(
+        mirrored,
+        piece.type,
+        piece.color === 'w' ? 'b' : 'w',
+        mirrorSquare,
+        piece.hasMoved
+      );
+    }
+    mirrored.activeColor = state.activeColor === 'w' ? 'b' : 'w';
+    mirrored.fullmoveNumber = state.fullmoveNumber;
+    return mirrored;
+  }
+
+  it('parses the default NNUE weights file header', () => {
+    const weightPath = path.resolve(
+      process.cwd(),
+      'src/ai/nnue/weights/Scorpion-NNUE-Weight.snnue'
+    );
+    const buffer = readFileSync(weightPath);
+    const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+    const parsed = parseNnueWeights(arrayBuffer);
+    expect(parsed.inputSize).toBe(768);
+    expect(parsed.hiddenSize).toBe(64);
+    expect(parsed.version).toBe(1);
+  });
+
+  it('produces deterministic, mirror-symmetric NNUE eval', () => {
+    const prior = getNnueWeights();
+    const weights = createTestWeights();
+    setNnueWeights(weights);
+    try {
+      const state = createEmptyState();
+      addPiece(state, 'king', 'w', sq(4, 0));
+      addPiece(state, 'king', 'b', sq(4, 7));
+      addPiece(state, 'pawn', 'w', sq(0, 1));
+      const score1 = evaluateState(state, 'w', { maxThinking: true, nnueMix: 1 });
+      const score2 = evaluateState(state, 'w', { maxThinking: true, nnueMix: 1 });
+      expect(score1).toBe(score2);
+
+      const mirrored = mirrorState(state);
+      const mirrorScore = evaluateState(mirrored, 'w', { maxThinking: true, nnueMix: 1 });
+      expect(score1).toBe(-mirrorScore);
+    } finally {
+      setNnueWeights(prior);
+    }
+  });
+
+  it('keeps accumulator updates consistent across make/unmake', () => {
+    const prior = getNnueWeights();
+    const weights = createTestWeights();
+    setNnueWeights(weights);
+    try {
+      const state = createEmptyState();
+      addPiece(state, 'king', 'w', sq(4, 0));
+      addPiece(state, 'king', 'b', sq(4, 7));
+      addPiece(state, 'pawn', 'w', sq(0, 1));
+
+      const baseAcc = buildAccumulator(state, weights);
+      const move: Move = { from: sq(0, 1), to: sq(0, 2) };
+      const next = cloneState(state);
+      const updatedAcc = updateAccumulatorForMove(baseAcc, next, move, weights);
+      applyMove(next, move);
+
+      const recomputed = buildAccumulator(next, weights);
+      expect(Array.from(updatedAcc.accumulator)).toEqual(
+        Array.from(recomputed.accumulator)
+      );
+
+      const undo: Move = { from: sq(0, 2), to: sq(0, 1) };
+      const backAcc = updateAccumulatorForMove(updatedAcc, next, undo, weights);
+      applyMove(next, undo);
+      expect(Array.from(backAcc.accumulator)).toEqual(
+        Array.from(baseAcc.accumulator)
+      );
+    } finally {
+      setNnueWeights(prior);
+    }
   });
 });

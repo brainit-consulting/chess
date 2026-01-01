@@ -10,6 +10,11 @@ import {
   applyMove
 } from '../rules';
 import { PIECE_VALUES, evaluateState } from './evaluate';
+import {
+  ensureAccumulator,
+  getNnueWeights,
+  updateAccumulatorForMove
+} from './nnue';
 
 type SearchOptions = {
   depth: number;
@@ -548,7 +553,7 @@ function orderRootMovesForRepeatAvoidance(
     }
     const next = cloneState(state);
     next.activeColor = color;
-    applyMove(next, move);
+    applyMoveWithNnue(next, move);
     const givesCheck = isInCheck(next, opponentColor(color));
     if (givesCheck) {
       return { move, index, deprioritize: false };
@@ -691,7 +696,7 @@ function computeTwoPlyPenalty(
 ): number {
   const next = cloneState(state);
   next.activeColor = color;
-  applyMove(next, entry.move);
+  applyMoveWithNnue(next, entry.move);
   const opponent = opponentColor(color);
   const replies = getAllLegalMoves(next, opponent);
   if (replies.length === 0) {
@@ -702,7 +707,7 @@ function computeTwoPlyPenalty(
   for (const reply of replies) {
     const follow = cloneState(next);
     follow.activeColor = opponent;
-    applyMove(follow, reply);
+    applyMoveWithNnue(follow, reply);
     const key = getPositionKey(follow);
     const score = evaluateState(follow, color, { maxThinking });
     if (score < worstScore) {
@@ -836,7 +841,7 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
     }
     const next = cloneState(state);
     next.activeColor = color;
-    applyMove(next, move);
+    applyMoveWithNnue(next, move);
 
     const baseScore = alphaBeta(
       next,
@@ -1387,7 +1392,7 @@ function scoreRootMoves(
     }
     const next = cloneState(state);
     next.activeColor = color;
-    applyMove(next, move);
+    applyMoveWithNnue(next, move);
 
     const baseScore = alphaBeta(
       next,
@@ -1657,7 +1662,7 @@ function alphaBeta(
       const move = ordered[index];
       const next = cloneState(state);
       next.activeColor = currentColor;
-      applyMove(next, move);
+      applyMoveWithNnue(next, move);
       const reduction = maxThinking
         ? getLmrReduction(depth, index, inCheck, isQuietForLmr(state, move, currentColor))
         : 0;
@@ -1775,7 +1780,7 @@ function alphaBeta(
     const move = ordered[index];
     const next = cloneState(state);
     next.activeColor = currentColor;
-    applyMove(next, move);
+    applyMoveWithNnue(next, move);
     const reduction = maxThinking
       ? getLmrReduction(depth, index, inCheck, isQuietForLmr(state, move, currentColor))
       : 0;
@@ -1923,7 +1928,7 @@ function orderMoves(
 function scoreCheckEvasion(state: GameState, move: Move, color: Color): number {
   const next = cloneState(state);
   next.activeColor = color;
-  applyMove(next, move);
+  applyMoveWithNnue(next, move);
   if (isInCheck(next, color)) {
     return -CHECK_EVASION_KING_INTO_ATTACK_PENALTY;
   }
@@ -1996,7 +2001,7 @@ function scoreMoveHeuristic(
 
   const next = cloneState(state);
   next.activeColor = color;
-  applyMove(next, move);
+  applyMoveWithNnue(next, move);
 
   const givesCheck = isInCheck(next, opponentColor(color));
   const hanging = isMovedPieceHanging(next, move, color);
@@ -2188,7 +2193,7 @@ function microQuiescence(
       }
       const next = cloneState(state);
       next.activeColor = currentColor;
-      applyMove(next, move);
+      applyMoveWithNnue(next, move);
       value = Math.max(
         value,
         microQuiescence(
@@ -2218,7 +2223,7 @@ function microQuiescence(
     }
     const next = cloneState(state);
     next.activeColor = currentColor;
-    applyMove(next, move);
+    applyMoveWithNnue(next, move);
     value = Math.min(
       value,
       microQuiescence(
@@ -2351,7 +2356,7 @@ function quiescence(
       }
       const next = cloneState(state);
       next.activeColor = currentColor;
-      applyMove(next, move);
+      applyMoveWithNnue(next, move);
       value = Math.max(
         value,
         quiescence(
@@ -2384,7 +2389,7 @@ function quiescence(
     }
     const next = cloneState(state);
     next.activeColor = currentColor;
-    applyMove(next, move);
+    applyMoveWithNnue(next, move);
     value = Math.min(
       value,
       quiescence(
@@ -2485,7 +2490,7 @@ function isQuietForLmr(state: GameState, move: Move, color: Color): boolean {
 function givesCheck(state: GameState, move: Move, color: Color): boolean {
   const next = cloneState(state);
   next.activeColor = color;
-  applyMove(next, move);
+  applyMoveWithNnue(next, move);
   return isInCheck(next, opponentColor(color));
 }
 
@@ -2509,7 +2514,7 @@ function seeLiteNet(state: GameState, move: Move, color: Color): number {
   const attackerValue = PIECE_VALUES[movingPiece.type];
   const next = cloneState(state);
   next.activeColor = color;
-  applyMove(next, move);
+  applyMoveWithNnue(next, move);
 
   const movedId = next.board[move.to.rank]?.[move.to.file];
   if (!movedId) {
@@ -2635,6 +2640,15 @@ export function chooseWithRepetitionAvoidanceForTest(
   return result[0]?.move ?? null;
 }
 
+function applyMoveWithNnue(state: GameState, move: Move): GameState {
+  const weights = getNnueWeights();
+  if (weights) {
+    const acc = ensureAccumulator(state, weights);
+    state.nnue = updateAccumulatorForMove(acc, state, move, weights);
+  }
+  return applyMove(state, move);
+}
+
 function cloneState(state: GameState): GameState {
   const board = state.board.map((row) => row.slice());
   const clonedPieces = new Map<number, Piece>();
@@ -2649,7 +2663,14 @@ function cloneState(state: GameState): GameState {
     enPassantTarget: state.enPassantTarget ? { ...state.enPassantTarget } : null,
     halfmoveClock: state.halfmoveClock,
     fullmoveNumber: state.fullmoveNumber,
-    lastMove: state.lastMove ? cloneMove(state.lastMove) : null
+    lastMove: state.lastMove ? cloneMove(state.lastMove) : null,
+    nnue: state.nnue
+      ? {
+          inputSize: state.nnue.inputSize,
+          hiddenSize: state.nnue.hiddenSize,
+          accumulator: new Float32Array(state.nnue.accumulator)
+        }
+      : undefined
   };
 }
 
@@ -2663,3 +2684,4 @@ function cloneMove(move: Move): Move {
     capturedId: move.capturedId
   };
 }
+

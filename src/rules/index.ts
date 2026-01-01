@@ -39,6 +39,13 @@ export interface GameState {
   fullmoveNumber: number;
   lastMove: Move | null;
   positionCounts?: Map<string, number>;
+  nnue?: NnueState;
+}
+
+export interface NnueState {
+  inputSize: number;
+  hiddenSize: number;
+  accumulator: Float32Array;
 }
 
 export type GameStatus = {

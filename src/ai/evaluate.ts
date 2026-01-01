@@ -7,6 +7,11 @@ import {
   getPieceSquares,
   isInCheck
 } from '../rules';
+import {
+  evaluateNnue,
+  getNnueWeights,
+  getOrCreateDefaultWeights
+} from './nnue';
 
 export const PIECE_VALUES: Record<PieceType, number> = {
   pawn: 100,
@@ -39,6 +44,8 @@ const MAX_KING_RING_PAWN_PENALTY = 5;
 const ENABLE_KING_RING_ATTACK_PENALTY = true;
 const KING_RING_ATTACK_PENALTY_CP = 6;
 const KING_RING_ENDGAME_SCALE = 0.5;
+const NNUE_MIX_DEFAULT = 0;
+const NNUE_SCORE_CLAMP = 2000;
 
 const KNIGHT_PST = [
   -50, -40, -30, -30, -30, -30, -40, -50,
@@ -64,6 +71,7 @@ const BISHOP_PST = [
 
 type EvalOptions = {
   maxThinking?: boolean;
+  nnueMix?: number;
 };
 
 type EvalContext = {
@@ -134,9 +142,40 @@ export function evaluateState(
     kingRingPenaltyScore(state, context, 'b');
   const filePressure = filePressureScore(state, context);
   const maxScore = options.maxThinking ? evaluateMaxThinking(state, context) : 0;
-  const scoreForWhite =
+  const classicalScore =
     material + mobility + checkScore + kingExposure + kingRingPenalty + filePressure + maxScore;
-  return perspective === 'w' ? scoreForWhite : -scoreForWhite;
+
+  const nnueMix = options.maxThinking
+    ? clamp01(options.nnueMix ?? NNUE_MIX_DEFAULT)
+    : 0;
+  if (nnueMix <= 0) {
+    return perspective === 'w' ? classicalScore : -classicalScore;
+  }
+
+  const weights = getNnueWeights() ?? getOrCreateDefaultWeights();
+  const nnueScore = clampScore(evaluateNnue(state, weights));
+  const blended = classicalScore * (1 - nnueMix) + nnueScore * nnueMix;
+  return perspective === 'w' ? blended : -blended;
+}
+
+function clamp01(value: number): number {
+  if (value <= 0) {
+    return 0;
+  }
+  if (value >= 1) {
+    return 1;
+  }
+  return value;
+}
+
+function clampScore(value: number): number {
+  if (value > NNUE_SCORE_CLAMP) {
+    return NNUE_SCORE_CLAMP;
+  }
+  if (value < -NNUE_SCORE_CLAMP) {
+    return -NNUE_SCORE_CLAMP;
+  }
+  return value;
 }
 
 function evaluateMaxThinking(state: GameState, context: EvalContext): number {
