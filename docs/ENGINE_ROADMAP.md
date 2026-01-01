@@ -405,7 +405,7 @@ Controls / invariants (checklist)
 - Success criterion: avg plies >= 38.0 and timeout rate not worse than baseline.
 - Risks: over-pruning can miss tactics; must be tightly gated.
 - RunId: `phase7_q3-hardConservativeLmrNull-hard1000-vs-sf500-b3` (batch=3, 6 total games with swap).
-- Status: planned (update to accepted/rejected/needs tuning after benchmark).
+- Status: rejected (avg plies 35.2 < 38.0; W/D/L 0-0-6; timed-out moves 2/104).
 
 ### 7.4 Forcing-extension cap tuning (planned)
 - Why: deepen recapture/check lines by +1 ply without opening broad search.
