@@ -163,12 +163,26 @@ class StockfishAnalyzer {
     return new Promise((resolve, reject) => {
       const onLine = (line: string) => {
         if (line.startsWith(expected)) {
-          this.rl.off('line', onLine);
+          cleanup();
           resolve();
         }
       };
+      const onError = (error: Error) => {
+        cleanup();
+        reject(error);
+      };
+      const onExit = () => {
+        cleanup();
+        reject(new Error('Stockfish process exited'));
+      };
+      const cleanup = () => {
+        this.rl.off('line', onLine);
+        this.proc.off('error', onError);
+        this.proc.off('exit', onExit);
+      };
       this.rl.on('line', onLine);
-      this.proc.once('error', reject);
+      this.proc.on('error', onError);
+      this.proc.on('exit', onExit);
       this.send(command);
     });
   }
@@ -185,14 +199,26 @@ class StockfishAnalyzer {
   }
 }
 
-function parseArgs(argv: string[]): { runDir: string; depth: number; depth16: number } {
+type AnnotateOptions = {
+  runDir: string;
+  depth: number;
+  depth16: number;
+  start: number | null;
+  count: number | null;
+};
+
+function parseArgs(argv: string[]): AnnotateOptions {
   const runDir = argv[2];
   if (!runDir) {
-    throw new Error('Usage: annotateStockfish <runDir> [--depth 12] [--depth16 16]');
+    throw new Error(
+      'Usage: annotateStockfish <runDir> [--depth 12] [--depth16 16] [--start 1] [--count 20]'
+    );
   }
   const depth = Number(getArg(argv, '--depth', DEFAULT_DEPTH));
   const depth16 = Number(getArg(argv, '--depth16', DEFAULT_DEPTH16));
-  return { runDir, depth, depth16 };
+  const start = getOptionalInt(argv, '--start');
+  const count = getOptionalInt(argv, '--count');
+  return { runDir, depth, depth16, start, count };
 }
 
 function getArg(argv: string[], name: string, fallback: number): number {
@@ -202,6 +228,15 @@ function getArg(argv: string[], name: string, fallback: number): number {
   }
   const value = Number(argv[index + 1]);
   return Number.isFinite(value) ? value : fallback;
+}
+
+function getOptionalInt(argv: string[], name: string): number | null {
+  const index = argv.indexOf(name);
+  if (index === -1 || index + 1 >= argv.length) {
+    return null;
+  }
+  const value = Number(argv[index + 1]);
+  return Number.isFinite(value) ? value : null;
 }
 
 function parsePgnMoves(pgn: string): string[] {
@@ -479,7 +514,8 @@ function opponentColor(color: Color): Color {
   return color === 'w' ? 'b' : 'w';
 }
 
-async function annotateRun(runDir: string, depth: number, depth16: number): Promise<void> {
+export async function annotateRun(options: AnnotateOptions): Promise<void> {
+  const { runDir, depth, depth16, start, count } = options;
   const summaryPath = path.join(runDir, 'summary.json');
   const summaryRaw = await fs.readFile(summaryPath, 'utf8');
   const summary = JSON.parse(summaryRaw);
@@ -491,17 +527,12 @@ async function annotateRun(runDir: string, depth: number, depth16: number): Prom
   const outputDir = path.join('analysis', runId);
   await fs.mkdir(outputDir, { recursive: true });
 
-  const analyzer = new StockfishAnalyzer({
-    path: stockfishPath,
-    threads: summary.config?.threads ?? 1,
-    hashMb: summary.config?.hashMb ?? 64,
-    ponder: summary.config?.ponder ?? false
-  });
-  await analyzer.init();
-
   const metaFiles = (await fs.readdir(runDir))
     .filter((name) => name.endsWith('-meta.json'))
     .sort();
+  const startIndex = start ? Math.max(0, start - 1) : 0;
+  const endIndex = count ? startIndex + count : metaFiles.length;
+  const chunkFiles = metaFiles.slice(startIndex, endIndex);
 
   const gameSummaries: GameSummary[] = [];
   const motifTags: MotifTag[] = [];
@@ -510,7 +541,7 @@ async function annotateRun(runDir: string, depth: number, depth16: number): Prom
   const perGameEval500: number[] = [];
   const swingTotals: Record<string, number> = { '150': 0, '300': 0, '500': 0 };
 
-  for (const metaFile of metaFiles) {
+  for (const metaFile of chunkFiles) {
     const meta = JSON.parse(await fs.readFile(path.join(runDir, metaFile), 'utf8'));
     const pgnFile = metaFile.replace('-meta.json', '.pgn');
     const pgnText = await fs.readFile(path.join(runDir, pgnFile), 'utf8');
@@ -544,18 +575,24 @@ async function annotateRun(runDir: string, depth: number, depth16: number): Prom
       applyMove(state, move);
     }
 
-    const annotations: (AnalysisInfo | null)[] = [];
-    for (let i = 0; i < plies.length; i += 1) {
-      const fen = buildFenFromPly(startFen, plies, moveObjects, i);
-      const info = await analyzer.analyze(fen, depth);
-      annotations.push(info);
-      const converted = evalToScorpion(info?.evalCp, info?.mateIn, plies[i].color, engineColor);
-      plies[i].evalCp = converted.evalCp;
-      plies[i].mateIn = converted.mateIn;
-      plies[i].bestLine = info?.pv?.join(' ') ?? '';
-    }
+    const analyzer = new StockfishAnalyzer({
+      path: stockfishPath,
+      threads: summary.config?.threads ?? 1,
+      hashMb: summary.config?.hashMb ?? 64,
+      ponder: summary.config?.ponder ?? false
+    });
+    await analyzer.init();
+    try {
+      for (let i = 0; i < plies.length; i += 1) {
+        const fen = buildFenFromPly(startFen, plies, moveObjects, i);
+        const info = await analyzer.analyze(fen, depth);
+        const converted = evalToScorpion(info?.evalCp, info?.mateIn, plies[i].color, engineColor);
+        plies[i].evalCp = converted.evalCp;
+        plies[i].mateIn = converted.mateIn;
+        plies[i].bestLine = info?.pv?.join(' ') ?? '';
+      }
 
-    const evalNormalized = plies.map(normalizedEval);
+      const evalNormalized = plies.map(normalizedEval);
 
     const swingPlies = new Set<number>();
     const swingCounts: Record<string, number> = { '150': 0, '300': 0, '500': 0 };
@@ -576,19 +613,24 @@ async function annotateRun(runDir: string, depth: number, depth16: number): Prom
       }
     }
 
-    if (swingPlies.size > 0) {
-      for (const plyIndex of swingPlies) {
-        const fen = buildFenFromPly(startFen, plies, moveObjects, plyIndex - 1);
-        const info16 = await analyzer.analyze(fen, depth16);
-        if (!info16) {
-          continue;
+      if (swingPlies.size > 0) {
+        for (const plyIndex of swingPlies) {
+          const fen = buildFenFromPly(startFen, plies, moveObjects, plyIndex - 1);
+          const info16 = await analyzer.analyze(fen, depth16);
+          if (!info16) {
+            continue;
+          }
+          const converted = evalToScorpion(
+            info16.evalCp,
+            info16.mateIn,
+            plies[plyIndex - 1].color,
+            engineColor
+          );
+          plies[plyIndex - 1].evalCp16 = converted.evalCp;
+          plies[plyIndex - 1].mateIn16 = converted.mateIn;
+          plies[plyIndex - 1].bestLine16 = info16.pv?.join(' ') ?? '';
         }
-        const converted = evalToScorpion(info16.evalCp, info16.mateIn, plies[plyIndex - 1].color, engineColor);
-        plies[plyIndex - 1].evalCp16 = converted.evalCp;
-        plies[plyIndex - 1].mateIn16 = converted.mateIn;
-        plies[plyIndex - 1].bestLine16 = info16.pv?.join(' ') ?? '';
       }
-    }
 
     const earliestMate = firstIndex(plies, (ply) => ply.mateIn !== undefined);
     const firstBelow300 = firstIndex(plies, (ply) => (ply.evalCp ?? 0) <= -300 || (ply.mateIn ?? 0) < 0);
@@ -625,7 +667,7 @@ async function annotateRun(runDir: string, depth: number, depth16: number): Prom
       }
       const ply = plies[i];
       const plyState = buildStateFromPly(startFen, plies, moveObjects, i - 1);
-      if (ply.mateIn !== undefined || pvStartsWithCheck(plyState, (annotations[i]?.pv ?? []))) {
+      if (ply.mateIn !== undefined || pvStartsWithCheck(plyState, (plies[i].bestLine ?? '').split(' '))) {
         motifTags.push({
           gameId: meta.gameId,
           ply: ply.ply,
@@ -664,11 +706,16 @@ async function annotateRun(runDir: string, depth: number, depth16: number): Prom
     };
     gameSummaries.push(gameSummary);
 
-    const outFile = path.join(
-      outputDir,
-      `game-${String(meta.gameId).padStart(4, '0')}-annotated.json`
-    );
-    await fs.writeFile(outFile, JSON.stringify({ meta, plies }, null, 2), 'utf8');
+      const outFile = path.join(
+        outputDir,
+        `game-${String(meta.gameId).padStart(4, '0')}-annotated.json`
+      );
+      await fs.writeFile(outFile, JSON.stringify({ meta, plies }, null, 2), 'utf8');
+      plies.length = 0;
+      moveObjects.length = 0;
+    } finally {
+      analyzer.quit();
+    }
   }
 
   const motifCounts = motifTags.reduce(
@@ -698,7 +745,6 @@ async function annotateRun(runDir: string, depth: number, depth16: number): Prom
   };
 
   await fs.writeFile(path.join(outputDir, 'summary.json'), JSON.stringify(summaryOut, null, 2), 'utf8');
-  analyzer.quit();
 }
 
 function buildFenFromPly(
@@ -778,8 +824,8 @@ function serializeCastling(state: GameState): string {
 }
 
 async function main() {
-  const { runDir, depth, depth16 } = parseArgs(process.argv);
-  await annotateRun(runDir, depth, depth16);
+  const options = parseArgs(process.argv);
+  await annotateRun(options);
 }
 
 main().catch((error) => {

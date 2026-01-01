@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import { createWriteStream } from 'node:fs';
 import path from 'node:path';
 import {
   Color,
@@ -138,8 +139,13 @@ async function emitDataset(analysisDir: string, outPath: string): Promise<Record
     collapse: 0,
     control: 0
   };
-
-  const rows: DatasetRow[] = [];
+  const datasetStream = createWriteStream(outPath, { flags: 'w' });
+  const indexPath = path.join(path.dirname(outPath), 'dataset_index.csv');
+  const indexStream = createWriteStream(indexPath, { flags: 'w' });
+  indexStream.write(
+    'gameId,ply,bucket,labelCpD12,labelCpD16,mateIn,bestMoveUci,bestMoveUci16\n'
+  );
+  let totalRecords = 0;
 
   for (const file of gameFiles) {
     const raw = await fs.readFile(path.join(analysisDir, file), 'utf8');
@@ -195,7 +201,7 @@ async function emitDataset(analysisDir: string, outPath: string): Promise<Record
         const { best, pv } = bestMoveFromLine(ply.bestLine);
         const { best: best16, pv: pv16 } = bestMoveFromLine(ply.bestLine16);
         const fen = fenAtPly(game.meta.startFen, plies, plyIndex - 1);
-        rows.push({
+        const row: DatasetRow = {
           runId,
           gameId: game.meta.gameId,
           ply: plyIndex,
@@ -211,16 +217,31 @@ async function emitDataset(analysisDir: string, outPath: string): Promise<Record
           mateIn16: ply.mateIn16 ?? null,
           bestMoveUci16: best16,
           pv16
-        });
+        };
+        datasetStream.write(`${JSON.stringify(row)}\n`);
+        indexStream.write(
+          [
+            row.gameId,
+            row.ply,
+            row.bucket,
+            row.evalCp ?? '',
+            row.evalCp16 ?? '',
+            row.mateIn ?? '',
+            row.bestMoveUci ?? '',
+            row.bestMoveUci16 ?? ''
+          ]
+            .map(csvEscape)
+            .join(',') + '\n'
+        );
         bucketCounts[bucket] += 1;
+        totalRecords += 1;
       }
     }
   }
 
-  const lines = rows.map((row) => JSON.stringify(row)).join('\n');
-  await fs.writeFile(outPath, `${lines}\n`, 'utf8');
-  const indexPath = path.join(path.dirname(outPath), 'dataset_index.csv');
-  await fs.writeFile(indexPath, toCsv(rows), 'utf8');
+  await finishStream(datasetStream);
+  await finishStream(indexStream);
+  console.log('Total records:', totalRecords);
   return bucketCounts;
 }
 
@@ -421,38 +442,17 @@ main().catch((error) => {
   process.exit(1);
 });
 
-function toCsv(rows: DatasetRow[]): string {
-  const header = [
-    'gameId',
-    'ply',
-    'bucket',
-    'labelCpD12',
-    'labelCpD16',
-    'mateIn',
-    'bestMoveUci',
-    'bestMoveUci16'
-  ];
-  const lines = [header.join(',')];
-  for (const row of rows) {
-    const values = [
-      row.gameId,
-      row.ply,
-      row.bucket,
-      row.evalCp ?? '',
-      row.evalCp16 ?? '',
-      row.mateIn ?? '',
-      row.bestMoveUci ?? '',
-      row.bestMoveUci16 ?? ''
-    ];
-    lines.push(values.map(csvEscape).join(','));
-  }
-  return `${lines.join('\n')}\n`;
-}
-
 function csvEscape(value: string | number): string {
   const text = String(value);
   if (text.includes(',') || text.includes('"') || text.includes('\n')) {
     return `"${text.replace(/"/g, '""')}"`;
   }
   return text;
+}
+
+function finishStream(stream: ReturnType<typeof createWriteStream>): Promise<void> {
+  return new Promise((resolve, reject) => {
+    stream.on('error', reject);
+    stream.end(() => resolve());
+  });
 }
