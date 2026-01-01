@@ -18,6 +18,53 @@ Notes:
 Report updates will appear between the markers below.
 
 <!-- REPORT:START -->
+Last updated: 2026-01-01T16:36:07.089Z (UTC) | 2026-01-01 11:36:07 ET
+Series: Phase 8.4 analysis (Stockfish annotation)
+Roadmap phase: Phase 8.4
+
+Input runId: phase8-regress-hard1000-vs-sf500-b6-rerun1
+Analysis: depth=12 (full), depth16 recheck on Δeval>=300 (±2 plies)
+Output: analysis/phase8-regress-hard1000-vs-sf500-b6-rerun1/summary.json
+
+Earliest mate detection ply (counts): 12x1, 15x1, 25x2, 30x2, 34x1, 36x1, 37x2, 39x2 (min=12, median=32, max=39)
+First eval <= -300cp ply (counts): 2x1, 4x3, 5x1, 6x1, 7x3, 11x1, 13x2 (min=2, median=6.5, max=13)
+First eval <= -500cp ply (counts): 2x1, 4x2, 5x1, 6x1, 7x1, 10x1, 11x1, 13x1, 15x1, 16x1, 17x1 (min=2, median=8.5, max=17)
+Eval swing counts: Δ>=150=63, Δ>=300=43, Δ>=500=39
+
+Motifs (counts): king_safety=33, missed_defense=7, hanging_piece=1
+Collapse windows (examples):
+- g3: ply 2->37, PV: d8g5 d2d3 g5d8 f2f4 f8b4 c2c3 b4d6 f4e5
+- g2: ply 7->25, PV: g2g4 h5g6 h3h4 h7h5 f3e5 h5g4 e5g6 f7g6
+- g8: ply 13->37, PV: a2a3 b7b5 a3b4 c6b4 c1d2 a5a4 a1a4 b4d3
+
+Last updated: 2026-01-01T16:13:31.151Z (UTC) | 2026-01-01 11:13:31 ET
+Series: Post-fix baseline series
+Roadmap phase: Unknown
+
+Config: Scorpion hard @ 1000ms | Stockfish movetime 500ms | swap=true | fenSuite=true | seed=7000
+Commit: 1f59e938e5abc4dfdc5969b277ab515562091c9b
+Command: C:\Program Files\nodejs\node.exe H:\chess\scripts\bench\quickVsStockfish.ts --stockfish C:\Users\snake\Downloads\stockfish-windows-x86-64-avx2\stockfish\stockfish-windows-x86-64-avx2.exe --batch 6 --movetime 1000 --stockfishMovetime 500 --mode hard --swap --fenSuite --seed 7000 --runId phase8-regress-hard1000-vs-sf500-b6-rerun1 --reset
+Stockfish: C:\Users\snake\Downloads\stockfish-windows-x86-64-avx2\stockfish\stockfish-windows-x86-64-avx2.exe
+Settings: Threads=1, Hash=64MB, Ponder=false
+Movetime targets: Scorpion=1000ms, Stockfish=500ms
+Timeout tolerance: +25ms (bench-only stop-latency/jitter slack)
+Next ladder rung: paused (Stockfish=500ms)
+Output: H:\chess\scripts\bench\quick-results\run-phase8-regress-hard1000-vs-sf500-b6-rerun1
+
+Cumulative: 0-0-12 (12 games)
+Score: 0.000
+Elo delta: Outside estimation range (shutout).
+Avg plies per game: 33.7
+End reasons: mate=12, stalemate=0, repetition=0, 50-move=0, other=0
+Timed out moves: 1/199
+Avg ms (non-timeout): 999.3, Avg ms (timeout): 1119.0
+Max ms (non-timeout): 1093.7, Max ms (timeout): 1119.0
+
+Batch history:
+Batch | Games | W | D | L | Score | Elo | Scorpion ms (target/avg) | Stockfish ms (target/avg) | Timeouts | Timed-out moves | Avg ms (ok/timeout) | Max ms (ok/timeout) | Stop Latency (avg ms) | Overhead
+--- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | ---
+1 | 12 | 0 | 0 | 12 | 0.000 | n/a | 1000/999.9 | 500/424.9 | B:1 SF:0 | 1/199 | 999.3/1119.0 | 1093.7/1119.0 | 15.2 | 31
+
 Last updated: 2025-12-31T17:38:08.666Z (UTC) | 2025-12-31 12:38:08 ET
 Series: Post-fix baseline series
 Roadmap phase: Phase 6
