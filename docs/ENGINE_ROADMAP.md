@@ -404,6 +404,8 @@ Controls / invariants (checklist)
 - Tests: ensure LMR/null-move is disabled in check and in low-material endgames.
 - Success criterion: avg plies >= 38.0 and timeout rate not worse than baseline.
 - Risks: over-pruning can miss tactics; must be tightly gated.
+- RunId: `phase7_q3-hardConservativeLmrNull-hard1000-vs-sf500-b3` (batch=3, 6 total games with swap).
+- Status: planned (update to accepted/rejected/needs tuning after benchmark).
 
 ### 7.4 Forcing-extension cap tuning (planned)
 - Why: deepen recapture/check lines by +1 ply without opening broad search.
