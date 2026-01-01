@@ -369,6 +369,46 @@ Reporting instructions
 - Never overwrite old run folders unless explicitly re-running with `--reset`.
 - Record the engine commit SHA in the report header as usual.
 
+## Phase 8 — NNUE + Defensive Consistency (Hard + Max)
+
+Purpose / hypothesis
+- Raise strength and stability by making NNUE the primary evaluation and reducing blunders.
+- Emphasis on defensive solidity and long-term planning; keep performance tractable.
+
+Controls / invariants (checklist)
+- [ ] Keep search/time caps unchanged unless explicitly called out.
+- [ ] Keep benchmarks and runId conventions consistent.
+- [ ] Track ACPL, blunder rate, and loss-type breakdown in addition to Elo.
+
+### 8.1 NNUE primary evaluation (planned)
+- Why: stronger, smoother evaluation; better positional judgment.
+- Deliverables: NNUE feature encoder + accumulator updates; wired into leaf eval; legacy eval minimized.
+- Validation: tactical + positional suites; no large regressions in king safety/endgames.
+- Risks: eval drift, perf regressions; mitigated via incremental accumulator and perf tracking.
+
+### 8.2 Defensive safeguards (planned)
+- Why: reduce hanging pieces, missed tactics, and collapse losses.
+- Ideas: critical-position extensions; verification re-search for sharp drops; safer tie-breaks.
+- Validation: lower blunder rate and slower loss curves vs stronger engines.
+
+### 8.3 Positional planning improvements (planned)
+- Why: improve pawn structure, piece coordination, and endgame steering.
+- Ideas: targeted NNUE training emphasis; small hybrid nudges if needed.
+- Validation: improved results in positional/endgame suites.
+
+### 8.4 Data-driven improvement loop (planned)
+- Why: systematic correction of recurring mistakes.
+- Deliverables: PGN annotation + mistake mining pipeline; targeted training sets.
+- Validation: measurable drop in repeated failure patterns.
+
+### 8.5 Benchmarking & metrics (planned)
+- Core metrics: Elo/SPRT, ACPL, blunder rate, draw ratio vs stronger engines, loss-type breakdown, NPS/strength-per-node, endgame conversion.
+- Suite structure: tactical, positional, endgame, match play.
+
+Notes / sequence
+- Start with NNUE integration + stability (do not proceed until stable).
+- Then defensive safeguards; then data-mining loop and training iterations.
+
 ## Phase 7 — Tactical Depth & Threat Awareness (Hard + Max)
 
 Purpose / hypothesis
