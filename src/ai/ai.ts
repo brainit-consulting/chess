@@ -186,6 +186,8 @@ export function chooseMove(state: GameState, options: AiOptions = {}): Move | nu
   const microQuiescenceDepth =
     difficulty === 'hard' ? HARD_MICRO_QUIESCENCE_DEPTH : undefined;
   const ordering = difficulty === 'hard' ? createOrderingState(depth + 2) : undefined;
+  const hardLmr = difficulty === 'hard';
+  const hardNullMove = difficulty === 'hard';
   if (difficulty === 'hard' && maxTimeMs !== undefined) {
     if (typeof process !== 'undefined' && process.env?.BENCH_DEBUG === '1') {
       console.log('TIMED_HARD_USED');
@@ -208,6 +210,8 @@ export function chooseMove(state: GameState, options: AiOptions = {}): Move | nu
       tt,
       maxThinking: false,
       usePvs,
+      hardLmr,
+      hardNullMove,
       ordering,
       stopRequested: options.stopRequested
     });
@@ -230,6 +234,8 @@ export function chooseMove(state: GameState, options: AiOptions = {}): Move | nu
     tt,
     maxThinking: false,
     usePvs,
+    hardLmr,
+    hardNullMove,
     ordering,
     maxTimeMs,
     stopRequested: options.stopRequested

@@ -783,6 +783,23 @@ describe('AI move selection', () => {
     expect(microScore).toBe(standPat);
   });
 
+  it('disables hard LMR reduction when in check', () => {
+    const reduction = search.getHardLmrReductionForTest(5, 5, true, true);
+    expect(reduction).toBe(0);
+  });
+
+  it('disables hard null-move in pawn-only endgames', () => {
+    const state = createEmptyState();
+    addPiece(state, 'king', 'w', sq(4, 0));
+    addPiece(state, 'king', 'b', sq(4, 7));
+    addPiece(state, 'pawn', 'w', sq(4, 1));
+    addPiece(state, 'pawn', 'b', sq(4, 6));
+    state.activeColor = 'w';
+
+    const allowed = search.shouldAllowHardNullMoveForTest(state, 'w', 5, false);
+    expect(allowed).toBe(false);
+  });
+
   it('reuses hard TT best moves across repeated searches', () => {
     const state = createEmptyState();
     addPiece(state, 'king', 'w', sq(3, 3));

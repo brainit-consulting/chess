@@ -25,6 +25,8 @@ type SearchOptions = {
   topMoveWindow?: number;
   fairnessWindow?: number;
   maxThinking?: boolean;
+  hardLmr?: boolean;
+  hardNullMove?: boolean;
   repetitionAvoidWindow?: number;
   repeatBanWindowCp?: number;
   drawHoldThreshold?: number;
@@ -87,9 +89,13 @@ const ROOK_SHUFFLE_PENALTY = 6;
 const LMR_MIN_DEPTH = 3;
 const LMR_START_MOVE = 3;
 const LMR_REDUCTION = 1;
+const HARD_LMR_MIN_DEPTH = 4;
+const HARD_LMR_START_MOVE = 4;
 const NULL_MOVE_MIN_DEPTH = 3;
 const NULL_MOVE_REDUCTION = 2;
 const NULL_MOVE_MIN_MATERIAL = 1200;
+const HARD_NULL_MOVE_MIN_DEPTH = 4;
+const HARD_NULL_MOVE_REDUCTION = 1;
 const QUIESCENCE_MAX_DEPTH = 4;
 
 type TTFlag = 'exact' | 'alpha' | 'beta';
@@ -848,6 +854,8 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
       options.rng,
       options.maxThinking ?? false,
       usePvs,
+      options.hardLmr ?? false,
+      options.hardNullMove ?? false,
       1,
       options.tt,
       ordering,
@@ -1399,6 +1407,8 @@ function scoreRootMoves(
       options.rng,
       options.maxThinking ?? false,
       options.usePvs ?? false,
+      options.hardLmr ?? false,
+      options.hardNullMove ?? false,
       1,
       options.tt,
       options.ordering,
@@ -1527,6 +1537,8 @@ function alphaBeta(
   rng: () => number,
   maxThinking: boolean,
   usePvs: boolean,
+  hardLmr: boolean,
+  hardNullMove: boolean,
   ply: number,
   tt?: TtStore,
   ordering?: OrderingState,
@@ -1601,19 +1613,23 @@ function alphaBeta(
   }
 
   const maximizing = currentColor === maximizingColor;
-  const inCheck = maxThinking ? isInCheck(state, currentColor) : false;
+  const inCheck = isInCheck(state, currentColor);
   const pvsEnabled = usePvs;
+  const hardLmrEnabled = hardLmr && !maxThinking;
+  const hardNullMoveEnabled = hardNullMove && !maxThinking;
 
-  if (
-    maxThinking &&
-    depth >= NULL_MOVE_MIN_DEPTH &&
-    !inCheck &&
-    shouldAllowNullMove(state, currentColor)
-  ) {
+  const allowNullMove =
+    maxThinking
+      ? depth >= NULL_MOVE_MIN_DEPTH && !inCheck && shouldAllowNullMove(state, currentColor)
+      : hardNullMoveEnabled && shouldAllowHardNullMove(state, currentColor, depth, inCheck);
+  if (allowNullMove) {
     const next = cloneState(state);
     next.activeColor = opponentColor(currentColor);
     next.enPassantTarget = null;
-    const reductionDepth = Math.max(0, depth - 1 - NULL_MOVE_REDUCTION);
+    const reductionDepth = Math.max(
+      0,
+      depth - 1 - (maxThinking ? NULL_MOVE_REDUCTION : HARD_NULL_MOVE_REDUCTION)
+    );
     const nullScore = alphaBeta(
       next,
       reductionDepth,
@@ -1624,6 +1640,8 @@ function alphaBeta(
       rng,
       maxThinking,
       usePvs,
+      hardLmr,
+      hardNullMove,
       ply + 1,
       tt,
       ordering,
@@ -1658,9 +1676,12 @@ function alphaBeta(
       const next = cloneState(state);
       next.activeColor = currentColor;
       applyMove(next, move);
+      const isQuiet = isQuietForLmr(state, move, currentColor);
       const reduction = maxThinking
-        ? getLmrReduction(depth, index, inCheck, isQuietForLmr(state, move, currentColor))
-        : 0;
+        ? getLmrReduction(depth, index, inCheck, isQuiet)
+        : hardLmrEnabled
+          ? getHardLmrReduction(depth, index, inCheck, isQuiet)
+          : 0;
       const extension = getForcingExtension(state, next, move, currentColor, depth, ply);
       const reducedDepth = Math.max(0, depth - 1 - reduction + extension);
       const canPvs = pvsEnabled && index > 0 && Number.isFinite(alpha) && Number.isFinite(beta);
@@ -1676,6 +1697,8 @@ function alphaBeta(
           rng,
           maxThinking,
           usePvs,
+          hardLmr,
+          hardNullMove,
           ply + 1,
           tt,
           ordering,
@@ -1693,6 +1716,8 @@ function alphaBeta(
             rng,
             maxThinking,
             usePvs,
+            hardLmr,
+            hardNullMove,
             ply + 1,
             tt,
             ordering,
@@ -1711,6 +1736,8 @@ function alphaBeta(
           rng,
           maxThinking,
           usePvs,
+          hardLmr,
+          hardNullMove,
           ply + 1,
           tt,
           ordering,
@@ -1729,6 +1756,8 @@ function alphaBeta(
           rng,
           maxThinking,
           usePvs,
+          hardLmr,
+          hardNullMove,
           ply + 1,
           tt,
           ordering,
@@ -1776,9 +1805,12 @@ function alphaBeta(
     const next = cloneState(state);
     next.activeColor = currentColor;
     applyMove(next, move);
+    const isQuiet = isQuietForLmr(state, move, currentColor);
     const reduction = maxThinking
-      ? getLmrReduction(depth, index, inCheck, isQuietForLmr(state, move, currentColor))
-      : 0;
+      ? getLmrReduction(depth, index, inCheck, isQuiet)
+      : hardLmrEnabled
+        ? getHardLmrReduction(depth, index, inCheck, isQuiet)
+        : 0;
     const extension = getForcingExtension(state, next, move, currentColor, depth, ply);
     const reducedDepth = Math.max(0, depth - 1 - reduction + extension);
     const canPvs = pvsEnabled && index > 0 && Number.isFinite(alpha) && Number.isFinite(beta);
@@ -1794,6 +1826,8 @@ function alphaBeta(
         rng,
         maxThinking,
         usePvs,
+        hardLmr,
+        hardNullMove,
         ply + 1,
         tt,
         ordering,
@@ -1811,6 +1845,8 @@ function alphaBeta(
           rng,
           maxThinking,
           usePvs,
+          hardLmr,
+          hardNullMove,
           ply + 1,
           tt,
           ordering,
@@ -1829,6 +1865,8 @@ function alphaBeta(
         rng,
         maxThinking,
         usePvs,
+        hardLmr,
+        hardNullMove,
         ply + 1,
         tt,
         ordering,
@@ -1847,6 +1885,8 @@ function alphaBeta(
         rng,
         maxThinking,
         usePvs,
+        hardLmr,
+        hardNullMove,
         ply + 1,
         tt,
         ordering,
@@ -2445,6 +2485,36 @@ function getLmrReduction(
   return LMR_REDUCTION;
 }
 
+function getHardLmrReduction(
+  depth: number,
+  moveIndex: number,
+  inCheck: boolean,
+  isQuiet: boolean
+): number {
+  if (depth < HARD_LMR_MIN_DEPTH) {
+    return 0;
+  }
+  if (moveIndex < HARD_LMR_START_MOVE) {
+    return 0;
+  }
+  return getLmrReduction(depth, moveIndex, inCheck, isQuiet);
+}
+
+function shouldAllowHardNullMove(
+  state: GameState,
+  color: Color,
+  depth: number,
+  inCheck: boolean
+): boolean {
+  if (inCheck) {
+    return false;
+  }
+  if (depth < HARD_NULL_MOVE_MIN_DEPTH) {
+    return false;
+  }
+  return shouldAllowNullMove(state, color);
+}
+
 function shouldAllowNullMove(state: GameState, color: Color): boolean {
   let totalMaterial = 0;
   let hasNonPawnForSide = false;
@@ -2596,6 +2666,24 @@ export function getLmrReductionForTest(
 
 export function shouldAllowNullMoveForTest(state: GameState, color: Color): boolean {
   return shouldAllowNullMove(state, color);
+}
+
+export function getHardLmrReductionForTest(
+  depth: number,
+  moveIndex: number,
+  inCheck: boolean,
+  isQuiet: boolean
+): number {
+  return getHardLmrReduction(depth, moveIndex, inCheck, isQuiet);
+}
+
+export function shouldAllowHardNullMoveForTest(
+  state: GameState,
+  color: Color,
+  depth: number,
+  inCheck: boolean
+): boolean {
+  return shouldAllowHardNullMove(state, color, depth, inCheck);
 }
 
 export function isRecaptureForTest(state: GameState, move: Move): boolean {

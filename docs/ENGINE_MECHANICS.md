@@ -50,8 +50,8 @@ Version: 1.1.57
 - Alpha-beta: `alphaBeta` in `src/ai/search.ts`.
 - Iterative deepening: `findBestMoveTimed` loops depth 1..`maxDepth`.
 - Quiescence: Max uses full quiescence (`QUIESCENCE_MAX_DEPTH` = 4); Hard uses check-only micro-quiescence at leaf nodes.
-- Null-move pruning: only when `maxThinking` is true; gated by depth/material.
-- LMR (late move reductions): only when `maxThinking` is true.
+- Null-move pruning: max-thinking only; Hard uses a conservative null-move gate (depth >= 4, not in check, material threshold).
+- LMR (late move reductions): max-thinking only; Hard uses a conservative LMR gate (depth >= 4, later quiet moves only).
 - PVS (principal variation search): enabled for Hard + Max; non-PV moves are searched with a null window and re-searched on fail-high.
 - Forcing extensions: +1 ply on checks/promotions (depth/ply capped).
 - Move ordering:
