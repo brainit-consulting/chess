@@ -79,6 +79,7 @@ const SEE_QUIESCENCE_PRUNE_THRESHOLD = -350;
 const COUNTERMOVE_BONUS = 900;
 const HARD_HISTORY_BONUS_CAP = 250;
 const MAX_HISTORY_BONUS_CAP = 1000;
+const RECAPTURE_ORDER_BONUS = 25;
 const CHECK_EVASION_CAPTURE_BONUS = 2000;
 const CHECK_EVASION_BLOCK_BONUS = 1000;
 const CHECK_EVASION_KING_MOVE_PENALTY = 200;
@@ -2050,6 +2051,10 @@ function buildOrderScore(
   }
 ): number {
   let score = scoreMoveHeuristic(state, move, color, maxThinking);
+
+  if (state.lastMove && isRecapture(state, move)) {
+    score += RECAPTURE_ORDER_BONUS;
+  }
 
   if (options.preferred && sameMove(move, options.preferred)) {
     score += 100000;

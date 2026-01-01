@@ -1233,6 +1233,38 @@ describe('AI move selection', () => {
     expect(extension).toBe(1);
   });
 
+  it('orders true recaptures ahead of quiet moves', () => {
+    const state = createEmptyState();
+    addPiece(state, 'king', 'w', sq(4, 0));
+    addPiece(state, 'king', 'b', sq(4, 7));
+    addPiece(state, 'pawn', 'w', sq(2, 2));
+    addPiece(state, 'pawn', 'b', sq(3, 3));
+    state.activeColor = 'w';
+    state.lastMove = { from: sq(3, 4), to: sq(3, 3) };
+
+    const legalMoves = getAllLegalMoves(state, 'w');
+    const recapture = legalMoves.find(
+      (move) => move.from.file === 2 && move.from.rank === 2 && move.to.file === 3 && move.to.rank === 3
+    );
+    const quiet = legalMoves.find(
+      (move) => move.from.file === 4 && move.from.rank === 0 && move.to.file === 4 && move.to.rank === 1
+    );
+
+    if (!recapture || !quiet) {
+      throw new Error('Expected recapture and quiet moves for ordering test.');
+    }
+
+    const ordered = search.orderMovesForTest(state, legalMoves, 'w', () => 0, {
+      maxThinking: true,
+      prevMove: state.lastMove
+    });
+    const recaptureIndex = ordered.findIndex((move) => sameMove(move, recapture));
+    const quietIndex = ordered.findIndex((move) => sameMove(move, quiet));
+    expect(recaptureIndex).toBeGreaterThanOrEqual(0);
+    expect(quietIndex).toBeGreaterThanOrEqual(0);
+    expect(recaptureIndex).toBeLessThan(quietIndex);
+  });
+
   it('disables null-move pruning in pawn-only endgames', () => {
     const state = createEmptyState();
     addPiece(state, 'king', 'w', sq(4, 0));
