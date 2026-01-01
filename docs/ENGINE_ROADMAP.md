@@ -380,10 +380,10 @@ Controls / invariants (checklist)
 - [ ] Keep benchmarks and runId conventions consistent.
 - [ ] Track ACPL, blunder rate, and loss-type breakdown in addition to Elo.
 
-### 8.1 NNUE primary evaluation (in progress)
+### 8.1 NNUE primary evaluation (implemented, commit 94b5123)
 - Why: stronger, smoother evaluation; better positional judgment.
-- Deliverables: NNUE feature encoder + accumulator updates; wired into leaf eval; legacy eval minimized.
-- Validation: tactical + positional suites; no large regressions in king safety/endgames.
+- Deliverables: NNUE feature encoder + accumulator updates; weight loader + starter weights; hybrid eval with default nnueMix=0.0 (Max-only).
+- Validation: unit tests (determinism, mirror symmetry, accumulator make/unmake, weight header parse). Benchmark runs pending (no NNUE mix enabled yet).
 - Risks: eval drift, perf regressions; mitigated via incremental accumulator and perf tracking.
 
 ### 8.2 Defensive safeguards (planned)
