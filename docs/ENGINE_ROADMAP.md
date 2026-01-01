@@ -396,7 +396,7 @@ Controls / invariants (checklist)
 - Success criterion: avg plies >= 38.0 with stable timeouts.
 - Risks: incorrect window handling could cause PV instability if bugs exist.
 - RunId: `phase7_q2-hardPvs-hard1000-vs-sf500-b3` (batch=3, 6 total games with swap).
-- Status: planned (update to accepted/rejected/needs tuning after benchmark).
+- Status: rejected (avg plies 35.5 < 38.0; W/D/L 0-0-6; timed-out moves 1/105).
 
 ### 7.3 Hard conservative LMR/null-move gating (planned)
 - Why: cut obvious quiet move branches to allow deeper tactical lines.
