@@ -83,6 +83,13 @@ type MoveTiming = {
   source: 'engine' | 'stockfish';
   ms: number;
   timedOut: boolean;
+  allocatedMs?: number;
+  depth?: number;
+  nodes?: number;
+  nps?: number;
+  cutoffs?: number;
+  fallbackUsed?: boolean;
+  earlyExitUsed?: boolean;
 };
 
 type GameLog = {
@@ -573,7 +580,36 @@ async function runSingleGame(options: {
         color: state.activeColor,
         source: move.source,
         ms: move.elapsedMs,
-        timedOut: move.timedOut
+        timedOut: move.timedOut,
+        allocatedMs: move.source === 'engine' ? options.movetimeMs : options.stockfishMovetimeMs,
+        depth:
+          move.source === 'engine' && move.meta
+            ? (move.meta as { searchMetrics?: { depthCompleted?: number } }).searchMetrics
+                ?.depthCompleted
+            : undefined,
+        nodes:
+          move.source === 'engine' && move.meta
+            ? (move.meta as { searchMetrics?: { nodes?: number } }).searchMetrics?.nodes
+            : undefined,
+        nps:
+          move.source === 'engine' && move.meta
+            ? (move.meta as { searchMetrics?: { nps?: number } }).searchMetrics?.nps
+            : undefined,
+        cutoffs:
+          move.source === 'engine' && move.meta
+            ? (move.meta as { searchMetrics?: { cutoffs?: number } }).searchMetrics?.cutoffs
+            : undefined,
+        fallbackUsed:
+          move.timedOut ||
+          (move.source === 'engine' &&
+            move.meta &&
+            (move.meta as { searchMetrics?: { fallbackUsed?: boolean } }).searchMetrics
+              ?.fallbackUsed) ||
+          false,
+        earlyExitUsed:
+          move.source === 'engine' && move.meta
+            ? (move.meta as { stopRequested?: boolean }).stopRequested === true
+            : undefined
       });
 
       const san = buildSan(state, move.move);
@@ -660,6 +696,7 @@ async function pickEngineMove(
   elapsedMs: number;
   timedOut: boolean;
   source: 'engine';
+  meta?: { [key: string]: unknown };
 }> {
   const start = performance.now();
   const seed = Math.floor(rng() * 1000000000);
@@ -671,7 +708,8 @@ async function pickEngineMove(
       difficulty: options.mode,
       maxTimeMs: options.movetimeMs,
       maxDepth: options.mode === 'max' ? MAX_THINKING_DEPTH_CAP : undefined,
-      seed
+      seed,
+      instrumentation: true
     },
     options.movetimeMs,
     ENGINE_TIMEOUT_GRACE_MS,
@@ -689,7 +727,8 @@ async function pickEngineMove(
       worker: result.worker,
       elapsedMs: elapsed,
       timedOut,
-      source: 'engine'
+      source: 'engine',
+      meta: result.meta
     };
   }
   if (!result.move) {
@@ -700,7 +739,8 @@ async function pickEngineMove(
       worker: result.worker,
       elapsedMs: elapsed,
       timedOut,
-      source: 'engine'
+      source: 'engine',
+      meta: result.meta
     };
   }
   return {
@@ -708,7 +748,8 @@ async function pickEngineMove(
     worker: result.worker,
     elapsedMs: elapsed,
     timedOut,
-    source: 'engine'
+    source: 'engine',
+    meta: result.meta
   };
 }
 
@@ -1720,6 +1761,7 @@ async function runEngineWithTimeout(
     maxTimeMs?: number;
     maxDepth?: number;
     seed: number;
+    instrumentation?: boolean;
   },
   targetMs: number,
   graceMs: number,
