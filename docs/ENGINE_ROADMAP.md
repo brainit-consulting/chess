@@ -405,6 +405,11 @@ Controls / invariants (checklist)
 - Core metrics: Elo/SPRT, ACPL, blunder rate, draw ratio vs stronger engines, loss-type breakdown, NPS/strength-per-node, endgame conversion.
 - Suite structure: tactical, positional, endgame, match play.
 
+### 8.6 NNUE training pipeline (implemented, commit 6901135)
+- Deliverables: Python training script (clean-filtered JSONL), Huber loss, gameId split, weight writer.
+- Status: smoke-trained weights produced for validation only.
+- Note: weights trained but NOT activated in engine (nnueMix stays 0.0).
+
 Notes / sequence
 - Start with NNUE integration + stability (do not proceed until stable).
 - Then defensive safeguards; then data-mining loop and training iterations.
