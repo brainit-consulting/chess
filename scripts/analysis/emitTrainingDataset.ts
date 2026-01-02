@@ -30,6 +30,11 @@ type AnnotatedGame = {
     gameId: number;
     startFen: string;
     engineColor: Color;
+    moveTimings?: Array<{
+      ply: number;
+      source: string;
+      timedOut: boolean;
+    }>;
   };
   plies: AnnotatedPly[];
 };
@@ -59,6 +64,7 @@ type DatasetRow = {
   mateIn16: number | null;
   bestMoveUci16: string | null;
   pv16: string | null;
+  timeoutNearby: boolean;
 };
 
 const MAX_PV_LENGTH = 4;
@@ -146,6 +152,7 @@ async function emitDataset(analysisDir: string, outPath: string): Promise<Record
     'gameId,ply,bucket,labelCpD12,labelCpD16,mateIn,bestMoveUci,bestMoveUci16\n'
   );
   let totalRecords = 0;
+  const timeoutSummary: Array<{ gameId: number; timeoutMoves: number; timeoutPlies: number[] }> = [];
 
   for (const file of gameFiles) {
     const raw = await fs.readFile(path.join(analysisDir, file), 'utf8');
@@ -155,6 +162,14 @@ async function emitDataset(analysisDir: string, outPath: string): Promise<Record
     if (!gameSummary) {
       continue;
     }
+    const timeoutPlies = (game.meta.moveTimings ?? [])
+      .filter((entry) => entry.timedOut && entry.source === 'engine')
+      .map((entry) => entry.ply);
+    timeoutSummary.push({
+      gameId: game.meta.gameId,
+      timeoutMoves: timeoutPlies.length,
+      timeoutPlies
+    });
 
     const evals = plies.map((ply) => evalForThreshold(ply));
     const firstBelow150 = firstIndex(plies, (ply) => evalForThreshold(ply) <= -150);
@@ -201,6 +216,7 @@ async function emitDataset(analysisDir: string, outPath: string): Promise<Record
         const { best, pv } = bestMoveFromLine(ply.bestLine);
         const { best: best16, pv: pv16 } = bestMoveFromLine(ply.bestLine16);
         const fen = fenAtPly(game.meta.startFen, plies, plyIndex - 1);
+        const timeoutNearby = timeoutPlies.some((timeoutPly) => Math.abs(timeoutPly - plyIndex) <= 2);
         const row: DatasetRow = {
           runId,
           gameId: game.meta.gameId,
@@ -216,7 +232,8 @@ async function emitDataset(analysisDir: string, outPath: string): Promise<Record
           evalCp16: ply.mateIn16 !== undefined ? null : ply.evalCp16 ?? null,
           mateIn16: ply.mateIn16 ?? null,
           bestMoveUci16: best16,
-          pv16
+          pv16,
+          timeoutNearby
         };
         datasetStream.write(`${JSON.stringify(row)}\n`);
         indexStream.write(
@@ -242,6 +259,12 @@ async function emitDataset(analysisDir: string, outPath: string): Promise<Record
   await finishStream(datasetStream);
   await finishStream(indexStream);
   console.log('Total records:', totalRecords);
+  const summaryPath = `${outPath}.summary.json`;
+  await fs.writeFile(
+    summaryPath,
+    JSON.stringify({ buckets: bucketCounts, timeoutMovesPerGame: timeoutSummary }, null, 2),
+    'utf8'
+  );
   return bucketCounts;
 }
 
@@ -430,8 +453,6 @@ function serializeCastling(state: GameState): string {
 async function main() {
   const { analysisDir, outPath } = parseArgs(process.argv);
   const counts = await emitDataset(analysisDir, outPath);
-  const summaryPath = `${outPath}.summary.json`;
-  await fs.writeFile(summaryPath, JSON.stringify({ buckets: counts }, null, 2), 'utf8');
   console.log('Bucket counts:', counts);
   console.log('Dataset:', outPath);
   console.log('Index:', path.join(path.dirname(outPath), 'dataset_index.csv'));
