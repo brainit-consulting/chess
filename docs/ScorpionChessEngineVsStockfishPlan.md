@@ -1,5 +1,17 @@
 # ScorpionChessEngineVsStockfish Benchmark Plan
 
+## Phase 9.3 Max guardrail confirmation (Max 1000 vs SF500, b6, NNUE_MIX=0)
+
+RunId: phase9-regress-max-nnue0-vs-sf500-b6-seed7000-r1  
+- W/D/L: 0-0-12 | Avg plies: 40.5 | Timeouts: 20/240 (8.33%)  
+- stopReason: mid_search_deadline=220, none=20, pre_iter_gate=0, external_cancel=0
+
+RunId: phase9-regress-max-nnue0-vs-sf500-b6-seed7001-r1  
+- W/D/L: 0-0-12 | Avg plies: 47.7 | Timeouts: 25/283 (8.83%)  
+- stopReason: mid_search_deadline=258, none=25, pre_iter_gate=0, external_cancel=0
+
+Conclusion: Max timeouts remain high; guardrails are not yet effective for Max.
+
 ## Phase 9.2d deadline-buffer confirmation (Hard 1000 vs SF500, b6)
 
 RunId: phase9-regress-hard1000-vs-sf500-b6-seed7000-r8  
