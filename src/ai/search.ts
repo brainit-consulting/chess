@@ -110,8 +110,8 @@ const NULL_MOVE_MIN_DEPTH = 3;
 const NULL_MOVE_REDUCTION = 2;
 const NULL_MOVE_MIN_MATERIAL = 1200;
 const QUIESCENCE_MAX_DEPTH = 4;
-const HARD_SOFT_STOP_FACTOR = 1.2;
-const HARD_SOFT_STOP_MIN_MS = 8;
+const HARD_SOFT_STOP_FACTOR = 1.6;
+const HARD_SOFT_STOP_MIN_MS = 20;
 
 type TTFlag = 'exact' | 'alpha' | 'beta';
 
