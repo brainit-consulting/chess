@@ -18,6 +18,34 @@ Notes:
 Report updates will appear between the markers below.
 
 <!-- REPORT:START -->
+Last updated: 2026-01-02T19:44:52.084Z (UTC) | 2026-01-02 14:44:52 ET
+Series: Post-fix baseline series
+Roadmap phase: Unknown
+
+Config: Scorpion hard @ 1000ms | Stockfish movetime 500ms | swap=true | fenSuite=true | seed=7000
+Commit: 8a9865f21e9851b4b99f10cb0e7d82bae6c75d6a
+Command: C:\Program Files\nodejs\node.exe H:\chess\scripts\bench\quickVsStockfish.ts --stockfish C:\Users\snake\Downloads\stockfish-windows-x86-64-avx2\stockfish\stockfish-windows-x86-64-avx2.exe --batch 6 --movetime 1000 --stockfishMovetime 500 --mode hard --swap --fenSuite --seed 7000 --runId phase9-diag-hard1000-vs-sf500-b6-seed7000-r6 --reset
+Stockfish: C:\Users\snake\Downloads\stockfish-windows-x86-64-avx2\stockfish\stockfish-windows-x86-64-avx2.exe
+Settings: Threads=1, Hash=64MB, Ponder=false
+Movetime targets: Scorpion=1000ms, Stockfish=500ms
+Timeout tolerance: +25ms (bench-only stop-latency/jitter slack)
+Next ladder rung: paused (Stockfish=500ms)
+Output: H:\chess\scripts\bench\quick-results\run-phase9-diag-hard1000-vs-sf500-b6-seed7000-r6
+
+Cumulative: 0-0-12 (12 games)
+Score: 0.000
+Elo delta: Outside estimation range (shutout).
+Avg plies per game: 38.0
+End reasons: mate=12, stalemate=0, repetition=0, 50-move=0, other=0
+Timed out moves: 2/225
+Avg ms (non-timeout): 952.9, Avg ms (timeout): 1109.4
+Max ms (non-timeout): 1095.3, Max ms (timeout): 1112.9
+
+Batch history:
+Batch | Games | W | D | L | Score | Elo | Scorpion ms (target/avg) | Stockfish ms (target/avg) | Timeouts | Timed-out moves | Avg ms (ok/timeout) | Max ms (ok/timeout) | Stop Latency (avg ms) | Overhead
+--- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | ---
+1 | 12 | 0 | 0 | 12 | 0.000 | n/a | 1000/954.3 | 500/440.8 | B:2 SF:0 | 2/225 | 952.9/1109.4 | 1095.3/1112.9 | 12.4 | 33
+
 Last updated: 2026-01-01T16:36:07.089Z (UTC) | 2026-01-01 11:36:07 ET
 Series: Phase 8.4 analysis (Stockfish annotation)
 Roadmap phase: Phase 8.4
