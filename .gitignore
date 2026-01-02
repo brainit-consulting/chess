@@ -1,6 +1,15 @@
 dist
 node_modules/
 scripts/bench/quick-results/
+scripts/bench/quick-results/run-*/
 scripts/bench/quick-run-state.json
 benchmarks/selfplay/run-*/
 *.log
+analysis/
+dataset*.jsonl*
+dataset_index.csv
+*.tmp
+scripts/bench/quick-run-state.json.tmp
+quick-run-state.json.tmp
+*.snnue
+NNUE-Logo.jpg
