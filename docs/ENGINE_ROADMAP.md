@@ -410,6 +410,7 @@ Controls / invariants (checklist)
 - Deliverables: Python training script (clean-filtered JSONL), Huber loss, gameId split, weight writer.
 - Status: smoke-trained weights produced for validation only.
 - Note: weights trained but NOT activated in engine (nnueMix stays 0.0).
+- Wrap-up note: Max-only NNUE activation tests show mix 0.10 is stable; mix 0.15 is rejected (earlier collapse). Default remains 0.0 until activation decision.
 
 Notes / sequence
 - Start with NNUE integration + stability (do not proceed until stable).
