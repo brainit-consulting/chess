@@ -862,6 +862,7 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
       options.tt,
       ordering,
       shouldStopChecked,
+      options.nnueMix,
       options.microQuiescenceDepth
     );
     const givesCheck = isInCheck(next, opponentColor(color));
@@ -1413,6 +1414,7 @@ function scoreRootMoves(
       options.tt,
       options.ordering,
       shouldStop,
+      options.nnueMix,
       options.microQuiescenceDepth
     );
     const givesCheck = isInCheck(next, opponentColor(color));
@@ -1541,10 +1543,11 @@ function alphaBeta(
   tt?: TtStore,
   ordering?: OrderingState,
   stopChecker?: () => boolean,
+  nnueMix?: number,
   microQuiescenceDepth?: number
 ): number {
   if (stopChecker && stopChecker()) {
-    return evaluateState(state, maximizingColor, { maxThinking, nnueMix: options.nnueMix });
+    return evaluateState(state, maximizingColor, { maxThinking, nnueMix });
   }
   const legalMoves = getAllLegalMoves(state, currentColor);
   const alphaOrig = alpha;
@@ -1592,11 +1595,11 @@ function alphaBeta(
           rng,
           ply,
           microDepth,
-          options.nnueMix,
+          nnueMix,
           stopChecker
         );
       }
-      return evaluateState(state, maximizingColor, { maxThinking, nnueMix: options.nnueMix });
+      return evaluateState(state, maximizingColor, { maxThinking, nnueMix });
     }
     return quiescence(
       state,
@@ -1607,7 +1610,7 @@ function alphaBeta(
       rng,
       ply,
       0,
-      options.nnueMix,
+      nnueMix,
       stopChecker
     );
   }
@@ -1640,6 +1643,7 @@ function alphaBeta(
       tt,
       ordering,
       stopChecker,
+      nnueMix,
       microQuiescenceDepth
     );
     if (maximizing) {
@@ -1692,6 +1696,7 @@ function alphaBeta(
           tt,
           ordering,
           stopChecker,
+          nnueMix,
           microQuiescenceDepth
         );
         if (nextScore > alpha && nextScore < beta) {
@@ -1709,6 +1714,7 @@ function alphaBeta(
             tt,
             ordering,
             stopChecker,
+            nnueMix,
             microQuiescenceDepth
           );
         }
@@ -1727,6 +1733,7 @@ function alphaBeta(
           tt,
           ordering,
           stopChecker,
+          nnueMix,
           microQuiescenceDepth
         );
       }
@@ -1745,6 +1752,7 @@ function alphaBeta(
           tt,
           ordering,
           stopChecker,
+          nnueMix,
           microQuiescenceDepth
         );
       }
@@ -1810,6 +1818,7 @@ function alphaBeta(
         tt,
         ordering,
         stopChecker,
+        nnueMix,
         microQuiescenceDepth
       );
       if (nextScore < beta && nextScore > alpha) {
@@ -1827,6 +1836,7 @@ function alphaBeta(
           tt,
           ordering,
           stopChecker,
+          nnueMix,
           microQuiescenceDepth
         );
       }
@@ -1845,6 +1855,7 @@ function alphaBeta(
         tt,
         ordering,
         stopChecker,
+        nnueMix,
         microQuiescenceDepth
       );
     }
@@ -1863,6 +1874,7 @@ function alphaBeta(
         tt,
         ordering,
         stopChecker,
+        nnueMix,
         microQuiescenceDepth
       );
     }
