@@ -1,5 +1,17 @@
 # ScorpionChessEngineVsStockfish Benchmark Plan
 
+## Phase 9.2d deadline-buffer confirmation (Hard 1000 vs SF500, b6)
+
+RunId: phase9-regress-hard1000-vs-sf500-b6-seed7000-r8  
+- W/D/L: 0-0-12 | Avg plies: 34.0 | Timeouts: 0/201 (0.00%)  
+- stopReason: mid_search_deadline=198, pre_iter_gate=0, none=3, external_cancel=0
+
+RunId: phase9-regress-hard1000-vs-sf500-b6-seed7001-r3  
+- W/D/L: 0-0-12 | Avg plies: 28.5 | Timeouts: 0/168 (0.00%)  
+- stopReason: mid_search_deadline=166, pre_iter_gate=0, none=2, external_cancel=0
+
+Conclusion: timeouts dropped to 0%, but mid_search_deadline remains dominant and pre-iteration gating did not trigger.
+
 ## Phase 9.2c guardrail confirmation (Hard 1000 vs SF500, b6)
 
 RunId: phase9-regress-hard1000-vs-sf500-b6-seed7000-r7  
