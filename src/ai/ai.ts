@@ -39,6 +39,7 @@ export type AiOptions = {
   contemptCp?: number;
   usePvs?: boolean;
   repeatBanWindowCp?: number;
+  nnueMix?: number;
   depthOverride?: number;
   maxTimeMs?: number;
   maxDepth?: number;
@@ -66,6 +67,7 @@ type AiContext = {
   twoPlyRepeatTopN: number;
   contemptCp: number;
   usePvs: boolean;
+  nnueMix?: number;
 };
 
 function resolveAiContext(state: GameState, options: AiOptions): AiContext | null {
@@ -111,6 +113,7 @@ function resolveAiContext(state: GameState, options: AiOptions): AiContext | nul
         ? HARD_CONTEMPT_CP
         : 0);
   const usePvs = options.usePvs ?? difficulty === 'max';
+  const nnueMix = options.nnueMix;
 
   return {
     color,
@@ -124,7 +127,8 @@ function resolveAiContext(state: GameState, options: AiOptions): AiContext | nul
     twoPlyRepeatPenalty,
     twoPlyRepeatTopN,
     contemptCp,
-    usePvs
+    usePvs,
+    nnueMix
   };
 }
 
@@ -151,7 +155,8 @@ export function chooseMove(state: GameState, options: AiOptions = {}): Move | nu
     twoPlyRepeatPenalty,
     twoPlyRepeatTopN,
     contemptCp,
-    usePvs
+    usePvs,
+    nnueMix
   } = context;
 
   if (difficulty === 'max') {
@@ -174,6 +179,7 @@ export function chooseMove(state: GameState, options: AiOptions = {}): Move | nu
       contemptCp,
       maxThinking: true,
       usePvs,
+      nnueMix,
       ordering,
       stopRequested: options.stopRequested,
       onProgress: options.onProgress
@@ -257,7 +263,8 @@ export function chooseMoveWithDiagnostics(
     twoPlyRepeatPenalty,
     twoPlyRepeatTopN,
     contemptCp,
-    usePvs
+    usePvs,
+    nnueMix
   } = context;
 
   if (difficulty === 'max') {
@@ -281,6 +288,7 @@ export function chooseMoveWithDiagnostics(
       microQuiescenceDepth: undefined,
       maxThinking: true,
       usePvs,
+      nnueMix,
       rootDiagnostics: true,
       ordering,
       stopRequested: options.stopRequested

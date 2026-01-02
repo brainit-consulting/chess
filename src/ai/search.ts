@@ -39,6 +39,7 @@ type SearchOptions = {
   usePvs?: boolean;
   tt?: TtStore;
   ordering?: OrderingState;
+  nnueMix?: number;
   maxTimeMs?: number;
   now?: () => number;
   stopRequested?: () => boolean;
@@ -542,7 +543,10 @@ function orderRootMovesForRepeatAvoidance(
     return moves;
   }
   const drawHoldThreshold = options.drawHoldThreshold ?? DRAW_HOLD_THRESHOLD_DEFAULT;
-  const baseEval = evaluateState(state, color, { maxThinking: Boolean(options.maxThinking) });
+  const baseEval = evaluateState(state, color, {
+    maxThinking: Boolean(options.maxThinking),
+    nnueMix: options.nnueMix
+  });
   if (baseEval < drawHoldThreshold) {
     return moves;
   }
@@ -710,7 +714,7 @@ function computeTwoPlyPenalty(
     follow.activeColor = opponent;
     applyMoveWithNnue(follow, reply);
     const key = getPositionKey(follow);
-    const score = evaluateState(follow, color, { maxThinking });
+    const score = evaluateState(follow, color, { maxThinking, nnueMix: options.nnueMix });
     if (score < worstScore) {
       worstScore = score;
       repeatKey = key;
@@ -1540,7 +1544,7 @@ function alphaBeta(
   microQuiescenceDepth?: number
 ): number {
   if (stopChecker && stopChecker()) {
-    return evaluateState(state, maximizingColor, { maxThinking });
+    return evaluateState(state, maximizingColor, { maxThinking, nnueMix: options.nnueMix });
   }
   const legalMoves = getAllLegalMoves(state, currentColor);
   const alphaOrig = alpha;
@@ -1591,7 +1595,7 @@ function alphaBeta(
           stopChecker
         );
       }
-      return evaluateState(state, maximizingColor, { maxThinking });
+      return evaluateState(state, maximizingColor, { maxThinking, nnueMix: options.nnueMix });
     }
     return quiescence(
       state,
@@ -2161,7 +2165,7 @@ function microQuiescence(
   stopChecker?: () => boolean
 ): number {
   if (stopChecker && stopChecker()) {
-    return evaluateState(state, maximizingColor, { maxThinking: false });
+    return evaluateState(state, maximizingColor, { maxThinking: false, nnueMix: options.nnueMix });
   }
 
   const legalMoves = getAllLegalMoves(state, currentColor);
@@ -2172,7 +2176,10 @@ function microQuiescence(
     return 0;
   }
 
-  const standPat = evaluateState(state, maximizingColor, { maxThinking: false });
+  const standPat = evaluateState(state, maximizingColor, {
+    maxThinking: false,
+    nnueMix: options.nnueMix
+  });
   if (depthLeft <= 0) {
     return standPat;
   }
@@ -2308,7 +2315,7 @@ function quiescence(
   stopChecker?: () => boolean
 ): number {
   if (stopChecker && stopChecker()) {
-    return evaluateState(state, maximizingColor, { maxThinking: true });
+    return evaluateState(state, maximizingColor, { maxThinking: true, nnueMix: options.nnueMix });
   }
   const legalMoves = getAllLegalMoves(state, currentColor);
   if (legalMoves.length === 0) {
@@ -2318,7 +2325,10 @@ function quiescence(
     return 0;
   }
 
-  const standPat = evaluateState(state, maximizingColor, { maxThinking: true });
+  const standPat = evaluateState(state, maximizingColor, {
+    maxThinking: true,
+    nnueMix: options.nnueMix
+  });
   const maximizing = currentColor === maximizingColor;
 
   if (maximizing) {
