@@ -92,6 +92,7 @@ type MoveTiming = {
   earlyExitUsed?: boolean;
   softStopUsed?: boolean;
   hardStopUsed?: boolean;
+  stopReason?: 'none' | 'pre_iter_gate' | 'mid_search_deadline' | 'external_cancel';
 };
 
 type GameLog = {
@@ -621,6 +622,11 @@ async function runSingleGame(options: {
           move.source === 'engine' && move.meta
             ? (move.meta as { searchMetrics?: { hardStopUsed?: boolean } }).searchMetrics
                 ?.hardStopUsed
+            : undefined,
+        stopReason:
+          move.source === 'engine' && move.meta
+            ? (move.meta as { searchMetrics?: { stopReason?: MoveTiming['stopReason'] } })
+                .searchMetrics?.stopReason
             : undefined
       });
 

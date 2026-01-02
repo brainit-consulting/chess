@@ -156,7 +156,8 @@ function createSearchMetrics(): SearchMetrics {
     nps: 0,
     fallbackUsed: false,
     softStopUsed: false,
-    hardStopUsed: false
+    hardStopUsed: false,
+    stopReason: 'none'
   };
 }
 

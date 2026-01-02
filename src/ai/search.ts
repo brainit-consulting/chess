@@ -55,7 +55,10 @@ export type SearchInstrumentation = {
   fallbackUsed: boolean;
   softStopUsed: boolean;
   hardStopUsed: boolean;
+  stopReason: 'none' | 'pre_iter_gate' | 'mid_search_deadline' | 'external_cancel';
 };
+
+type StopReason = SearchInstrumentation['stopReason'];
 
 const MATE_SCORE = 20000;
 const DEFAULT_REPETITION_PENALTY = 15;
@@ -110,8 +113,8 @@ const NULL_MOVE_MIN_DEPTH = 3;
 const NULL_MOVE_REDUCTION = 2;
 const NULL_MOVE_MIN_MATERIAL = 1200;
 const QUIESCENCE_MAX_DEPTH = 4;
-const HARD_SOFT_STOP_FACTOR = 1.6;
-const HARD_SOFT_STOP_MIN_MS = 20;
+const HARD_SOFT_STOP_FACTOR = 2.0;
+const HARD_SOFT_STOP_MIN_MS = 60;
 
 type TTFlag = 'exact' | 'alpha' | 'beta';
 
@@ -814,6 +817,7 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
       options.instrumentation.fallbackUsed = false;
       options.instrumentation.softStopUsed = false;
       options.instrumentation.hardStopUsed = false;
+      options.instrumentation.stopReason = 'none';
     }
     return null;
   }
@@ -831,6 +835,7 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
     instrumentation.fallbackUsed = false;
     instrumentation.softStopUsed = false;
     instrumentation.hardStopUsed = false;
+    instrumentation.stopReason = 'none';
   }
   const finalizeInstrumentation = () => {
     if (!instrumentation) {
@@ -1017,6 +1022,7 @@ export function findBestMoveTimed(
     instrumentation.fallbackUsed = false;
     instrumentation.softStopUsed = false;
     instrumentation.hardStopUsed = false;
+    instrumentation.stopReason = 'none';
   }
   const finalizeInstrumentation = () => {
     if (!instrumentation) {
@@ -1026,15 +1032,22 @@ export function findBestMoveTimed(
     instrumentation.durationMs = duration;
     instrumentation.nps = duration > 0 ? (instrumentation.nodes * 1000) / duration : 0;
   };
-  const shouldStop = () => {
+  const setStopReason = (reason: StopReason) => {
+    if (!instrumentation || instrumentation.stopReason !== 'none') {
+      return;
+    }
+    instrumentation.stopReason = reason;
+  };
+  const getStopReason = (): StopReason => {
     if (options.stopRequested && options.stopRequested()) {
-      return true;
+      return 'external_cancel';
     }
     if (now() - start >= options.maxTimeMs) {
-      return true;
+      return 'mid_search_deadline';
     }
-    return false;
+    return 'none';
   };
+  const shouldStop = () => getStopReason() !== 'none';
   let best: Move | null = null;
   let prevScore: number | null = null;
   const tt = options.tt ?? (options.maxThinking ? new Map<string, TTEntry>() : undefined);
@@ -1050,14 +1063,24 @@ export function findBestMoveTimed(
   let lastIterationMs: number | null = null;
 
   for (let depth = 1; depth <= options.maxDepth; depth += 1) {
-    if (shouldStop()) {
+    const preStopReason = getStopReason();
+    if (preStopReason !== 'none') {
+      if (instrumentation) {
+        if (preStopReason === 'external_cancel') {
+          setStopReason('external_cancel');
+        } else {
+          instrumentation.softStopUsed = true;
+          setStopReason('pre_iter_gate');
+        }
+      }
       break;
     }
     if (!options.maxThinking && lastIterationMs !== null) {
       const remaining = options.maxTimeMs - (now() - start);
       if (remaining <= 0) {
         if (instrumentation) {
-          instrumentation.hardStopUsed = true;
+          instrumentation.softStopUsed = true;
+          setStopReason('pre_iter_gate');
         }
         break;
       }
@@ -1065,6 +1088,7 @@ export function findBestMoveTimed(
       if (remaining < required) {
         if (instrumentation) {
           instrumentation.softStopUsed = true;
+          setStopReason('pre_iter_gate');
         }
         break;
       }
@@ -1075,12 +1099,17 @@ export function findBestMoveTimed(
     options.onDepth?.(depth);
     const depthStart = now();
     let stopDuringDepth = false;
+    let midSearchStopReason: StopReason = 'none';
     const shouldStopChecked = () => {
-      const stop = shouldStop();
-      if (stop) {
+      const reason = getStopReason();
+      if (reason !== 'none') {
         stopDuringDepth = true;
+        if (midSearchStopReason === 'none') {
+          midSearchStopReason = reason;
+        }
+        return true;
       }
-      return stop;
+      return false;
     };
     let scored: { move: Move | null; score: number | null } | null = null;
     if (options.maxThinking && prevScore !== null && aspirationWindow > 0) {
@@ -1163,6 +1192,11 @@ export function findBestMoveTimed(
     if (stopDuringDepth) {
       if (instrumentation) {
         instrumentation.hardStopUsed = true;
+        setStopReason(
+          midSearchStopReason === 'external_cancel'
+            ? 'external_cancel'
+            : 'mid_search_deadline'
+        );
       }
       break;
     }
@@ -1177,9 +1211,7 @@ export function findBestMoveTimed(
         move: scored.move,
         score: scored.score
       });
-    } else if (lastIterationMs === null) {
-      lastIterationMs = iterationMs;
-    }
+      }
   }
 
   if (best) {
