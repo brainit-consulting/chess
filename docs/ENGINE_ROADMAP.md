@@ -475,7 +475,7 @@ Controls / invariants (checklist)
 - [ ] Keep default time controls unchanged (Hard=1000ms, Max ladder unchanged).
 - [ ] No benchmark parameter changes unless explicitly called out as measurement only.
 
-### 9.1 Instrumentation (planned)
+### 9.1 Instrumentation (implemented, commit 9b0d1b0)
 - Deliverables:
   - Log/track per-move: allocated ms, actual ms, depth reached, nodes, NPS, cutoffs, and fallback/early-exit use.
   - Expose these in bench meta JSON for timeout-cause analysis.
