@@ -1026,14 +1026,11 @@ export function findBestMoveTimed(
     instrumentation.durationMs = duration;
     instrumentation.nps = duration > 0 ? (instrumentation.nodes * 1000) / duration : 0;
   };
-  let hardStopTriggered = false;
   const shouldStop = () => {
     if (options.stopRequested && options.stopRequested()) {
-      hardStopTriggered = true;
       return true;
     }
     if (now() - start >= options.maxTimeMs) {
-      hardStopTriggered = true;
       return true;
     }
     return false;
@@ -1059,7 +1056,9 @@ export function findBestMoveTimed(
     if (!options.maxThinking && lastIterationMs !== null) {
       const remaining = options.maxTimeMs - (now() - start);
       if (remaining <= 0) {
-        hardStopTriggered = true;
+        if (instrumentation) {
+          instrumentation.hardStopUsed = true;
+        }
         break;
       }
       const required = lastIterationMs * HARD_SOFT_STOP_FACTOR + HARD_SOFT_STOP_MIN_MS;
@@ -1162,7 +1161,9 @@ export function findBestMoveTimed(
 
     const iterationMs = Math.max(0, now() - depthStart);
     if (stopDuringDepth) {
-      hardStopTriggered = true;
+      if (instrumentation) {
+        instrumentation.hardStopUsed = true;
+      }
       break;
     }
 
@@ -1184,7 +1185,6 @@ export function findBestMoveTimed(
   if (best) {
     if (instrumentation) {
       instrumentation.depthCompleted = depthCompleted;
-      instrumentation.hardStopUsed = hardStopTriggered;
     }
     finalizeInstrumentation();
     return best;
@@ -1193,7 +1193,6 @@ export function findBestMoveTimed(
   if (instrumentation) {
     instrumentation.fallbackUsed = true;
     instrumentation.depthCompleted = Math.max(instrumentation.depthCompleted, 1);
-    instrumentation.hardStopUsed = hardStopTriggered;
   }
   finalizeInstrumentation();
   return findBestMove(state, color, {
