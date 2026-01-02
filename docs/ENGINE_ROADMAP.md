@@ -482,11 +482,12 @@ Controls / invariants (checklist)
 - Validation:
   - Unit test: instrumentation does not change chosen move for deterministic seeds.
 
-### 9.2 Hard time budget guardrails (planned)
+### 9.2 Hard time budget guardrails (implemented, commit 994c9ce)
 - Deliverables:
   - Soft stop: stop deepening when remaining budget < X ms (dynamic based on prior iteration cost).
   - Hard stop: safe exit before deadline with best-known PV (never exceed budget).
   - Ensure iterative deepening returns last completed depth result reliably.
+  - AI-vs-AI Hard safety timer: send stop request at maxTimeMs + small grace to prevent runaway moves.
 - Validation:
   - Timeout rate drops on the same rung (Hard1000 vs SF500) without increasing early collapse metrics.
 
