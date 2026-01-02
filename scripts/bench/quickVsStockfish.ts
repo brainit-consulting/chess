@@ -90,6 +90,8 @@ type MoveTiming = {
   cutoffs?: number;
   fallbackUsed?: boolean;
   earlyExitUsed?: boolean;
+  softStopUsed?: boolean;
+  hardStopUsed?: boolean;
 };
 
 type GameLog = {
@@ -609,6 +611,16 @@ async function runSingleGame(options: {
         earlyExitUsed:
           move.source === 'engine' && move.meta
             ? (move.meta as { stopRequested?: boolean }).stopRequested === true
+            : undefined,
+        softStopUsed:
+          move.source === 'engine' && move.meta
+            ? (move.meta as { searchMetrics?: { softStopUsed?: boolean } }).searchMetrics
+                ?.softStopUsed
+            : undefined,
+        hardStopUsed:
+          move.source === 'engine' && move.meta
+            ? (move.meta as { searchMetrics?: { hardStopUsed?: boolean } }).searchMetrics
+                ?.hardStopUsed
             : undefined
       });
 

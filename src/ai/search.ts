@@ -53,6 +53,8 @@ export type SearchInstrumentation = {
   durationMs: number;
   nps: number;
   fallbackUsed: boolean;
+  softStopUsed: boolean;
+  hardStopUsed: boolean;
 };
 
 const MATE_SCORE = 20000;
@@ -108,6 +110,8 @@ const NULL_MOVE_MIN_DEPTH = 3;
 const NULL_MOVE_REDUCTION = 2;
 const NULL_MOVE_MIN_MATERIAL = 1200;
 const QUIESCENCE_MAX_DEPTH = 4;
+const HARD_SOFT_STOP_FACTOR = 1.2;
+const HARD_SOFT_STOP_MIN_MS = 8;
 
 type TTFlag = 'exact' | 'alpha' | 'beta';
 
@@ -807,6 +811,9 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
       options.instrumentation.depthCompleted = 0;
       options.instrumentation.durationMs = 0;
       options.instrumentation.nps = 0;
+      options.instrumentation.fallbackUsed = false;
+      options.instrumentation.softStopUsed = false;
+      options.instrumentation.hardStopUsed = false;
     }
     return null;
   }
@@ -822,6 +829,8 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
     instrumentation.durationMs = 0;
     instrumentation.nps = 0;
     instrumentation.fallbackUsed = false;
+    instrumentation.softStopUsed = false;
+    instrumentation.hardStopUsed = false;
   }
   const finalizeInstrumentation = () => {
     if (!instrumentation) {
@@ -1006,6 +1015,8 @@ export function findBestMoveTimed(
     instrumentation.durationMs = 0;
     instrumentation.nps = 0;
     instrumentation.fallbackUsed = false;
+    instrumentation.softStopUsed = false;
+    instrumentation.hardStopUsed = false;
   }
   const finalizeInstrumentation = () => {
     if (!instrumentation) {
@@ -1017,9 +1028,18 @@ export function findBestMoveTimed(
   };
   const shouldStop = () => {
     if (options.stopRequested && options.stopRequested()) {
+      if (instrumentation) {
+        instrumentation.hardStopUsed = true;
+      }
       return true;
     }
-    return now() - start >= options.maxTimeMs;
+    if (now() - start >= options.maxTimeMs) {
+      if (instrumentation) {
+        instrumentation.hardStopUsed = true;
+      }
+      return true;
+    }
+    return false;
   };
   let best: Move | null = null;
   let prevScore: number | null = null;
@@ -1033,22 +1053,48 @@ export function findBestMoveTimed(
   const aspirationMaxRetries =
     options.aspirationMaxRetries ?? DEFAULT_ASPIRATION_MAX_RETRIES;
   let depthCompleted = 0;
+  let lastIterationMs: number | null = null;
 
   for (let depth = 1; depth <= options.maxDepth; depth += 1) {
     if (shouldStop()) {
       break;
     }
+    if (!options.maxThinking && lastIterationMs !== null) {
+      const remaining = options.maxTimeMs - (now() - start);
+      if (remaining <= 0) {
+        if (instrumentation) {
+          instrumentation.hardStopUsed = true;
+        }
+        break;
+      }
+      const required = lastIterationMs * HARD_SOFT_STOP_FACTOR + HARD_SOFT_STOP_MIN_MS;
+      if (remaining < required) {
+        if (instrumentation) {
+          instrumentation.softStopUsed = true;
+        }
+        break;
+      }
+    }
     if (ordering && depth > 1) {
       decayHistory(ordering);
     }
     options.onDepth?.(depth);
+    const depthStart = now();
+    let stopDuringDepth = false;
+    const shouldStopChecked = () => {
+      const stop = shouldStop();
+      if (stop) {
+        stopDuringDepth = true;
+      }
+      return stop;
+    };
     let scored: { move: Move | null; score: number | null } | null = null;
     if (options.maxThinking && prevScore !== null && aspirationWindow > 0) {
       const outcome = runAspirationSearch(
         prevScore,
         aspirationWindow,
         aspirationMaxRetries,
-        shouldStop,
+        shouldStopChecked,
         (alpha, beta) =>
           scoreRootMoves(
             state,
@@ -1079,7 +1125,7 @@ export function findBestMoveTimed(
               ordering
             },
             { alpha, beta },
-            shouldStop
+            shouldStopChecked
           ),
         (result) => result.score
       );
@@ -1114,20 +1160,28 @@ export function findBestMoveTimed(
           ordering
         },
         undefined,
-        shouldStop
+        shouldStopChecked
       );
       scored = { move: result.move, score: result.score };
+    }
+
+    const iterationMs = Math.max(0, now() - depthStart);
+    if (stopDuringDepth) {
+      break;
     }
 
     if (scored?.move) {
       best = scored.move;
       prevScore = scored.score;
       depthCompleted = depth;
+      lastIterationMs = iterationMs;
       options.onProgress?.({
         depth,
         move: scored.move,
         score: scored.score
       });
+    } else if (lastIterationMs === null) {
+      lastIterationMs = iterationMs;
     }
   }
 

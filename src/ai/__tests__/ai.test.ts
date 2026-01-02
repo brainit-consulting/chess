@@ -166,6 +166,31 @@ describe('AI move selection', () => {
     expect(sameMove(direct, instrumented.move)).toBe(true);
   });
 
+  it('returns a legal move under a tight time budget', () => {
+    const state = createInitialState();
+    state.activeColor = 'w';
+    const legalMoves = getAllLegalMoves(state, 'w');
+    let t = 0;
+    const now = () => {
+      t += 5;
+      return t;
+    };
+    const move = search.findBestMoveTimed(state, 'w', {
+      maxDepth: 3,
+      maxTimeMs: 5,
+      rng: createSequenceRng([0.1]),
+      legalMoves,
+      maxThinking: false,
+      now
+    });
+
+    expect(move).not.toBeNull();
+    if (!move) {
+      throw new Error('Expected a move under tight time limits.');
+    }
+    expect(legalMoves.some((candidate) => sameMove(candidate, move))).toBe(true);
+  });
+
   it('ignores stale AI worker responses', () => {
     const apply = shouldApplyAiResponse({
       requestId: 1,

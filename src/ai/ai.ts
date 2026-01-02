@@ -154,7 +154,9 @@ function createSearchMetrics(): SearchMetrics {
     depthCompleted: 0,
     durationMs: 0,
     nps: 0,
-    fallbackUsed: false
+    fallbackUsed: false,
+    softStopUsed: false,
+    hardStopUsed: false
   };
 }
 
