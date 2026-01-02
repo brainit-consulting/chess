@@ -55,6 +55,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--epochs", type=int, default=3)
     parser.add_argument("--lr", type=float, default=0.01)
     parser.add_argument("--huberDelta", type=float, default=100.0)
+    parser.add_argument("--minEpochs", type=int, default=5)
+    parser.add_argument("--patience", type=int, default=2)
     parser.add_argument("--seed", type=int, default=1337)
     parser.add_argument("--maxSamples", type=int, default=None)
     return parser.parse_args()
@@ -68,12 +70,12 @@ def resolve_analysis_root(dataset_path: str, analysis_root: Optional[str]) -> st
     return parent if os.path.isdir(parent) else dataset_dir
 
 
-def load_timeout_map(summary_path: str) -> Dict[int, int]:
+def load_timeout_map(summary_path: str) -> Optional[Dict[int, int]]:
     with open(summary_path, "r", encoding="utf-8") as handle:
         data = json.load(handle)
     entries = data.get("timeoutMovesPerGame")
     if not isinstance(entries, list):
-        raise ValueError("summary.json missing timeoutMovesPerGame list.")
+        return None
     timeout_map: Dict[int, int] = {}
     for entry in entries:
         game_id = entry.get("gameId")
@@ -82,6 +84,16 @@ def load_timeout_map(summary_path: str) -> Dict[int, int]:
             continue
         timeout_map[int(game_id)] = int(timeout_moves)
     return timeout_map
+
+
+def load_timeout_map_for_run(analysis_root: str, run_id: str) -> Optional[Dict[int, int]]:
+    summary_path = os.path.join(analysis_root, run_id, "dataset.jsonl.summary.json")
+    if not os.path.exists(summary_path):
+        return None
+    summary = load_timeout_map(summary_path)
+    if summary is None:
+        return None
+    return summary
 
 
 def feature_index(piece_char: str, file_idx: int, rank_idx: int) -> int:
@@ -243,15 +255,21 @@ def load_engine_color(run_id: str, game_id: int, analysis_root: str, cache: Dict
 
 def load_samples(
     dataset_path: str,
-    timeout_map: Dict[int, int],
+    timeout_map: Optional[Dict[int, int]],
     analysis_root: str,
     max_samples: Optional[int],
     seed: int,
 ) -> Tuple[List[Dict], Dict[str, int], Dict[str, float]]:
     rng = random.Random(seed)
     cache: Dict[Tuple[str, int], str] = {}
+    timeout_cache: Dict[str, Dict[int, int]] = {}
     samples: List[Dict] = []
-    skipped = {"timeoutGame": 0, "timeoutNearby": 0, "mate": 0}
+    skipped = {
+        "timeoutGame": 0,
+        "timeoutNearby": 0,
+        "mate": 0,
+        "missingTimeoutSummary": 0
+    }
     label_stats = {"min": math.inf, "max": -math.inf, "sum": 0.0, "sumSq": 0.0}
     with open(dataset_path, "r", encoding="utf-8") as handle:
         for line in handle:
@@ -260,7 +278,19 @@ def load_samples(
                 continue
             row = json.loads(line)
             game_id = int(row["gameId"])
-            if timeout_map.get(game_id, None) != 0:
+            run_id = row.get("runId")
+            if not run_id:
+                raise ValueError("Dataset row missing runId.")
+            if timeout_map is None:
+                if run_id not in timeout_cache:
+                    timeout_cache[run_id] = load_timeout_map_for_run(analysis_root, run_id) or {}
+                game_timeout = timeout_cache[run_id].get(game_id, 0)
+                if timeout_cache[run_id] == {}:
+                    skipped["missingTimeoutSummary"] += 1
+                    continue
+            else:
+                game_timeout = timeout_map.get(game_id, 0)
+            if game_timeout != 0:
                 skipped["timeoutGame"] += 1
                 continue
             if row.get("timeoutNearby"):
@@ -271,7 +301,6 @@ def load_samples(
             if eval_cp is None or mate_in is not None:
                 skipped["mate"] += 1
                 continue
-            run_id = row.get("runId")
             engine_color = load_engine_color(run_id, game_id, analysis_root, cache)
             label = float(eval_cp) if engine_color == "w" else -float(eval_cp)
             features = fen_to_features(row["fen"])
@@ -353,6 +382,10 @@ def main() -> None:
 
     model = NnueModel(INPUT_SIZE, HIDDEN_SIZE, args.seed)
     history = []
+    best_val = math.inf
+    best_epoch = 0
+    best_snapshot = None
+    patience_left = args.patience
     for epoch in range(args.epochs):
         total_loss = 0.0
         for sample in train:
@@ -363,6 +396,24 @@ def main() -> None:
         val_loss = evaluate(model, val, args.huberDelta)
         history.append({"epoch": epoch + 1, "trainLoss": train_loss, "valLoss": val_loss})
         print(f"Epoch {epoch + 1}: train={train_loss:.4f} val={val_loss:.4f}")
+        if val_loss < best_val:
+            best_val = val_loss
+            best_epoch = epoch + 1
+            best_snapshot = (
+                [row[:] for row in model.w1],
+                model.b1[:],
+                model.w2[:],
+                model.b2,
+            )
+            patience_left = args.patience
+        elif epoch + 1 >= args.minEpochs:
+            patience_left -= 1
+            if patience_left <= 0:
+                print(f"Early stop at epoch {epoch + 1}. Best epoch {best_epoch}.")
+                break
+
+    if best_snapshot is not None:
+        model.w1, model.b1, model.w2, model.b2 = best_snapshot
 
     out_path = args.out
     write_snnue(out_path, INPUT_SIZE, HIDDEN_SIZE, model.w1, model.b1, model.w2, model.b2)
@@ -381,6 +432,10 @@ def main() -> None:
         "labelStats": label_stats,
         "huberDelta": args.huberDelta,
         "epochs": args.epochs,
+        "minEpochs": args.minEpochs,
+        "patience": args.patience,
+        "bestEpoch": best_epoch,
+        "bestValLoss": best_val,
         "learningRate": args.lr,
         "history": history,
         "evalCp16Validation": {
