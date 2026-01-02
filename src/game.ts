@@ -86,6 +86,8 @@ const DEFAULT_AI_DELAY_MS = 700;
 const HUMAN_VS_AI_DELAY_MS = 380;
 const HARD_THINKING_MS = 1000;
 const EXPLAIN_TIMEOUT_MS = 10000;
+const HARD_STOP_GRACE_MS = 80;
+const DEBUG_AI_TIMING_KEY = 'chess.debugAiTiming';
 const STORAGE_KEYS = {
   names: 'chess.playerNames',
   ai: 'chess.aiSettings',
@@ -105,6 +107,15 @@ const AI_LABELS: Record<AiDifficulty, string> = {
   hard: 'Hard',
   max: 'Max Thinking'
 };
+
+function isDebugAiTimingEnabled(): boolean {
+  try {
+    return typeof localStorage !== 'undefined' &&
+      localStorage.getItem(DEBUG_AI_TIMING_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
 
 export class GameController {
   private state: GameState;
@@ -126,10 +137,22 @@ export class GameController {
   private aiDelayMs = DEFAULT_AI_DELAY_MS;
   private aiTimeout: number | null = null;
   private aiForceTimeout: number | null = null;
+  private aiHardTimeout: number | null = null;
   private aiRequestId = 0;
   private aiThinkingActive = false;
   private aiBestSoFarMove: Move | null = null;
   private aiBestSoFarRequestId: number | null = null;
+  private aiRequestTimings = new Map<
+    number,
+    {
+      startedAt: number;
+      maxTimeMs?: number;
+      maxDepth?: number;
+      difficulty: AiDifficulty;
+      color: Color;
+      mode: GameMode;
+    }
+  >();
   private summaryShown = false;
   private lastStatus: GameStatus | null = null;
   private lastPgnText: string | null = null;
@@ -478,6 +501,7 @@ export class GameController {
         ? HARD_THINKING_MS
         : undefined;
     const maxDepth = this.aiDifficulty === 'max' ? MAX_THINKING_DEPTH_CAP : undefined;
+    const debugTiming = isDebugAiTimingEnabled();
     const request: AiWorkerRequest = {
       kind: 'move',
       requestId,
@@ -488,12 +512,37 @@ export class GameController {
       playForWin,
       recentPositions: playForWin ? this.getRecentPositionKeys() : undefined,
       maxTimeMs,
-      maxDepth
+      maxDepth,
+      debugTiming
     };
+
+    if (debugTiming) {
+      const startedAt = performance.now();
+      this.aiRequestTimings.set(requestId, {
+        startedAt,
+        maxTimeMs,
+        maxDepth,
+        difficulty: this.aiDifficulty,
+        color: this.state.activeColor,
+        mode: this.mode
+      });
+      console.log('[AI] request', {
+        requestId,
+        mode: this.mode,
+        color: this.state.activeColor,
+        difficulty: this.aiDifficulty,
+        maxTimeMs,
+        maxDepth,
+        delayMs,
+        stopDeadline: maxTimeMs != null ? startedAt + maxTimeMs : null
+      });
+    }
 
     this.postAiRequest(request);
     if (this.aiDifficulty === 'max') {
       this.startMaxThinkingTimer(requestId);
+    } else if (this.aiDifficulty === 'hard' && maxTimeMs !== undefined) {
+      this.startHardStopTimer(requestId, maxTimeMs);
     }
   }
 
@@ -507,6 +556,11 @@ export class GameController {
       window.clearTimeout(this.aiForceTimeout);
       this.aiForceTimeout = null;
     }
+    if (this.aiHardTimeout !== null) {
+      window.clearTimeout(this.aiHardTimeout);
+      this.aiHardTimeout = null;
+    }
+    this.aiRequestTimings.clear();
     this.aiPendingApplyAt = 0;
     this.aiBestSoFarMove = null;
     this.aiBestSoFarRequestId = null;
@@ -537,6 +591,26 @@ export class GameController {
       this.aiForceTimeout = null;
       this.forceAiMoveNow(requestId);
     }, MAX_THINKING_CAP_MS);
+  }
+
+  // NOTE: Not unit-tested (worker + timer integration). Validated via bench/manual timing checks.
+  private startHardStopTimer(requestId: number, maxTimeMs: number): void {
+    if (this.aiHardTimeout !== null) {
+      window.clearTimeout(this.aiHardTimeout);
+    }
+    this.aiHardTimeout = window.setTimeout(() => {
+      this.aiHardTimeout = null;
+      if (
+        requestId !== this.aiRequestId ||
+        !this.aiThinkingActive ||
+        !this.isAiControlled(this.state.activeColor) ||
+        (this.mode === 'aivai' &&
+          (!this.aiVsAiStarted || !this.aiVsAiRunning || this.aiVsAiPaused))
+      ) {
+        return;
+      }
+      this.postAiRequest({ kind: 'stop', requestId: this.aiRequestId });
+    }, maxTimeMs + HARD_STOP_GRACE_MS);
   }
 
   private forceAiMoveNow(requestId?: number): void {
@@ -1076,6 +1150,8 @@ export class GameController {
         explanation: explainMove(request.state, request.move, request.options)
       };
     } else {
+      const debugTiming = isDebugAiTimingEnabled() && request.kind === 'move';
+      const startedAt = debugTiming ? performance.now() : 0;
       response = {
         kind: 'move',
         requestId: request.requestId,
@@ -1090,6 +1166,17 @@ export class GameController {
           maxDepth: request.maxDepth
         })
       };
+      if (debugTiming) {
+        const durationMs = performance.now() - startedAt;
+        console.log('[AI] response (no worker)', {
+          requestId: request.requestId,
+          durationMs,
+          maxTimeMs: request.maxTimeMs,
+          difficulty: request.difficulty,
+          color: request.color,
+          mode: this.mode
+        });
+      }
     }
     this.handleAiWorkerMessage(response);
   }
@@ -1108,22 +1195,52 @@ export class GameController {
       return;
     }
 
-    if (
-      !shouldApplyAiResponse({
-        requestId: response.requestId,
-        currentRequestId: this.aiRequestId,
-        gameOver: this.gameOver,
-        mode: this.mode,
-        aiVsAiStarted: this.aiVsAiStarted,
-        aiVsAiRunning: this.aiVsAiRunning,
-        aiVsAiPaused: this.aiVsAiPaused,
-        isAiControlled: this.isAiControlled(this.state.activeColor)
-      })
-    ) {
+    const debugTiming = isDebugAiTimingEnabled();
+    const applyGate = shouldApplyAiResponse({
+      requestId: response.requestId,
+      currentRequestId: this.aiRequestId,
+      gameOver: this.gameOver,
+      mode: this.mode,
+      aiVsAiStarted: this.aiVsAiStarted,
+      aiVsAiRunning: this.aiVsAiRunning,
+      aiVsAiPaused: this.aiVsAiPaused,
+      isAiControlled: this.isAiControlled(this.state.activeColor)
+    });
+    if (!applyGate) {
+      if (debugTiming && response.kind === 'move') {
+        console.log('[AI] response ignored', {
+          requestId: response.requestId,
+          currentRequestId: this.aiRequestId,
+          mode: this.mode,
+          aiVsAiStarted: this.aiVsAiStarted,
+          aiVsAiRunning: this.aiVsAiRunning,
+          aiVsAiPaused: this.aiVsAiPaused,
+          isAiControlled: this.isAiControlled(this.state.activeColor)
+        });
+      }
       return;
     }
 
     if (!response.move) {
+      if (debugTiming) {
+        const timing = this.aiRequestTimings.get(response.requestId);
+        if (timing) {
+          const durationMs = performance.now() - timing.startedAt;
+          console.log('[AI] response null', {
+            requestId: response.requestId,
+            durationMs,
+            maxTimeMs: timing.maxTimeMs,
+            difficulty: timing.difficulty,
+            color: timing.color,
+            mode: timing.mode
+          });
+        }
+      }
+      this.aiRequestTimings.delete(response.requestId);
+      if (this.aiHardTimeout !== null) {
+        window.clearTimeout(this.aiHardTimeout);
+        this.aiHardTimeout = null;
+      }
       this.setAiThinkingActive(false);
       this.aiBestSoFarMove = null;
       this.aiBestSoFarRequestId = null;
@@ -1131,7 +1248,27 @@ export class GameController {
       return;
     }
 
-    const applyMove = () => {
+      if (debugTiming) {
+        const timing = this.aiRequestTimings.get(response.requestId);
+        if (timing) {
+        const durationMs = performance.now() - timing.startedAt;
+        console.log('[AI] response', {
+          requestId: response.requestId,
+          durationMs,
+          maxTimeMs: timing.maxTimeMs,
+          difficulty: timing.difficulty,
+          color: timing.color,
+          mode: timing.mode
+        });
+        }
+      }
+      this.aiRequestTimings.delete(response.requestId);
+      if (this.aiHardTimeout !== null) {
+        window.clearTimeout(this.aiHardTimeout);
+        this.aiHardTimeout = null;
+      }
+
+      const applyMove = () => {
       if (
         !shouldApplyAiResponse({
           requestId: response.requestId,
