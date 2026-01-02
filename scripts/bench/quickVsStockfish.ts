@@ -93,6 +93,9 @@ type MoveTiming = {
   softStopUsed?: boolean;
   hardStopUsed?: boolean;
   stopReason?: 'none' | 'pre_iter_gate' | 'mid_search_deadline' | 'external_cancel';
+  budgetMs?: number;
+  effectiveBudgetMs?: number;
+  durationMs?: number;
 };
 
 type GameLog = {
@@ -627,6 +630,20 @@ async function runSingleGame(options: {
           move.source === 'engine' && move.meta
             ? (move.meta as { searchMetrics?: { stopReason?: MoveTiming['stopReason'] } })
                 .searchMetrics?.stopReason
+            : undefined,
+        budgetMs:
+          move.source === 'engine' && move.meta
+            ? (move.meta as { searchMetrics?: { budgetMs?: number } }).searchMetrics?.budgetMs
+            : undefined,
+        effectiveBudgetMs:
+          move.source === 'engine' && move.meta
+            ? (move.meta as { searchMetrics?: { effectiveBudgetMs?: number } }).searchMetrics
+                ?.effectiveBudgetMs
+            : undefined,
+        durationMs:
+          move.source === 'engine' && move.meta
+            ? (move.meta as { searchMetrics?: { durationMs?: number } }).searchMetrics
+                ?.durationMs
             : undefined
       });
 

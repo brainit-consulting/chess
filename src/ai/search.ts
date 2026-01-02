@@ -56,6 +56,8 @@ export type SearchInstrumentation = {
   softStopUsed: boolean;
   hardStopUsed: boolean;
   stopReason: 'none' | 'pre_iter_gate' | 'mid_search_deadline' | 'external_cancel';
+  budgetMs: number | null;
+  effectiveBudgetMs: number | null;
 };
 
 type StopReason = SearchInstrumentation['stopReason'];
@@ -839,6 +841,11 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
     instrumentation.softStopUsed = false;
     instrumentation.hardStopUsed = false;
     instrumentation.stopReason = 'none';
+    instrumentation.budgetMs = options.maxTimeMs ?? null;
+    instrumentation.effectiveBudgetMs =
+      options.maxTimeMs !== undefined
+        ? Math.max(0, options.maxTimeMs - HARD_DEADLINE_BUFFER_MS)
+        : null;
   }
   const finalizeInstrumentation = () => {
     if (!instrumentation) {
@@ -1028,6 +1035,11 @@ export function findBestMoveTimed(
     instrumentation.softStopUsed = false;
     instrumentation.hardStopUsed = false;
     instrumentation.stopReason = 'none';
+    instrumentation.budgetMs = options.maxTimeMs ?? null;
+    instrumentation.effectiveBudgetMs =
+      options.maxTimeMs !== undefined
+        ? Math.max(0, options.maxTimeMs - HARD_DEADLINE_BUFFER_MS)
+        : null;
   }
   const finalizeInstrumentation = () => {
     if (!instrumentation) {
@@ -1315,11 +1327,13 @@ export function findBestMoveTimedDebug(
 
   const now = options.now ?? defaultNow;
   const start = now();
+  const effectiveDeadline =
+    start + Math.max(0, options.maxTimeMs - HARD_DEADLINE_BUFFER_MS);
   const shouldStop = () => {
     if (options.stopRequested && options.stopRequested()) {
       return true;
     }
-    return now() - start >= options.maxTimeMs;
+    return now() >= effectiveDeadline;
   };
   const tt = options.tt ?? (options.maxThinking ? new Map<string, TTEntry>() : undefined);
   const ordering =

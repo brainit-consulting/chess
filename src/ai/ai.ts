@@ -157,7 +157,9 @@ function createSearchMetrics(): SearchMetrics {
     fallbackUsed: false,
     softStopUsed: false,
     hardStopUsed: false,
-    stopReason: 'none'
+    stopReason: 'none',
+    budgetMs: null,
+    effectiveBudgetMs: null
   };
 }
 
