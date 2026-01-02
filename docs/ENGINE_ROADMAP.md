@@ -385,6 +385,7 @@ Controls / invariants (checklist)
 - Deliverables: NNUE feature encoder + accumulator updates; weight loader + starter weights; hybrid eval with default nnueMix=0.0 (Max-only).
 - Validation: unit tests (determinism, mirror symmetry, accumulator make/unmake, weight header parse). Benchmark runs pending (no NNUE mix enabled yet).
 - Risks: eval drift, perf regressions; mitigated via incremental accumulator and perf tracking.
+- Activation wiring fixes (commits 9c3af99, f7eed1d, b00fe3a): fix options undefined bug; thread nnueMix through alphaBeta/quiescence.
 
 ### 8.2 Defensive safeguards (planned)
 - Why: reduce hanging pieces, missed tactics, and collapse losses.
