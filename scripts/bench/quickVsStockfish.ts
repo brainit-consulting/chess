@@ -15,7 +15,7 @@ import {
   getPositionKey
 } from '../../src/rules';
 import { buildPgn, buildSan, PgnMove } from '../../src/pgn/pgn';
-import { MAX_THINKING_DEPTH_CAP } from '../../src/ai/ai';
+import { MAX_THINKING_CAP_MS, MAX_THINKING_DEPTH_CAP } from '../../src/ai/ai';
 import { StockfishClient } from './uciStockfish';
 
 type EngineMode = 'hard' | 'max';
@@ -229,16 +229,18 @@ async function main(): Promise<void> {
   const outDir = args.outDir ?? path.join(ROOT_OUTPUT_DIR, `run-${runId}`);
   const commandLine = process.argv.join(' ');
   const commitSha = resolveCommitSha();
+  const defaultMovetimeMs = args.movetimeMs ?? DEFAULT_MOVETIME_MS;
+  const mode = args.mode ?? DEFAULT_MODE;
   const stockfishMovetimes =
-    args.stockfishLadder ??
-    [args.stockfishMovetime ?? args.movetimeMs ?? DEFAULT_MOVETIME_MS];
+    args.stockfishLadder ?? [args.stockfishMovetime ?? defaultMovetimeMs];
+  const engineMovetimeMs = mode === 'max' ? MAX_THINKING_CAP_MS : defaultMovetimeMs;
 
   const config: RunConfig = {
     stockfishPath: args.stockfishPath,
     batchSize: args.batchSize ?? DEFAULT_BATCH_SIZE,
-    movetimeMs: args.movetimeMs ?? DEFAULT_MOVETIME_MS,
+    movetimeMs: engineMovetimeMs,
     stockfishMovetimes,
-    mode: args.mode ?? DEFAULT_MODE,
+    mode,
     threads: args.threads ?? DEFAULT_THREADS,
     hashMb: args.hashMb ?? DEFAULT_HASH_MB,
     ponder: false,

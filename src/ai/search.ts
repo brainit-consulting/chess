@@ -115,7 +115,9 @@ const NULL_MOVE_MIN_DEPTH = 3;
 const NULL_MOVE_REDUCTION = 2;
 const NULL_MOVE_MIN_MATERIAL = 1200;
 const QUIESCENCE_MAX_DEPTH = 4;
-const HARD_DEADLINE_BUFFER_MS = 60;
+const DEADLINE_BUFFER_MIN_MS = 60;
+const DEADLINE_BUFFER_MAX_MS = 250;
+const DEADLINE_BUFFER_RATIO = 0.06;
 
 type TTFlag = 'exact' | 'alpha' | 'beta';
 
@@ -125,6 +127,11 @@ type TTEntry = {
   flag: TTFlag;
   bestMove?: Move;
 };
+
+function getDeadlineBufferMs(maxTimeMs: number): number {
+  const scaled = Math.floor(maxTimeMs * DEADLINE_BUFFER_RATIO);
+  return Math.min(DEADLINE_BUFFER_MAX_MS, Math.max(DEADLINE_BUFFER_MIN_MS, scaled));
+}
 
 type TtStore = {
   get: (key: string) => TTEntry | undefined;
@@ -825,9 +832,11 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
 
   const now = options.now ?? defaultNow;
   const start = options.maxTimeMs ? now() : 0;
+  const bufferMs =
+    options.maxTimeMs !== undefined ? getDeadlineBufferMs(options.maxTimeMs) : 0;
   const effectiveDeadline =
     options.maxTimeMs !== undefined
-      ? start + Math.max(0, options.maxTimeMs - HARD_DEADLINE_BUFFER_MS)
+      ? start + Math.max(0, options.maxTimeMs - bufferMs)
       : 0;
   const instrumentation = options.instrumentation;
   const instrumentationStart = instrumentation ? now() : 0;
@@ -843,9 +852,7 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
     instrumentation.stopReason = 'none';
     instrumentation.budgetMs = options.maxTimeMs ?? null;
     instrumentation.effectiveBudgetMs =
-      options.maxTimeMs !== undefined
-        ? Math.max(0, options.maxTimeMs - HARD_DEADLINE_BUFFER_MS)
-        : null;
+      options.maxTimeMs !== undefined ? Math.max(0, options.maxTimeMs - bufferMs) : null;
   }
   const finalizeInstrumentation = () => {
     if (!instrumentation) {
@@ -1021,8 +1028,8 @@ export function findBestMoveTimed(
 
   const now = options.now ?? defaultNow;
   const start = now();
-  const effectiveDeadline =
-    start + Math.max(0, options.maxTimeMs - HARD_DEADLINE_BUFFER_MS);
+  const bufferMs = getDeadlineBufferMs(options.maxTimeMs);
+  const effectiveDeadline = start + Math.max(0, options.maxTimeMs - bufferMs);
   const instrumentation = options.instrumentation;
   const instrumentationStart = instrumentation ? now() : 0;
   if (instrumentation) {
@@ -1036,10 +1043,7 @@ export function findBestMoveTimed(
     instrumentation.hardStopUsed = false;
     instrumentation.stopReason = 'none';
     instrumentation.budgetMs = options.maxTimeMs ?? null;
-    instrumentation.effectiveBudgetMs =
-      options.maxTimeMs !== undefined
-        ? Math.max(0, options.maxTimeMs - HARD_DEADLINE_BUFFER_MS)
-        : null;
+    instrumentation.effectiveBudgetMs = Math.max(0, options.maxTimeMs - bufferMs);
   }
   const finalizeInstrumentation = () => {
     if (!instrumentation) {
@@ -1327,8 +1331,8 @@ export function findBestMoveTimedDebug(
 
   const now = options.now ?? defaultNow;
   const start = now();
-  const effectiveDeadline =
-    start + Math.max(0, options.maxTimeMs - HARD_DEADLINE_BUFFER_MS);
+  const bufferMs = getDeadlineBufferMs(options.maxTimeMs);
+  const effectiveDeadline = start + Math.max(0, options.maxTimeMs - bufferMs);
   const shouldStop = () => {
     if (options.stopRequested && options.stopRequested()) {
       return true;
@@ -1353,7 +1357,7 @@ export function findBestMoveTimedDebug(
   let prevScore: number | null = null;
 
   for (let depth = 1; depth <= options.maxDepth; depth += 1) {
-    if (now() - start >= options.maxTimeMs) {
+    if (now() >= effectiveDeadline) {
       break;
     }
     if (ordering && depth > 1) {
