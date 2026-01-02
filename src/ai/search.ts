@@ -1592,6 +1592,7 @@ function alphaBeta(
           rng,
           ply,
           microDepth,
+          options.nnueMix,
           stopChecker
         );
       }
@@ -1606,6 +1607,7 @@ function alphaBeta(
       rng,
       ply,
       0,
+      options.nnueMix,
       stopChecker
     );
   }
@@ -2162,10 +2164,11 @@ function microQuiescence(
   rng: () => number,
   ply: number,
   depthLeft: number,
+  nnueMix?: number,
   stopChecker?: () => boolean
 ): number {
   if (stopChecker && stopChecker()) {
-    return evaluateState(state, maximizingColor, { maxThinking: false, nnueMix: options.nnueMix });
+    return evaluateState(state, maximizingColor, { maxThinking: false, nnueMix });
   }
 
   const legalMoves = getAllLegalMoves(state, currentColor);
@@ -2178,7 +2181,7 @@ function microQuiescence(
 
   const standPat = evaluateState(state, maximizingColor, {
     maxThinking: false,
-    nnueMix: options.nnueMix
+    nnueMix
   });
   if (depthLeft <= 0) {
     return standPat;
@@ -2217,6 +2220,7 @@ function microQuiescence(
           rng,
           ply + 1,
           depthLeft - 1,
+          nnueMix,
           stopChecker
         )
       );
@@ -2247,6 +2251,7 @@ function microQuiescence(
         rng,
         ply + 1,
         depthLeft - 1,
+        nnueMix,
         stopChecker
       )
     );
@@ -2312,10 +2317,11 @@ function quiescence(
   rng: () => number,
   ply: number,
   qDepth: number,
+  nnueMix?: number,
   stopChecker?: () => boolean
 ): number {
   if (stopChecker && stopChecker()) {
-    return evaluateState(state, maximizingColor, { maxThinking: true, nnueMix: options.nnueMix });
+    return evaluateState(state, maximizingColor, { maxThinking: true, nnueMix });
   }
   const legalMoves = getAllLegalMoves(state, currentColor);
   if (legalMoves.length === 0) {
@@ -2327,7 +2333,7 @@ function quiescence(
 
   const standPat = evaluateState(state, maximizingColor, {
     maxThinking: true,
-    nnueMix: options.nnueMix
+    nnueMix
   });
   const maximizing = currentColor === maximizingColor;
 
@@ -2386,6 +2392,7 @@ function quiescence(
           rng,
           ply + 1,
           qDepth + 1,
+          nnueMix,
           stopChecker
         )
       );
@@ -2419,6 +2426,7 @@ function quiescence(
         rng,
         ply + 1,
         qDepth + 1,
+        nnueMix,
         stopChecker
       )
     );
