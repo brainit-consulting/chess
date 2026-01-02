@@ -1,5 +1,17 @@
 # ScorpionChessEngineVsStockfish Benchmark Plan
 
+## Phase 9.3a Max budget plumbing diagnostic (Max 1000 vs SF500, b6, NNUE_MIX=0)
+
+RunId: phase9-diag-max-nnue0-vs-sf500-b6-seed7000-r2  
+- W/D/L: 0-0-12 | Avg plies: 42.5 | Timeouts: 17/252 (6.75%)  
+- stopReason: mid_search_deadline=235, none=17, pre_iter_gate=0, external_cancel=0
+
+RunId: phase9-diag-max-nnue0-vs-sf500-b6-seed7001-r2  
+- W/D/L: 0-0-12 | Avg plies: 43.8 | Timeouts: 22/260 (8.46%)  
+- stopReason: mid_search_deadline=238, none=22, pre_iter_gate=0, external_cancel=0
+
+Conclusion: Max still overruns despite shared deadline/buffer; timeouts remain elevated.
+
 ## Phase 9.3 Max guardrail confirmation (Max 1000 vs SF500, b6, NNUE_MIX=0)
 
 RunId: phase9-regress-max-nnue0-vs-sf500-b6-seed7000-r1  
