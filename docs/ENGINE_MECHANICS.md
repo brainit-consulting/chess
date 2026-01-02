@@ -90,6 +90,9 @@ Version: 1.1.57
   - Early queen development penalty.
   - Extra king-ring pawn shield penalty around the king file.
   - Knight and bishop PST tables.
+- NNUE mixing (Max-only):
+  - `NNUE_MIX` and `NNUE_WEIGHTS_PATH` env vars are read by the worker to enable NNUE eval mixing.
+  - Default is `nnueMix = 0.0` (no effect unless explicitly set).
 
 ## Draw / repetition mechanics
 

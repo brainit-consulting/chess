@@ -10,6 +10,11 @@ import {
   applyMove
 } from '../rules';
 import { PIECE_VALUES, evaluateState } from './evaluate';
+import {
+  ensureAccumulator,
+  getNnueWeights,
+  updateAccumulatorForMove
+} from './nnue';
 
 type SearchOptions = {
   depth: number;
@@ -34,6 +39,7 @@ type SearchOptions = {
   usePvs?: boolean;
   tt?: TtStore;
   ordering?: OrderingState;
+  nnueMix?: number;
   maxTimeMs?: number;
   now?: () => number;
   stopRequested?: () => boolean;
@@ -74,6 +80,7 @@ const SEE_QUIESCENCE_PRUNE_THRESHOLD = -350;
 const COUNTERMOVE_BONUS = 900;
 const HARD_HISTORY_BONUS_CAP = 250;
 const MAX_HISTORY_BONUS_CAP = 1000;
+const RECAPTURE_ORDER_BONUS = 25;
 const CHECK_EVASION_CAPTURE_BONUS = 2000;
 const CHECK_EVASION_BLOCK_BONUS = 1000;
 const CHECK_EVASION_KING_MOVE_PENALTY = 200;
@@ -536,7 +543,10 @@ function orderRootMovesForRepeatAvoidance(
     return moves;
   }
   const drawHoldThreshold = options.drawHoldThreshold ?? DRAW_HOLD_THRESHOLD_DEFAULT;
-  const baseEval = evaluateState(state, color, { maxThinking: Boolean(options.maxThinking) });
+  const baseEval = evaluateState(state, color, {
+    maxThinking: Boolean(options.maxThinking),
+    nnueMix: options.nnueMix
+  });
   if (baseEval < drawHoldThreshold) {
     return moves;
   }
@@ -548,7 +558,7 @@ function orderRootMovesForRepeatAvoidance(
     }
     const next = cloneState(state);
     next.activeColor = color;
-    applyMove(next, move);
+    applyMoveWithNnue(next, move);
     const givesCheck = isInCheck(next, opponentColor(color));
     if (givesCheck) {
       return { move, index, deprioritize: false };
@@ -691,7 +701,7 @@ function computeTwoPlyPenalty(
 ): number {
   const next = cloneState(state);
   next.activeColor = color;
-  applyMove(next, entry.move);
+  applyMoveWithNnue(next, entry.move);
   const opponent = opponentColor(color);
   const replies = getAllLegalMoves(next, opponent);
   if (replies.length === 0) {
@@ -702,9 +712,9 @@ function computeTwoPlyPenalty(
   for (const reply of replies) {
     const follow = cloneState(next);
     follow.activeColor = opponent;
-    applyMove(follow, reply);
+    applyMoveWithNnue(follow, reply);
     const key = getPositionKey(follow);
-    const score = evaluateState(follow, color, { maxThinking });
+    const score = evaluateState(follow, color, { maxThinking, nnueMix: options.nnueMix });
     if (score < worstScore) {
       worstScore = score;
       repeatKey = key;
@@ -836,7 +846,7 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
     }
     const next = cloneState(state);
     next.activeColor = color;
-    applyMove(next, move);
+    applyMoveWithNnue(next, move);
 
     const baseScore = alphaBeta(
       next,
@@ -852,6 +862,7 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
       options.tt,
       ordering,
       shouldStopChecked,
+      options.nnueMix,
       options.microQuiescenceDepth
     );
     const givesCheck = isInCheck(next, opponentColor(color));
@@ -1387,7 +1398,7 @@ function scoreRootMoves(
     }
     const next = cloneState(state);
     next.activeColor = color;
-    applyMove(next, move);
+    applyMoveWithNnue(next, move);
 
     const baseScore = alphaBeta(
       next,
@@ -1403,6 +1414,7 @@ function scoreRootMoves(
       options.tt,
       options.ordering,
       shouldStop,
+      options.nnueMix,
       options.microQuiescenceDepth
     );
     const givesCheck = isInCheck(next, opponentColor(color));
@@ -1531,10 +1543,11 @@ function alphaBeta(
   tt?: TtStore,
   ordering?: OrderingState,
   stopChecker?: () => boolean,
+  nnueMix?: number,
   microQuiescenceDepth?: number
 ): number {
   if (stopChecker && stopChecker()) {
-    return evaluateState(state, maximizingColor, { maxThinking });
+    return evaluateState(state, maximizingColor, { maxThinking, nnueMix });
   }
   const legalMoves = getAllLegalMoves(state, currentColor);
   const alphaOrig = alpha;
@@ -1582,10 +1595,11 @@ function alphaBeta(
           rng,
           ply,
           microDepth,
+          nnueMix,
           stopChecker
         );
       }
-      return evaluateState(state, maximizingColor, { maxThinking });
+      return evaluateState(state, maximizingColor, { maxThinking, nnueMix });
     }
     return quiescence(
       state,
@@ -1596,6 +1610,7 @@ function alphaBeta(
       rng,
       ply,
       0,
+      nnueMix,
       stopChecker
     );
   }
@@ -1628,6 +1643,7 @@ function alphaBeta(
       tt,
       ordering,
       stopChecker,
+      nnueMix,
       microQuiescenceDepth
     );
     if (maximizing) {
@@ -1657,7 +1673,7 @@ function alphaBeta(
       const move = ordered[index];
       const next = cloneState(state);
       next.activeColor = currentColor;
-      applyMove(next, move);
+      applyMoveWithNnue(next, move);
       const reduction = maxThinking
         ? getLmrReduction(depth, index, inCheck, isQuietForLmr(state, move, currentColor))
         : 0;
@@ -1680,6 +1696,7 @@ function alphaBeta(
           tt,
           ordering,
           stopChecker,
+          nnueMix,
           microQuiescenceDepth
         );
         if (nextScore > alpha && nextScore < beta) {
@@ -1697,6 +1714,7 @@ function alphaBeta(
             tt,
             ordering,
             stopChecker,
+            nnueMix,
             microQuiescenceDepth
           );
         }
@@ -1715,6 +1733,7 @@ function alphaBeta(
           tt,
           ordering,
           stopChecker,
+          nnueMix,
           microQuiescenceDepth
         );
       }
@@ -1733,6 +1752,7 @@ function alphaBeta(
           tt,
           ordering,
           stopChecker,
+          nnueMix,
           microQuiescenceDepth
         );
       }
@@ -1775,7 +1795,7 @@ function alphaBeta(
     const move = ordered[index];
     const next = cloneState(state);
     next.activeColor = currentColor;
-    applyMove(next, move);
+    applyMoveWithNnue(next, move);
     const reduction = maxThinking
       ? getLmrReduction(depth, index, inCheck, isQuietForLmr(state, move, currentColor))
       : 0;
@@ -1798,6 +1818,7 @@ function alphaBeta(
         tt,
         ordering,
         stopChecker,
+        nnueMix,
         microQuiescenceDepth
       );
       if (nextScore < beta && nextScore > alpha) {
@@ -1815,6 +1836,7 @@ function alphaBeta(
           tt,
           ordering,
           stopChecker,
+          nnueMix,
           microQuiescenceDepth
         );
       }
@@ -1833,6 +1855,7 @@ function alphaBeta(
         tt,
         ordering,
         stopChecker,
+        nnueMix,
         microQuiescenceDepth
       );
     }
@@ -1851,6 +1874,7 @@ function alphaBeta(
         tt,
         ordering,
         stopChecker,
+        nnueMix,
         microQuiescenceDepth
       );
     }
@@ -1923,7 +1947,7 @@ function orderMoves(
 function scoreCheckEvasion(state: GameState, move: Move, color: Color): number {
   const next = cloneState(state);
   next.activeColor = color;
-  applyMove(next, move);
+  applyMoveWithNnue(next, move);
   if (isInCheck(next, color)) {
     return -CHECK_EVASION_KING_INTO_ATTACK_PENALTY;
   }
@@ -1996,7 +2020,7 @@ function scoreMoveHeuristic(
 
   const next = cloneState(state);
   next.activeColor = color;
-  applyMove(next, move);
+  applyMoveWithNnue(next, move);
 
   const givesCheck = isInCheck(next, opponentColor(color));
   const hanging = isMovedPieceHanging(next, move, color);
@@ -2045,6 +2069,10 @@ function buildOrderScore(
   }
 ): number {
   let score = scoreMoveHeuristic(state, move, color, maxThinking);
+
+  if (state.lastMove && isRecapture(state, move)) {
+    score += RECAPTURE_ORDER_BONUS;
+  }
 
   if (options.preferred && sameMove(move, options.preferred)) {
     score += 100000;
@@ -2148,10 +2176,11 @@ function microQuiescence(
   rng: () => number,
   ply: number,
   depthLeft: number,
+  nnueMix?: number,
   stopChecker?: () => boolean
 ): number {
   if (stopChecker && stopChecker()) {
-    return evaluateState(state, maximizingColor, { maxThinking: false });
+    return evaluateState(state, maximizingColor, { maxThinking: false, nnueMix });
   }
 
   const legalMoves = getAllLegalMoves(state, currentColor);
@@ -2162,7 +2191,10 @@ function microQuiescence(
     return 0;
   }
 
-  const standPat = evaluateState(state, maximizingColor, { maxThinking: false });
+  const standPat = evaluateState(state, maximizingColor, {
+    maxThinking: false,
+    nnueMix
+  });
   if (depthLeft <= 0) {
     return standPat;
   }
@@ -2188,7 +2220,7 @@ function microQuiescence(
       }
       const next = cloneState(state);
       next.activeColor = currentColor;
-      applyMove(next, move);
+      applyMoveWithNnue(next, move);
       value = Math.max(
         value,
         microQuiescence(
@@ -2200,6 +2232,7 @@ function microQuiescence(
           rng,
           ply + 1,
           depthLeft - 1,
+          nnueMix,
           stopChecker
         )
       );
@@ -2218,7 +2251,7 @@ function microQuiescence(
     }
     const next = cloneState(state);
     next.activeColor = currentColor;
-    applyMove(next, move);
+    applyMoveWithNnue(next, move);
     value = Math.min(
       value,
       microQuiescence(
@@ -2230,6 +2263,7 @@ function microQuiescence(
         rng,
         ply + 1,
         depthLeft - 1,
+        nnueMix,
         stopChecker
       )
     );
@@ -2268,6 +2302,9 @@ function getForcingExtension(
   if (depth > FORCING_EXTENSION_MAX_DEPTH || ply >= FORCING_EXTENSION_MAX_PLY) {
     return 0;
   }
+  if (depth >= 2 && isInCheck(state, currentColor)) {
+    return 1;
+  }
   if (move.promotion) {
     return 1;
   }
@@ -2292,10 +2329,11 @@ function quiescence(
   rng: () => number,
   ply: number,
   qDepth: number,
+  nnueMix?: number,
   stopChecker?: () => boolean
 ): number {
   if (stopChecker && stopChecker()) {
-    return evaluateState(state, maximizingColor, { maxThinking: true });
+    return evaluateState(state, maximizingColor, { maxThinking: true, nnueMix });
   }
   const legalMoves = getAllLegalMoves(state, currentColor);
   if (legalMoves.length === 0) {
@@ -2305,7 +2343,10 @@ function quiescence(
     return 0;
   }
 
-  const standPat = evaluateState(state, maximizingColor, { maxThinking: true });
+  const standPat = evaluateState(state, maximizingColor, {
+    maxThinking: true,
+    nnueMix
+  });
   const maximizing = currentColor === maximizingColor;
 
   if (maximizing) {
@@ -2351,7 +2392,7 @@ function quiescence(
       }
       const next = cloneState(state);
       next.activeColor = currentColor;
-      applyMove(next, move);
+      applyMoveWithNnue(next, move);
       value = Math.max(
         value,
         quiescence(
@@ -2363,6 +2404,7 @@ function quiescence(
           rng,
           ply + 1,
           qDepth + 1,
+          nnueMix,
           stopChecker
         )
       );
@@ -2384,7 +2426,7 @@ function quiescence(
     }
     const next = cloneState(state);
     next.activeColor = currentColor;
-    applyMove(next, move);
+    applyMoveWithNnue(next, move);
     value = Math.min(
       value,
       quiescence(
@@ -2396,6 +2438,7 @@ function quiescence(
         rng,
         ply + 1,
         qDepth + 1,
+        nnueMix,
         stopChecker
       )
     );
@@ -2485,7 +2528,7 @@ function isQuietForLmr(state: GameState, move: Move, color: Color): boolean {
 function givesCheck(state: GameState, move: Move, color: Color): boolean {
   const next = cloneState(state);
   next.activeColor = color;
-  applyMove(next, move);
+  applyMoveWithNnue(next, move);
   return isInCheck(next, opponentColor(color));
 }
 
@@ -2509,7 +2552,7 @@ function seeLiteNet(state: GameState, move: Move, color: Color): number {
   const attackerValue = PIECE_VALUES[movingPiece.type];
   const next = cloneState(state);
   next.activeColor = color;
-  applyMove(next, move);
+  applyMoveWithNnue(next, move);
 
   const movedId = next.board[move.to.rank]?.[move.to.file];
   if (!movedId) {
@@ -2604,6 +2647,17 @@ export function isRecaptureForTest(state: GameState, move: Move): boolean {
   return isRecapture(state, move);
 }
 
+export function getForcingExtensionForTest(
+  state: GameState,
+  next: GameState,
+  move: Move,
+  currentColor: Color,
+  depth: number,
+  ply: number
+): number {
+  return getForcingExtension(state, next, move, currentColor, depth, ply);
+}
+
 // Test-only: expose avoidance selection with synthetic scores.
 export function chooseWithRepetitionAvoidanceForTest(
   windowed: {
@@ -2635,6 +2689,15 @@ export function chooseWithRepetitionAvoidanceForTest(
   return result[0]?.move ?? null;
 }
 
+function applyMoveWithNnue(state: GameState, move: Move): GameState {
+  const weights = getNnueWeights();
+  if (weights) {
+    const acc = ensureAccumulator(state, weights);
+    state.nnue = updateAccumulatorForMove(acc, state, move, weights);
+  }
+  return applyMove(state, move);
+}
+
 function cloneState(state: GameState): GameState {
   const board = state.board.map((row) => row.slice());
   const clonedPieces = new Map<number, Piece>();
@@ -2649,7 +2712,14 @@ function cloneState(state: GameState): GameState {
     enPassantTarget: state.enPassantTarget ? { ...state.enPassantTarget } : null,
     halfmoveClock: state.halfmoveClock,
     fullmoveNumber: state.fullmoveNumber,
-    lastMove: state.lastMove ? cloneMove(state.lastMove) : null
+    lastMove: state.lastMove ? cloneMove(state.lastMove) : null,
+    nnue: state.nnue
+      ? {
+          inputSize: state.nnue.inputSize,
+          hiddenSize: state.nnue.hiddenSize,
+          accumulator: new Float32Array(state.nnue.accumulator)
+        }
+      : undefined
   };
 }
 
@@ -2663,3 +2733,4 @@ function cloneMove(move: Move): Move {
     capturedId: move.capturedId
   };
 }
+

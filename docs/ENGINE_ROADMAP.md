@@ -369,6 +369,53 @@ Reporting instructions
 - Never overwrite old run folders unless explicitly re-running with `--reset`.
 - Record the engine commit SHA in the report header as usual.
 
+## Phase 8 — NNUE + Defensive Consistency (Hard + Max)
+
+Purpose / hypothesis
+- Raise strength and stability by making NNUE the primary evaluation and reducing blunders.
+- Emphasis on defensive solidity and long-term planning; keep performance tractable.
+
+Controls / invariants (checklist)
+- [ ] Keep search/time caps unchanged unless explicitly called out.
+- [ ] Keep benchmarks and runId conventions consistent.
+- [ ] Track ACPL, blunder rate, and loss-type breakdown in addition to Elo.
+
+### 8.1 NNUE primary evaluation (implemented, commit 94b5123)
+- Why: stronger, smoother evaluation; better positional judgment.
+- Deliverables: NNUE feature encoder + accumulator updates; weight loader + starter weights; hybrid eval with default nnueMix=0.0 (Max-only).
+- Validation: unit tests (determinism, mirror symmetry, accumulator make/unmake, weight header parse). Benchmark runs pending (no NNUE mix enabled yet).
+- Risks: eval drift, perf regressions; mitigated via incremental accumulator and perf tracking.
+- Activation wiring fixes (commits 9c3af99, f7eed1d, b00fe3a): fix options undefined bug; thread nnueMix through alphaBeta/quiescence.
+
+### 8.2 Defensive safeguards (planned)
+- Why: reduce hanging pieces, missed tactics, and collapse losses.
+- Ideas: critical-position extensions; verification re-search for sharp drops; safer tie-breaks.
+- Validation: lower blunder rate and slower loss curves vs stronger engines.
+
+### 8.3 Positional planning improvements (planned)
+- Why: improve pawn structure, piece coordination, and endgame steering.
+- Ideas: targeted NNUE training emphasis; small hybrid nudges if needed.
+- Validation: improved results in positional/endgame suites.
+
+### 8.4 Data-driven improvement loop (planned)
+- Why: systematic correction of recurring mistakes.
+- Deliverables: PGN annotation + mistake mining pipeline; targeted training sets.
+- Validation: measurable drop in repeated failure patterns.
+
+### 8.5 Benchmarking & metrics (planned)
+- Core metrics: Elo/SPRT, ACPL, blunder rate, draw ratio vs stronger engines, loss-type breakdown, NPS/strength-per-node, endgame conversion.
+- Suite structure: tactical, positional, endgame, match play.
+
+### 8.6 NNUE training pipeline (implemented, commit 6901135)
+- Deliverables: Python training script (clean-filtered JSONL), Huber loss, gameId split, weight writer.
+- Status: smoke-trained weights produced for validation only.
+- Note: weights trained but NOT activated in engine (nnueMix stays 0.0).
+- Wrap-up note: Max-only NNUE activation tests show mix 0.10 is stable; mix 0.15 is rejected (earlier collapse). Default remains 0.0 until activation decision.
+
+Notes / sequence
+- Start with NNUE integration + stability (do not proceed until stable).
+- Then defensive safeguards; then data-mining loop and training iterations.
+
 ## Phase 7 — Tactical Depth & Threat Awareness (Hard + Max)
 
 Purpose / hypothesis
