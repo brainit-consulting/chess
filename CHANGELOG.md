@@ -8,6 +8,15 @@ Semantic Versioning.
 ## [Unreleased]
 ### Changed
 
+## [1.1.58] - 2026-01-02
+
+### Changed
+
+- Phase 8 defensive search improvements (in-check + forced recapture extensions; recapture-first ordering).
+- NNUE scaffolding + annotation/dataset/training tooling (NNUE remains OFF by default).
+- NNUE activation wiring fixes (nnueMix propagation, worker loading support).
+- Update the in-UI version label to v1.1.58.
+
 ## [1.1.57] - 2025-12-31
 
 ### Changed
