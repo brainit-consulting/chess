@@ -113,8 +113,7 @@ const NULL_MOVE_MIN_DEPTH = 3;
 const NULL_MOVE_REDUCTION = 2;
 const NULL_MOVE_MIN_MATERIAL = 1200;
 const QUIESCENCE_MAX_DEPTH = 4;
-const HARD_SOFT_STOP_FACTOR = 2.0;
-const HARD_SOFT_STOP_MIN_MS = 60;
+const HARD_DEADLINE_BUFFER_MS = 60;
 
 type TTFlag = 'exact' | 'alpha' | 'beta';
 
@@ -824,6 +823,10 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
 
   const now = options.now ?? defaultNow;
   const start = options.maxTimeMs ? now() : 0;
+  const effectiveDeadline =
+    options.maxTimeMs !== undefined
+      ? start + Math.max(0, options.maxTimeMs - HARD_DEADLINE_BUFFER_MS)
+      : 0;
   const instrumentation = options.instrumentation;
   const instrumentationStart = instrumentation ? now() : 0;
   if (instrumentation) {
@@ -853,7 +856,7 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
     if (options.maxTimeMs === undefined) {
       return false;
     }
-    return now() - start >= options.maxTimeMs;
+    return now() >= effectiveDeadline;
   };
   const shouldStopChecked =
     options.maxTimeMs !== undefined || options.stopRequested
@@ -1011,6 +1014,8 @@ export function findBestMoveTimed(
 
   const now = options.now ?? defaultNow;
   const start = now();
+  const effectiveDeadline =
+    start + Math.max(0, options.maxTimeMs - HARD_DEADLINE_BUFFER_MS);
   const instrumentation = options.instrumentation;
   const instrumentationStart = instrumentation ? now() : 0;
   if (instrumentation) {
@@ -1042,7 +1047,7 @@ export function findBestMoveTimed(
     if (options.stopRequested && options.stopRequested()) {
       return 'external_cancel';
     }
-    if (now() - start >= options.maxTimeMs) {
+    if (now() >= effectiveDeadline) {
       return 'mid_search_deadline';
     }
     return 'none';
@@ -1060,8 +1065,6 @@ export function findBestMoveTimed(
   const aspirationMaxRetries =
     options.aspirationMaxRetries ?? DEFAULT_ASPIRATION_MAX_RETRIES;
   let depthCompleted = 0;
-  let lastIterationMs: number | null = null;
-
   for (let depth = 1; depth <= options.maxDepth; depth += 1) {
     const preStopReason = getStopReason();
     if (preStopReason !== 'none') {
@@ -1075,29 +1078,10 @@ export function findBestMoveTimed(
       }
       break;
     }
-    if (!options.maxThinking && lastIterationMs !== null) {
-      const remaining = options.maxTimeMs - (now() - start);
-      if (remaining <= 0) {
-        if (instrumentation) {
-          instrumentation.softStopUsed = true;
-          setStopReason('pre_iter_gate');
-        }
-        break;
-      }
-      const required = lastIterationMs * HARD_SOFT_STOP_FACTOR + HARD_SOFT_STOP_MIN_MS;
-      if (remaining < required) {
-        if (instrumentation) {
-          instrumentation.softStopUsed = true;
-          setStopReason('pre_iter_gate');
-        }
-        break;
-      }
-    }
     if (ordering && depth > 1) {
       decayHistory(ordering);
     }
     options.onDepth?.(depth);
-    const depthStart = now();
     let stopDuringDepth = false;
     let midSearchStopReason: StopReason = 'none';
     const shouldStopChecked = () => {
@@ -1188,7 +1172,6 @@ export function findBestMoveTimed(
       scored = { move: result.move, score: result.score };
     }
 
-    const iterationMs = Math.max(0, now() - depthStart);
     if (stopDuringDepth) {
       if (instrumentation) {
         instrumentation.hardStopUsed = true;
@@ -1205,13 +1188,12 @@ export function findBestMoveTimed(
       best = scored.move;
       prevScore = scored.score;
       depthCompleted = depth;
-      lastIterationMs = iterationMs;
       options.onProgress?.({
         depth,
         move: scored.move,
         score: scored.score
       });
-      }
+    }
   }
 
   if (best) {
@@ -1705,6 +1687,23 @@ function alphaBeta(
   if (stopChecker && stopChecker()) {
     return evaluateState(state, maximizingColor, { maxThinking, nnueMix });
   }
+  let stopTicker = 0;
+  const shouldStopLoop = () => {
+    if (!stopChecker) {
+      return false;
+    }
+    if (instrumentation) {
+      if ((instrumentation.nodes & 1023) !== 0) {
+        return false;
+      }
+      return stopChecker();
+    }
+    stopTicker += 1;
+    if ((stopTicker & 1023) !== 0) {
+      return false;
+    }
+    return stopChecker();
+  };
   const legalMoves = getAllLegalMoves(state, currentColor);
   const alphaOrig = alpha;
   const betaOrig = beta;
@@ -1832,7 +1831,7 @@ function alphaBeta(
     let value = -Infinity;
     let bestMove: Move | undefined;
     for (let index = 0; index < ordered.length; index += 1) {
-      if (stopChecker && stopChecker()) {
+      if (shouldStopLoop()) {
         return value;
       }
       const move = ordered[index];
@@ -1961,7 +1960,7 @@ function alphaBeta(
   let value = Infinity;
   let bestMove: Move | undefined;
   for (let index = 0; index < ordered.length; index += 1) {
-    if (stopChecker && stopChecker()) {
+    if (shouldStopLoop()) {
       return value;
     }
     const move = ordered[index];
@@ -2530,6 +2529,23 @@ function quiescence(
   if (stopChecker && stopChecker()) {
     return evaluateState(state, maximizingColor, { maxThinking: true, nnueMix });
   }
+  let stopTicker = 0;
+  const shouldStopLoop = () => {
+    if (!stopChecker) {
+      return false;
+    }
+    if (instrumentation) {
+      if ((instrumentation.nodes & 1023) !== 0) {
+        return false;
+      }
+      return stopChecker();
+    }
+    stopTicker += 1;
+    if ((stopTicker & 1023) !== 0) {
+      return false;
+    }
+    return stopChecker();
+  };
   const legalMoves = getAllLegalMoves(state, currentColor);
   if (legalMoves.length === 0) {
     if (isInCheck(state, currentColor)) {
@@ -2588,7 +2604,7 @@ function quiescence(
   if (maximizing) {
     let value = standPat;
     for (const move of ordered) {
-      if (stopChecker && stopChecker()) {
+      if (shouldStopLoop()) {
         return value;
       }
       const next = cloneState(state);
@@ -2626,7 +2642,7 @@ function quiescence(
 
   let value = standPat;
   for (const move of ordered) {
-    if (stopChecker && stopChecker()) {
+    if (shouldStopLoop()) {
       return value;
     }
     const next = cloneState(state);
