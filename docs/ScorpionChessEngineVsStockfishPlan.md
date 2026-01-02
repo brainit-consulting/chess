@@ -1,5 +1,17 @@
 # ScorpionChessEngineVsStockfish Benchmark Plan
 
+## Phase 9.2c guardrail confirmation (Hard 1000 vs SF500, b6)
+
+RunId: phase9-regress-hard1000-vs-sf500-b6-seed7000-r7  
+- W/D/L: 0-0-12 | Avg plies: 36.7 | Timeouts: 5/217 (2.30%)  
+- stopReason: mid_search_deadline=171, pre_iter_gate=40, none=6, external_cancel=0
+
+RunId: phase9-regress-hard1000-vs-sf500-b6-seed7001-r2  
+- W/D/L: 0-0-12 | Avg plies: 32.2 | Timeouts: 4/190 (2.11%)  
+- stopReason: mid_search_deadline=160, pre_iter_gate=23, none=7, external_cancel=0
+
+Conclusion: hardStop remains dominant and timeout rate is still >2%; guardrail is not yet meeting the <1% target.
+
 Purpose
 - Measure current playing strength against Stockfish without changing our engine.
 - Produce repeatable results: Elo delta with confidence and a short internal report.
