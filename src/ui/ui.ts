@@ -11,7 +11,7 @@ import engineLogoUrl from '../../graphics/ScorpionChessEngineLogo.png';
 
 const PLAYER_GUIDE_URL = `${import.meta.env.BASE_URL}player-user-guide.md`;
 const LIVE_URL = 'https://brainit-consulting.github.io/chess/';
-const APP_VERSION = 'v1.1.60';
+const APP_VERSION = 'v1.1.61';
 
 export type UiState = {
   visible: boolean;
@@ -770,7 +770,7 @@ export class GameUI {
     experimentalTitle.textContent = 'Experimental';
 
     const nnueRow = document.createElement('div');
-    nnueRow.className = 'control-row expand-only';
+    nnueRow.className = 'control-row expand-only nnue-row';
 
     const nnueLabel = document.createElement('label');
     nnueLabel.className = 'toggle';
@@ -787,14 +787,13 @@ export class GameUI {
     const nnueText = document.createElement('span');
     nnueText.textContent = 'Experimental: NNUE (Max only)';
     nnueLabel.append(this.nnueToggle, nnueText);
-    nnueRow.append(nnueLabel);
 
     this.nnueMixRow = document.createElement('div');
-    this.nnueMixRow.className = 'control-row expand-only';
+    this.nnueMixRow.className = 'inline-slider-group nnue-mix-group';
 
     const nnueMixLabel = document.createElement('span');
     nnueMixLabel.className = 'stat-label';
-    nnueMixLabel.textContent = 'NNUE Mix';
+    nnueMixLabel.textContent = 'Mix';
 
     this.nnueMixInput = document.createElement('input');
     this.nnueMixInput.type = 'range';
@@ -814,6 +813,12 @@ export class GameUI {
     this.nnueMixValueEl.textContent = initialNnueMix.toFixed(2);
 
     this.nnueMixRow.append(nnueMixLabel, this.nnueMixInput, this.nnueMixValueEl);
+    nnueRow.append(nnueLabel, this.nnueMixRow);
+
+    const advancedRestartRow = document.createElement('div');
+    advancedRestartRow.className = 'control-row expand-only';
+    const advancedRestartBtn = this.makeButton('Restart', () => handlers.onRestart());
+    advancedRestartRow.append(advancedRestartBtn);
 
     const helpTitle = document.createElement('div');
     helpTitle.className = 'section-title expand-only';
@@ -913,7 +918,7 @@ export class GameUI {
       analyzerRow,
       experimentalTitle,
       nnueRow,
-      this.nnueMixRow,
+      advancedRestartRow,
       helpTitle,
       helpNote
     );

@@ -8,6 +8,15 @@ Semantic Versioning.
 ## [Unreleased]
 ### Changed
 
+## [1.1.61] - 2026-01-03
+
+### Changed
+
+- Restart now auto-starts the next game across modes.
+- NNUE toggle and mix slider share a single row in the main panel.
+- Restart is available in both Essentials and Advanced panels.
+- Update the in-UI version label to v1.1.61.
+
 ## [1.1.60] - 2026-01-03
 
 ### Changed

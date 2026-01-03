@@ -219,6 +219,7 @@ export class GameController {
   private aiWorker: Worker | null = null;
   private explainWorker: Worker | null = null;
   private aiPendingApplyAt = 0;
+  private restartInProgress = false;
 
   constructor(sceneRoot: HTMLElement, uiRoot: HTMLElement) {
     this.state = createInitialState();
@@ -248,7 +249,7 @@ export class GameController {
     this.scene.setCoordinateDebugOverlay(this.coordinateDebugEnabled);
     this.initAiWorker();
     this.ui = new GameUI(uiRoot, {
-      onRestart: () => this.reset(),
+      onRestart: () => this.restartAndStart(),
       onSnap: (view) => this.applyView(view),
       onPromotionChoice: (type) => this.resolvePromotion(type),
       onToggleAi: (enabled) => this.setAiEnabled(enabled),
@@ -370,6 +371,21 @@ export class GameController {
     this.sync();
     this.maybeAutoSnapView();
     this.maybeScheduleAiMove();
+  }
+
+  private restartAndStart(): void {
+    if (this.restartInProgress) {
+      return;
+    }
+    this.restartInProgress = true;
+    try {
+      this.reset();
+      if (this.mode === 'aivai') {
+        this.startAiVsAi();
+      }
+    } finally {
+      this.restartInProgress = false;
+    }
   }
 
   private sync(statusOverride?: GameStatus): void {
