@@ -8,6 +8,15 @@ Semantic Versioning.
 ## [Unreleased]
 ### Changed
 
+## [1.1.59] - 2026-01-02
+
+### Changed
+
+- MaxThinking time budget fixed (now uses the Max budget, not Hard).
+- Hard/Max time-safety guardrails (deadline buffer + frequent stop checks).
+- NNUE remains OFF by default (scaffolding and tooling unchanged).
+- Update the in-UI version label to v1.1.59.
+
 ## [1.1.58] - 2026-01-02
 
 ### Changed
