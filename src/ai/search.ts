@@ -80,6 +80,9 @@ const REPETITION_HARD_NUDGE_WINDOW = 10;
 const REPETITION_HARD_NUDGE_THREEFOLD_MULTIPLIER = 1.5;
 const REPETITION_ESCAPE_MARGIN = 150;
 const REPETITION_AVOID_LOSS_THRESHOLD = -200;
+const DRAWISH_REPEAT_PENALTY_CP = 15;
+const DRAWISH_REPEAT_THRESHOLD = 80;
+const DRAWISH_REPEAT_LOSS_THRESHOLD = -150;
 const DRAW_HOLD_THRESHOLD_DEFAULT = -80;
 const TWO_PLY_REPEAT_TOP_N_DEFAULT = 6;
 const ROOT_DIAGNOSTICS_TOP_N = 5;
@@ -209,6 +212,7 @@ type RootScore = {
   score: number;
   repeatCount: number;
   isRepeat: boolean;
+  givesCheck: boolean;
 };
 
 type RootMoveReason =
@@ -332,6 +336,38 @@ function applyRootContempt(
   });
 }
 
+function applyDrawishRepeatPenalty(
+  scores: RootScore[],
+  options: SearchOptions,
+  playForWin: boolean
+): RootScore[] {
+  if (!playForWin || !options.recentPositions?.length) {
+    return scores;
+  }
+  if (scores.length <= 1) {
+    return scores;
+  }
+  const nonRepeating = scores.filter((entry) => !entry.isRepeat);
+  if (nonRepeating.length === 0) {
+    return scores;
+  }
+  return scores.map((entry) => {
+    if (!entry.isRepeat) {
+      return entry;
+    }
+    if (entry.givesCheck) {
+      return entry;
+    }
+    if (entry.baseScore <= DRAWISH_REPEAT_LOSS_THRESHOLD) {
+      return entry;
+    }
+    if (Math.abs(entry.baseScore) > DRAWISH_REPEAT_THRESHOLD) {
+      return entry;
+    }
+    return { ...entry, score: entry.score - DRAWISH_REPEAT_PENALTY_CP };
+  });
+}
+
 function getRepetitionTieBreakCandidates(
   scores: RootScore[],
   options: SearchOptions,
@@ -414,6 +450,7 @@ export function applyRootContemptForTest(
     score: number;
     repeatCount: number;
     isRepeat: boolean;
+    givesCheck?: boolean;
   }[],
   options: {
     contemptCp?: number;
@@ -429,6 +466,31 @@ export function applyRootContemptForTest(
   isRepeat: boolean;
 }[] {
   return applyRootContempt(scores as RootScore[], options as SearchOptions, playForWin);
+}
+
+// Test-only: expose drawish repeat penalty logic with synthetic scores.
+export function applyDrawishRepeatPenaltyForTest(
+  scores: {
+    move: Move;
+    baseScore: number;
+    score: number;
+    repeatCount: number;
+    isRepeat: boolean;
+    givesCheck?: boolean;
+  }[],
+  options: {
+    recentPositions?: string[];
+  },
+  playForWin: boolean
+): {
+  move: Move;
+  baseScore: number;
+  score: number;
+  repeatCount: number;
+  isRepeat: boolean;
+  givesCheck?: boolean;
+}[] {
+  return applyDrawishRepeatPenalty(scores as RootScore[], options as SearchOptions, playForWin);
 }
 
 // Test-only: expose repetition tie-break candidates with synthetic scores.
@@ -950,7 +1012,8 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
       baseScore,
       score: baseScore + progressBias,
       repeatCount,
-      isRepeat: repeatCount > 0
+      isRepeat: repeatCount > 0,
+      givesCheck
     });
   }
 
@@ -970,7 +1033,12 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
     positionCounts
   );
   const contemptAdjusted = applyRootContempt(twoPlyAdjusted, options, playForWin);
-  const scoredMoves = contemptAdjusted.map((entry) => ({
+  const repeatAdjusted = applyDrawishRepeatPenalty(
+    contemptAdjusted,
+    options,
+    playForWin
+  );
+  const scoredMoves = repeatAdjusted.map((entry) => ({
     move: entry.move,
     score: entry.score,
     baseScore: entry.baseScore
@@ -995,7 +1063,7 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
   }
 
   const tieBreakCandidates = getRepetitionTieBreakCandidates(
-    contemptAdjusted,
+    repeatAdjusted,
     options,
     playForWin
   );
@@ -1007,7 +1075,7 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
     }
   }
 
-  windowed = enforceRootRepetitionAvoidance(windowed, contemptAdjusted, options, playForWin);
+  windowed = enforceRootRepetitionAvoidance(windowed, repeatAdjusted, options, playForWin);
 
   const index = Math.floor(options.rng() * windowed.length);
   const chosen = windowed[index];
@@ -1588,7 +1656,8 @@ function scoreRootMoves(
       baseScore,
       score: baseScore + progressBias,
       repeatCount,
-      isRepeat: repeatCount > 0
+      isRepeat: repeatCount > 0,
+      givesCheck
     });
   }
 
@@ -1606,7 +1675,12 @@ function scoreRootMoves(
     positionCounts
   );
   const contemptAdjusted = applyRootContempt(twoPlyAdjusted, options, playForWin);
-  const scoredMoves = contemptAdjusted.map((entry) => {
+  const repeatAdjusted = applyDrawishRepeatPenalty(
+    contemptAdjusted,
+    options,
+    playForWin
+  );
+  const scoredMoves = repeatAdjusted.map((entry) => {
     const mateInfo = getMateInfo(entry.score);
     return {
       move: entry.move,
@@ -1642,7 +1716,7 @@ function scoreRootMoves(
   }
 
   const tieBreakCandidates = getRepetitionTieBreakCandidates(
-    contemptAdjusted,
+    repeatAdjusted,
     options,
     playForWin
   );
@@ -1654,7 +1728,7 @@ function scoreRootMoves(
     }
   }
 
-  windowed = enforceRootRepetitionAvoidance(windowed, contemptAdjusted, options, playForWin);
+  windowed = enforceRootRepetitionAvoidance(windowed, repeatAdjusted, options, playForWin);
 
   const index = Math.floor(options.rng() * windowed.length);
   const chosen = windowed[index];

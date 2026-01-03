@@ -49,6 +49,8 @@ type UIHandlers = {
   onAnalyzeGame: () => void;
   onCoordinateModeChange: (mode: CoordinateMode) => void;
   onToggleCoordinateDebug: (enabled: boolean) => void;
+  onToggleNnue: (enabled: boolean) => void;
+  onNnueMixChange: (mix: number) => void;
   onExportPlainHistory: () => void;
   onExportPlainHistoryHtml: () => void;
   onCopyPlainHistory: () => void;
@@ -71,12 +73,21 @@ type UIOptions = {
   autoSnapHumanView?: boolean;
   coordinateMode?: CoordinateMode;
   coordinateDebugEnabled?: boolean;
+  nnueEnabled?: boolean;
+  nnueMix?: number;
 };
 
 const UI_STATE_KEY = 'chess.uiState';
 const PANEL_VIEW_KEY = 'chess.uiPanelView';
 const PANEL_VIEW_BY_MODE_KEY = 'chess.uiPanelViewByMode';
 const ADVANCED_STATE_KEY = 'chess.uiAdvancedOpen';
+
+function clampNnueMix(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.max(0, Math.min(0.2, value));
+}
 
 export class GameUI {
   private root: HTMLElement;
@@ -179,6 +190,10 @@ export class GameUI {
   private analyzerButton: HTMLButtonElement;
   private helpAnalyzerLink: HTMLAnchorElement;
   private summaryAnalyzerLink: HTMLAnchorElement;
+  private nnueToggle: HTMLInputElement;
+  private nnueMixRow: HTMLDivElement;
+  private nnueMixInput: HTMLInputElement;
+  private nnueMixValueEl: HTMLSpanElement;
   private nameWhiteEl: HTMLSpanElement;
   private nameBlackEl: HTMLSpanElement;
   private scoreWhiteEl: HTMLSpanElement;
@@ -343,6 +358,8 @@ export class GameUI {
     const initialHumanColor = options.humanColor ?? 'w';
     const initialAutoSnap = options.autoSnapHumanView ?? true;
     const initialCoordinateMode = options.coordinateMode ?? 'fixed-white';
+    const initialNnueEnabled = options.nnueEnabled ?? false;
+    const initialNnueMix = clampNnueMix(options.nnueMix ?? 0.05);
     const initialCoordinateDebug = options.coordinateDebugEnabled ?? false;
     this.aiToggle.checked = initialAiEnabled;
     this.aiToggle.addEventListener('change', () => {
@@ -748,6 +765,56 @@ export class GameUI {
 
     analyzerRow.append(this.analyzerSelect, this.analyzerButton);
 
+    const experimentalTitle = document.createElement('div');
+    experimentalTitle.className = 'section-title expand-only';
+    experimentalTitle.textContent = 'Experimental';
+
+    const nnueRow = document.createElement('div');
+    nnueRow.className = 'control-row expand-only';
+
+    const nnueLabel = document.createElement('label');
+    nnueLabel.className = 'toggle';
+
+    this.nnueToggle = document.createElement('input');
+    this.nnueToggle.type = 'checkbox';
+    this.nnueToggle.checked = initialNnueEnabled;
+    this.nnueToggle.addEventListener('change', () => {
+      const enabled = this.nnueToggle.checked;
+      this.setNnueEnabled(enabled);
+      this.handlers.onToggleNnue(enabled);
+    });
+
+    const nnueText = document.createElement('span');
+    nnueText.textContent = 'Experimental: NNUE (Max only)';
+    nnueLabel.append(this.nnueToggle, nnueText);
+    nnueRow.append(nnueLabel);
+
+    this.nnueMixRow = document.createElement('div');
+    this.nnueMixRow.className = 'control-row expand-only';
+
+    const nnueMixLabel = document.createElement('span');
+    nnueMixLabel.className = 'stat-label';
+    nnueMixLabel.textContent = 'NNUE Mix';
+
+    this.nnueMixInput = document.createElement('input');
+    this.nnueMixInput.type = 'range';
+    this.nnueMixInput.min = '0';
+    this.nnueMixInput.max = '0.2';
+    this.nnueMixInput.step = '0.01';
+    this.nnueMixInput.value = initialNnueMix.toFixed(2);
+    this.nnueMixInput.classList.add('inline-slider');
+    this.nnueMixInput.addEventListener('input', () => {
+      const value = clampNnueMix(Number(this.nnueMixInput.value));
+      this.setNnueMix(value);
+      this.handlers.onNnueMixChange(value);
+    });
+
+    this.nnueMixValueEl = document.createElement('span');
+    this.nnueMixValueEl.className = 'stat-value';
+    this.nnueMixValueEl.textContent = initialNnueMix.toFixed(2);
+
+    this.nnueMixRow.append(nnueMixLabel, this.nnueMixInput, this.nnueMixValueEl);
+
     const helpTitle = document.createElement('div');
     helpTitle.className = 'section-title expand-only';
     helpTitle.textContent = 'Help';
@@ -844,6 +911,9 @@ export class GameUI {
       this.musicHintEl,
       analyzerTitle,
       analyzerRow,
+      experimentalTitle,
+      nnueRow,
+      this.nnueMixRow,
       helpTitle,
       helpNote
     );
@@ -901,6 +971,8 @@ export class GameUI {
     this.setMusicEnabled(initialMusicEnabled);
     this.setAnalyzerChoice(initialAnalyzerChoice);
     this.setCoordinateMode(initialCoordinateMode);
+    this.setNnueEnabled(initialNnueEnabled);
+    this.setNnueMix(initialNnueMix);
     this.setMusicUnlockHint(false);
     this.setAiVsAiState({ started: false, running: false });
     this.applyUiState();
@@ -1114,6 +1186,17 @@ export class GameUI {
     const percent = Math.round(volume * 100);
     this.musicVolumeInput.value = percent.toString();
     this.musicVolumeValueEl.textContent = `${percent}%`;
+  }
+
+  setNnueEnabled(enabled: boolean): void {
+    this.nnueToggle.checked = enabled;
+    this.nnueMixInput.disabled = !enabled;
+  }
+
+  setNnueMix(mix: number): void {
+    const clamped = clampNnueMix(mix);
+    this.nnueMixInput.value = clamped.toFixed(2);
+    this.nnueMixValueEl.textContent = clamped.toFixed(2);
   }
 
   setMusicUnlockHint(visible: boolean): void {

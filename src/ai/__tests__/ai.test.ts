@@ -686,6 +686,71 @@ describe('AI move selection', () => {
     expect(repeatScore).toBeGreaterThanOrEqual(altScore);
   });
 
+  it('penalizes drawish repeats when a non-repeat exists', () => {
+    const repeatMove: Move = { from: sq(0, 0), to: sq(1, 0) };
+    const altMove: Move = { from: sq(0, 0), to: sq(0, 1) };
+    const scores = [
+      {
+        move: repeatMove,
+        baseScore: 20,
+        score: 20,
+        repeatCount: 1,
+        isRepeat: true,
+        givesCheck: false
+      },
+      {
+        move: altMove,
+        baseScore: 15,
+        score: 15,
+        repeatCount: 0,
+        isRepeat: false,
+        givesCheck: false
+      }
+    ];
+
+    const adjusted = search.applyDrawishRepeatPenaltyForTest(
+      scores,
+      { recentPositions: ['x'] },
+      true
+    );
+    const repeatScore = adjusted.find((entry) => entry.move === repeatMove)?.score ?? 0;
+    const altScore = adjusted.find((entry) => entry.move === altMove)?.score ?? 0;
+
+    expect(repeatScore).toBeLessThan(altScore);
+  });
+
+  it('does not penalize repeating checks in drawish positions', () => {
+    const repeatMove: Move = { from: sq(0, 0), to: sq(1, 0) };
+    const altMove: Move = { from: sq(0, 0), to: sq(0, 1) };
+    const scores = [
+      {
+        move: repeatMove,
+        baseScore: 10,
+        score: 10,
+        repeatCount: 1,
+        isRepeat: true,
+        givesCheck: true
+      },
+      {
+        move: altMove,
+        baseScore: 9,
+        score: 9,
+        repeatCount: 0,
+        isRepeat: false,
+        givesCheck: false
+      }
+    ];
+
+    const adjusted = search.applyDrawishRepeatPenaltyForTest(
+      scores,
+      { recentPositions: ['x'] },
+      true
+    );
+    const repeatScore = adjusted.find((entry) => entry.move === repeatMove)?.score ?? 0;
+
+    expect(repeatScore).toBe(10);
+  });
+
   it('keeps PVS selection consistent with full-window search', () => {
     const state = createEmptyState();
     addPiece(state, 'king', 'w', sq(4, 0));

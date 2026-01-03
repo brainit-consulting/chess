@@ -2,6 +2,7 @@ import { Move } from '../rules';
 import { chooseMove, chooseMoveWithMetrics } from './ai';
 import { explainMove } from './aiExplain';
 import { AiWorkerRequest, AiWorkerResponse } from './aiWorkerTypes';
+import { parseNnueWeights, setNnueWeights } from './nnue';
 
 const HARD_FALLBACK_MS = 1000;
 
@@ -12,6 +13,22 @@ export function computeAiMove(
   onProgress?: (update: ProgressUpdate) => void,
   stopRequested?: () => boolean
 ): AiWorkerResponse | null {
+  if (request.kind === 'nnue-weights') {
+    try {
+      const weights = parseNnueWeights(request.weights);
+      setNnueWeights(weights);
+      return { kind: 'nnue-weights', requestId: request.requestId, ok: true };
+    } catch (error) {
+      setNnueWeights(null);
+      return {
+        kind: 'nnue-weights',
+        requestId: request.requestId,
+        ok: false,
+        error: error instanceof Error ? error.message : 'Failed to parse NNUE weights.'
+      };
+    }
+  }
+
   if (request.kind === 'hint') {
     const move = chooseMove(request.state, {
       color: request.color,
@@ -57,6 +74,7 @@ export function computeAiMove(
       depthOverride: request.depthOverride,
       maxTimeMs,
       maxDepth: request.maxDepth,
+      nnueMix: request.nnueMix,
       stopRequested,
       onProgress
     });
@@ -84,6 +102,7 @@ export function computeAiMove(
     depthOverride: request.depthOverride,
     maxTimeMs,
     maxDepth: request.maxDepth,
+    nnueMix: request.nnueMix,
     stopRequested,
     onProgress
   });
