@@ -12,6 +12,29 @@ The UI shows player names (including AI labels) and a running captured-material 
 You can hide the UI panel or collapse it to a compact view from the header controls.
 Sound effects are available with a Sound toggle, and the camera adds subtle polish.
 
+## Public Transparency Note (ScorpionHeart vs ScorpionCore)
+
+Scorpion can operate in two distinct engine modes:
+
+- ScorpionHeart: a Stockfish-based UCI binary integration (renamed ScorpionHeart.exe).
+- ScorpionCore: the in-repo TypeScript engine that we are actively developing.
+
+How to interpret benchmarks and Elo:
+- Heart-powered results and Core-powered results are reported separately.
+- Heart results demonstrate integration strength; Core results demonstrate native engine progress.
+- Results are explicitly labeled “(Heart)” or “(Core)” and never combined.
+
+What to expect:
+- Some builds may default to ScorpionHeart for playing strength while ScorpionCore continues to improve.
+- The long-term goal is a strong, fully native ScorpionCore.
+
+How to cite results:
+- Use “Scorpion (Heart)” for Stockfish-based runs.
+- Use “Scorpion (Core)” for native TypeScript engine runs.
+
+Licensing note:
+- ScorpionHeart is Stockfish-based; distributions must comply with GPL/attribution requirements.
+
 ## Run
 
 ```bash
