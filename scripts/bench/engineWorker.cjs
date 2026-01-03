@@ -3,7 +3,7 @@ require('tsx/cjs');
 const { parentPort } = require('node:worker_threads');
 const fs = require('node:fs');
 const path = require('node:path');
-const { chooseMove, chooseMoveWithDiagnostics } = require('../../src/ai/ai');
+const { chooseMove, chooseMoveWithDiagnostics, chooseMoveWithMetrics } = require('../../src/ai/ai');
 const { parseNnueWeights, setNnueWeights } = require('../../src/ai/nnue');
 
 let loadedNnuePath = null;
@@ -39,6 +39,7 @@ parentPort.on('message', (message) => {
     stopRequested = false;
     let stopSeen = false;
     const diagnosticsRequested = Boolean(message.options?.diagnostics);
+    const instrumentationRequested = Boolean(message.options?.instrumentation);
     const nnueWeightsPath =
       message.options?.nnueWeightsPath ?? process.env.NNUE_WEIGHTS_PATH;
     if (message.options?.difficulty === 'max' && nnueWeightsPath) {
@@ -63,16 +64,28 @@ parentPort.on('message', (message) => {
     };
     const result = diagnosticsRequested
       ? chooseMoveWithDiagnostics(message.state, baseOptions)
+      : instrumentationRequested
+      ? chooseMoveWithMetrics(message.state, baseOptions)
       : { move: chooseMove(message.state, baseOptions), diagnostics: null };
     const debug = process.env.BENCH_DEBUG === '1';
-    const meta = debug
-      ? {
-          usedTimedHard:
-            message.options?.difficulty === 'hard' && message.options?.maxTimeMs != null,
-          maxTimeMs: message.options?.maxTimeMs ?? null,
-          stopRequested: stopSeen
-        }
-      : undefined;
+    const meta =
+      instrumentationRequested || debug
+        ? {
+            ...(debug
+              ? {
+                  usedTimedHard:
+                    message.options?.difficulty === 'hard' && message.options?.maxTimeMs != null
+                }
+              : {}),
+            ...(instrumentationRequested
+              ? {
+                  maxTimeMs: message.options?.maxTimeMs ?? null,
+                  stopRequested: stopSeen,
+                  searchMetrics: result.metrics ?? null
+                }
+              : {})
+          }
+        : undefined;
     parentPort.postMessage({
       id: message.id,
       move: result.move,

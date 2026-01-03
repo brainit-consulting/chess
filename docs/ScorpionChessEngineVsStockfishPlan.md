@@ -1,5 +1,67 @@
 # ScorpionChessEngineVsStockfish Benchmark Plan
 
+## Phase 9.3b Max budget selection fixed (Max 1000 vs SF500, b3, NNUE_MIX=0)
+
+RunId: phase9-diag-max-nnue0-vs-sf500-b3-seed7000-r3  
+- W/D/L: 0-0-6 | Avg plies: 62.2 | Timeouts: 0/185 (0.00%)  
+- stopReason: mid_search_deadline=178, none=7, pre_iter_gate=0, external_cancel=0  
+- budget sample (game-0001): ply1 budget=10000 eff=9750 dur=9750.9ms; ply3 budget=10000 eff=9750 dur=9760.4ms
+
+RunId: phase9-diag-max-nnue0-vs-sf500-b3-seed7001-r3  
+- W/D/L: 0-0-6 | Avg plies: 54.2 | Timeouts: 0/161 (0.00%)  
+- stopReason: mid_search_deadline=158, none=3, pre_iter_gate=0, external_cancel=0  
+- budget sample (game-0001): ply1 budget=10000 eff=9750 dur=9757.4ms; ply3 budget=10000 eff=9750 dur=9756.8ms
+
+Conclusion: Max now uses the correct 10s budget (eff 9.75s) and timeouts dropped to 0% on b3.
+
+## Phase 9.3a Max budget plumbing diagnostic (Max 1000 vs SF500, b6, NNUE_MIX=0)
+
+RunId: phase9-diag-max-nnue0-vs-sf500-b6-seed7000-r2  
+- W/D/L: 0-0-12 | Avg plies: 42.5 | Timeouts: 17/252 (6.75%)  
+- stopReason: mid_search_deadline=235, none=17, pre_iter_gate=0, external_cancel=0
+
+RunId: phase9-diag-max-nnue0-vs-sf500-b6-seed7001-r2  
+- W/D/L: 0-0-12 | Avg plies: 43.8 | Timeouts: 22/260 (8.46%)  
+- stopReason: mid_search_deadline=238, none=22, pre_iter_gate=0, external_cancel=0
+
+Conclusion: Max still overruns despite shared deadline/buffer; timeouts remain elevated.
+
+## Phase 9.3 Max guardrail confirmation (Max 1000 vs SF500, b6, NNUE_MIX=0)
+
+RunId: phase9-regress-max-nnue0-vs-sf500-b6-seed7000-r1  
+- W/D/L: 0-0-12 | Avg plies: 40.5 | Timeouts: 20/240 (8.33%)  
+- stopReason: mid_search_deadline=220, none=20, pre_iter_gate=0, external_cancel=0
+
+RunId: phase9-regress-max-nnue0-vs-sf500-b6-seed7001-r1  
+- W/D/L: 0-0-12 | Avg plies: 47.7 | Timeouts: 25/283 (8.83%)  
+- stopReason: mid_search_deadline=258, none=25, pre_iter_gate=0, external_cancel=0
+
+Conclusion: Max timeouts remain high; guardrails are not yet effective for Max.
+
+## Phase 9.2d deadline-buffer confirmation (Hard 1000 vs SF500, b6)
+
+RunId: phase9-regress-hard1000-vs-sf500-b6-seed7000-r8  
+- W/D/L: 0-0-12 | Avg plies: 34.0 | Timeouts: 0/201 (0.00%)  
+- stopReason: mid_search_deadline=198, pre_iter_gate=0, none=3, external_cancel=0
+
+RunId: phase9-regress-hard1000-vs-sf500-b6-seed7001-r3  
+- W/D/L: 0-0-12 | Avg plies: 28.5 | Timeouts: 0/168 (0.00%)  
+- stopReason: mid_search_deadline=166, pre_iter_gate=0, none=2, external_cancel=0
+
+Conclusion: timeouts dropped to 0%, but mid_search_deadline remains dominant and pre-iteration gating did not trigger.
+
+## Phase 9.2c guardrail confirmation (Hard 1000 vs SF500, b6)
+
+RunId: phase9-regress-hard1000-vs-sf500-b6-seed7000-r7  
+- W/D/L: 0-0-12 | Avg plies: 36.7 | Timeouts: 5/217 (2.30%)  
+- stopReason: mid_search_deadline=171, pre_iter_gate=40, none=6, external_cancel=0
+
+RunId: phase9-regress-hard1000-vs-sf500-b6-seed7001-r2  
+- W/D/L: 0-0-12 | Avg plies: 32.2 | Timeouts: 4/190 (2.11%)  
+- stopReason: mid_search_deadline=160, pre_iter_gate=23, none=7, external_cancel=0
+
+Conclusion: hardStop remains dominant and timeout rate is still >2%; guardrail is not yet meeting the <1% target.
+
 Purpose
 - Measure current playing strength against Stockfish without changing our engine.
 - Produce repeatable results: Elo delta with confidence and a short internal report.

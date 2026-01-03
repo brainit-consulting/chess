@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { chooseMove } from '../ai';
+import { chooseMove, chooseMoveWithMetrics } from '../ai';
 import { explainMove } from '../aiExplain';
 import { computeAiMove } from '../aiWorker';
 import { evaluateState } from '../evaluate';
@@ -148,6 +148,47 @@ describe('AI move selection', () => {
       throw new Error('Expected both paths to return a move.');
     }
     expect(sameMove(direct, worker.move)).toBe(true);
+  });
+
+  it('returns the same move with instrumentation enabled', () => {
+    const state = createInitialState();
+    state.activeColor = 'w';
+    const options = { difficulty: 'medium' as const, seed: 42 };
+
+    const direct = chooseMove(cloneState(state), options);
+    const instrumented = chooseMoveWithMetrics(cloneState(state), options);
+
+    expect(direct).not.toBeNull();
+    expect(instrumented.move).not.toBeNull();
+    if (!direct || !instrumented.move) {
+      throw new Error('Expected both paths to return a move.');
+    }
+    expect(sameMove(direct, instrumented.move)).toBe(true);
+  });
+
+  it('returns a legal move under a tight time budget', () => {
+    const state = createInitialState();
+    state.activeColor = 'w';
+    const legalMoves = getAllLegalMoves(state, 'w');
+    let t = 0;
+    const now = () => {
+      t += 5;
+      return t;
+    };
+    const move = search.findBestMoveTimed(state, 'w', {
+      maxDepth: 3,
+      maxTimeMs: 5,
+      rng: createSequenceRng([0.1]),
+      legalMoves,
+      maxThinking: false,
+      now
+    });
+
+    expect(move).not.toBeNull();
+    if (!move) {
+      throw new Error('Expected a move under tight time limits.');
+    }
+    expect(legalMoves.some((candidate) => sameMove(candidate, move))).toBe(true);
   });
 
   it('ignores stale AI worker responses', () => {

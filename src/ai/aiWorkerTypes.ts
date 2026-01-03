@@ -13,6 +13,7 @@ export type AiMoveRequest = {
   depthOverride?: number;
   maxTimeMs?: number;
   maxDepth?: number;
+  debugTiming?: boolean;
 };
 
 export type AiStopRequest = {

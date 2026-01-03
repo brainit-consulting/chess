@@ -1,7 +1,9 @@
 import { Move } from '../rules';
-import { chooseMove } from './ai';
+import { chooseMove, chooseMoveWithMetrics } from './ai';
 import { explainMove } from './aiExplain';
 import { AiWorkerRequest, AiWorkerResponse } from './aiWorkerTypes';
+
+const HARD_FALLBACK_MS = 1000;
 
 type ProgressUpdate = { depth: number; move: Move | null; score: number | null };
 
@@ -40,6 +42,39 @@ export function computeAiMove(
     return null;
   }
 
+  const maxTimeMs =
+    request.difficulty === 'hard' && request.maxTimeMs == null
+      ? HARD_FALLBACK_MS
+      : request.maxTimeMs;
+  if (request.debugTiming) {
+    const startedAt = performance.now();
+    const { move, metrics } = chooseMoveWithMetrics(request.state, {
+      color: request.color,
+      difficulty: request.difficulty,
+      seed: request.seed,
+      playForWin: request.playForWin,
+      recentPositions: request.recentPositions,
+      depthOverride: request.depthOverride,
+      maxTimeMs,
+      maxDepth: request.maxDepth,
+      stopRequested,
+      onProgress
+    });
+    const durationMs = performance.now() - startedAt;
+    console.log('[AI Worker] done', {
+      requestId: request.requestId,
+      difficulty: request.difficulty,
+      maxTimeMs,
+      durationMs,
+      depthCompleted: metrics?.depthCompleted,
+      nodes: metrics?.nodes,
+      nps: metrics?.nps,
+      hardStopUsed: metrics?.hardStopUsed,
+      softStopUsed: metrics?.softStopUsed
+    });
+    return { kind: 'move', requestId: request.requestId, move };
+  }
+
   const move = chooseMove(request.state, {
     color: request.color,
     difficulty: request.difficulty,
@@ -47,7 +82,7 @@ export function computeAiMove(
     playForWin: request.playForWin,
     recentPositions: request.recentPositions,
     depthOverride: request.depthOverride,
-    maxTimeMs: request.maxTimeMs,
+    maxTimeMs,
     maxDepth: request.maxDepth,
     stopRequested,
     onProgress
@@ -67,6 +102,19 @@ if (typeof self !== 'undefined') {
     }
     if (request.kind === 'move') {
       stopFlags.set(request.requestId, false);
+      const maxTimeMs =
+        request.difficulty === 'hard' && request.maxTimeMs == null
+          ? HARD_FALLBACK_MS
+          : request.maxTimeMs;
+      if (request.debugTiming) {
+        console.log('[AI Worker] start', {
+          requestId: request.requestId,
+          difficulty: request.difficulty,
+          maxTimeMs,
+          maxDepth: request.maxDepth
+        });
+      }
+      let stopLogged = false;
       const onProgress =
         request.difficulty === 'max'
           ? (update: ProgressUpdate) => {
@@ -82,7 +130,14 @@ if (typeof self !== 'undefined') {
       const response = computeAiMove(
         request,
         onProgress,
-        () => stopFlags.get(request.requestId) === true
+        () => {
+          const stopped = stopFlags.get(request.requestId) === true;
+          if (stopped && request.debugTiming && !stopLogged) {
+            stopLogged = true;
+            console.log('[AI Worker] stopRequested', { requestId: request.requestId });
+          }
+          return stopped;
+        }
       );
       stopFlags.delete(request.requestId);
       if (response) {

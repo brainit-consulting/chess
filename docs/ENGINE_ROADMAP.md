@@ -461,3 +461,57 @@ Controls / invariants (checklist)
 - Tests: in-check position where one evasion fails on next ply and one survives.
 - Success criterion: avg plies >= 38.0 with stable timeouts.
 - Risks: depth blowup if applied outside strict guardrails.
+
+## Phase 9 - Time Safety & Timeout Reduction (Hard + Max)
+
+Purpose / hypothesis
+- Reduce engine timed-out moves from ~2% to <1% (target <0.5%) at existing time controls.
+- Improve strength-per-time by preventing deep search from overrunning the time budget.
+- Keep gameplay identical except for fewer timeouts and better time management.
+
+Controls / invariants (checklist)
+- [ ] Do not change evaluation logic (including NNUE defaults).
+- [ ] Do not change search correctness or move legality rules.
+- [ ] Keep default time controls unchanged (Hard=1000ms, Max ladder unchanged).
+- [ ] No benchmark parameter changes unless explicitly called out as measurement only.
+
+### 9.1 Instrumentation (implemented, commit 9b0d1b0)
+- Deliverables:
+  - Log/track per-move: allocated ms, actual ms, depth reached, nodes, NPS, cutoffs, and fallback/early-exit use.
+  - Expose these in bench meta JSON for timeout-cause analysis.
+- Validation:
+  - Unit test: instrumentation does not change chosen move for deterministic seeds.
+
+### 9.2 Hard time budget guardrails (implemented, commit 994c9ce)
+- Deliverables:
+  - Soft stop: stop deepening when remaining budget < X ms (dynamic based on prior iteration cost).
+  - Hard stop: safe exit before deadline with best-known PV (never exceed budget).
+  - Ensure iterative deepening returns last completed depth result reliably.
+  - AI-vs-AI Hard safety timer: send stop request at maxTimeMs + small grace to prevent runaway moves.
+- Validation:
+  - Timeout rate drops on the same rung (Hard1000 vs SF500) without increasing early collapse metrics.
+
+### 9.3 MaxThinking time ladder guardrails (planned)
+- Deliverables:
+  - Similar guardrails but with larger budget; emphasize stability (no runaway searches).
+  - Avoid giant last-iteration overrun (cap next depth attempt if previous depth cost exploded).
+- Validation:
+  - Timeout rate drops on Max rung without lowering avg plies.
+
+### 9.4 Safe fallback move selection (planned)
+- Deliverables:
+  - If time is nearly exhausted, ensure a legal move is always returned:
+    - prefer cached best move from last completed iteration
+    - else a quick ordered move list pick
+  - Never return “no move” or throw.
+- Validation:
+  - Unit test: in forced low-time simulation, engine always returns a legal move.
+
+### 9.5 Bench & metrics (planned)
+- Core metrics:
+  - timeout_moves_rate (primary)
+  - avg plies
+  - firstEval<=-300 and <=-500 medians (via Phase 8.4 pipeline)
+  - strength-per-time proxy: avg depth / nodes per ms (from instrumentation)
+- Suite:
+  - Keep using existing SF500 quick bench rungs + seeds.

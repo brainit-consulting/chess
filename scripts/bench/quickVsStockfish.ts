@@ -15,7 +15,7 @@ import {
   getPositionKey
 } from '../../src/rules';
 import { buildPgn, buildSan, PgnMove } from '../../src/pgn/pgn';
-import { MAX_THINKING_DEPTH_CAP } from '../../src/ai/ai';
+import { MAX_THINKING_CAP_MS, MAX_THINKING_DEPTH_CAP } from '../../src/ai/ai';
 import { StockfishClient } from './uciStockfish';
 
 type EngineMode = 'hard' | 'max';
@@ -83,6 +83,19 @@ type MoveTiming = {
   source: 'engine' | 'stockfish';
   ms: number;
   timedOut: boolean;
+  allocatedMs?: number;
+  depth?: number;
+  nodes?: number;
+  nps?: number;
+  cutoffs?: number;
+  fallbackUsed?: boolean;
+  earlyExitUsed?: boolean;
+  softStopUsed?: boolean;
+  hardStopUsed?: boolean;
+  stopReason?: 'none' | 'pre_iter_gate' | 'mid_search_deadline' | 'external_cancel';
+  budgetMs?: number;
+  effectiveBudgetMs?: number;
+  durationMs?: number;
 };
 
 type GameLog = {
@@ -216,16 +229,18 @@ async function main(): Promise<void> {
   const outDir = args.outDir ?? path.join(ROOT_OUTPUT_DIR, `run-${runId}`);
   const commandLine = process.argv.join(' ');
   const commitSha = resolveCommitSha();
+  const defaultMovetimeMs = args.movetimeMs ?? DEFAULT_MOVETIME_MS;
+  const mode = args.mode ?? DEFAULT_MODE;
   const stockfishMovetimes =
-    args.stockfishLadder ??
-    [args.stockfishMovetime ?? args.movetimeMs ?? DEFAULT_MOVETIME_MS];
+    args.stockfishLadder ?? [args.stockfishMovetime ?? defaultMovetimeMs];
+  const engineMovetimeMs = mode === 'max' ? MAX_THINKING_CAP_MS : defaultMovetimeMs;
 
   const config: RunConfig = {
     stockfishPath: args.stockfishPath,
     batchSize: args.batchSize ?? DEFAULT_BATCH_SIZE,
-    movetimeMs: args.movetimeMs ?? DEFAULT_MOVETIME_MS,
+    movetimeMs: engineMovetimeMs,
     stockfishMovetimes,
-    mode: args.mode ?? DEFAULT_MODE,
+    mode,
     threads: args.threads ?? DEFAULT_THREADS,
     hashMb: args.hashMb ?? DEFAULT_HASH_MB,
     ponder: false,
@@ -573,7 +588,65 @@ async function runSingleGame(options: {
         color: state.activeColor,
         source: move.source,
         ms: move.elapsedMs,
-        timedOut: move.timedOut
+        timedOut: move.timedOut,
+        allocatedMs: move.source === 'engine' ? options.movetimeMs : options.stockfishMovetimeMs,
+        depth:
+          move.source === 'engine' && move.meta
+            ? (move.meta as { searchMetrics?: { depthCompleted?: number } }).searchMetrics
+                ?.depthCompleted
+            : undefined,
+        nodes:
+          move.source === 'engine' && move.meta
+            ? (move.meta as { searchMetrics?: { nodes?: number } }).searchMetrics?.nodes
+            : undefined,
+        nps:
+          move.source === 'engine' && move.meta
+            ? (move.meta as { searchMetrics?: { nps?: number } }).searchMetrics?.nps
+            : undefined,
+        cutoffs:
+          move.source === 'engine' && move.meta
+            ? (move.meta as { searchMetrics?: { cutoffs?: number } }).searchMetrics?.cutoffs
+            : undefined,
+        fallbackUsed:
+          move.timedOut ||
+          (move.source === 'engine' &&
+            move.meta &&
+            (move.meta as { searchMetrics?: { fallbackUsed?: boolean } }).searchMetrics
+              ?.fallbackUsed) ||
+          false,
+        earlyExitUsed:
+          move.source === 'engine' && move.meta
+            ? (move.meta as { stopRequested?: boolean }).stopRequested === true
+            : undefined,
+        softStopUsed:
+          move.source === 'engine' && move.meta
+            ? (move.meta as { searchMetrics?: { softStopUsed?: boolean } }).searchMetrics
+                ?.softStopUsed
+            : undefined,
+        hardStopUsed:
+          move.source === 'engine' && move.meta
+            ? (move.meta as { searchMetrics?: { hardStopUsed?: boolean } }).searchMetrics
+                ?.hardStopUsed
+            : undefined,
+        stopReason:
+          move.source === 'engine' && move.meta
+            ? (move.meta as { searchMetrics?: { stopReason?: MoveTiming['stopReason'] } })
+                .searchMetrics?.stopReason
+            : undefined,
+        budgetMs:
+          move.source === 'engine' && move.meta
+            ? (move.meta as { searchMetrics?: { budgetMs?: number } }).searchMetrics?.budgetMs
+            : undefined,
+        effectiveBudgetMs:
+          move.source === 'engine' && move.meta
+            ? (move.meta as { searchMetrics?: { effectiveBudgetMs?: number } }).searchMetrics
+                ?.effectiveBudgetMs
+            : undefined,
+        durationMs:
+          move.source === 'engine' && move.meta
+            ? (move.meta as { searchMetrics?: { durationMs?: number } }).searchMetrics
+                ?.durationMs
+            : undefined
       });
 
       const san = buildSan(state, move.move);
@@ -660,6 +733,7 @@ async function pickEngineMove(
   elapsedMs: number;
   timedOut: boolean;
   source: 'engine';
+  meta?: { [key: string]: unknown };
 }> {
   const start = performance.now();
   const seed = Math.floor(rng() * 1000000000);
@@ -671,7 +745,8 @@ async function pickEngineMove(
       difficulty: options.mode,
       maxTimeMs: options.movetimeMs,
       maxDepth: options.mode === 'max' ? MAX_THINKING_DEPTH_CAP : undefined,
-      seed
+      seed,
+      instrumentation: true
     },
     options.movetimeMs,
     ENGINE_TIMEOUT_GRACE_MS,
@@ -689,7 +764,8 @@ async function pickEngineMove(
       worker: result.worker,
       elapsedMs: elapsed,
       timedOut,
-      source: 'engine'
+      source: 'engine',
+      meta: result.meta
     };
   }
   if (!result.move) {
@@ -700,7 +776,8 @@ async function pickEngineMove(
       worker: result.worker,
       elapsedMs: elapsed,
       timedOut,
-      source: 'engine'
+      source: 'engine',
+      meta: result.meta
     };
   }
   return {
@@ -708,7 +785,8 @@ async function pickEngineMove(
     worker: result.worker,
     elapsedMs: elapsed,
     timedOut,
-    source: 'engine'
+    source: 'engine',
+    meta: result.meta
   };
 }
 
@@ -1720,6 +1798,7 @@ async function runEngineWithTimeout(
     maxTimeMs?: number;
     maxDepth?: number;
     seed: number;
+    instrumentation?: boolean;
   },
   targetMs: number,
   graceMs: number,

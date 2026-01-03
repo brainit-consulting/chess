@@ -43,7 +43,24 @@ type SearchOptions = {
   maxTimeMs?: number;
   now?: () => number;
   stopRequested?: () => boolean;
+  instrumentation?: SearchInstrumentation;
 };
+
+export type SearchInstrumentation = {
+  nodes: number;
+  cutoffs: number;
+  depthCompleted: number;
+  durationMs: number;
+  nps: number;
+  fallbackUsed: boolean;
+  softStopUsed: boolean;
+  hardStopUsed: boolean;
+  stopReason: 'none' | 'pre_iter_gate' | 'mid_search_deadline' | 'external_cancel';
+  budgetMs: number | null;
+  effectiveBudgetMs: number | null;
+};
+
+type StopReason = SearchInstrumentation['stopReason'];
 
 const MATE_SCORE = 20000;
 const DEFAULT_REPETITION_PENALTY = 15;
@@ -98,6 +115,9 @@ const NULL_MOVE_MIN_DEPTH = 3;
 const NULL_MOVE_REDUCTION = 2;
 const NULL_MOVE_MIN_MATERIAL = 1200;
 const QUIESCENCE_MAX_DEPTH = 4;
+const DEADLINE_BUFFER_MIN_MS = 60;
+const DEADLINE_BUFFER_MAX_MS = 250;
+const DEADLINE_BUFFER_RATIO = 0.06;
 
 type TTFlag = 'exact' | 'alpha' | 'beta';
 
@@ -107,6 +127,11 @@ type TTEntry = {
   flag: TTFlag;
   bestMove?: Move;
 };
+
+function getDeadlineBufferMs(maxTimeMs: number): number {
+  const scaled = Math.floor(maxTimeMs * DEADLINE_BUFFER_RATIO);
+  return Math.min(DEADLINE_BUFFER_MAX_MS, Math.max(DEADLINE_BUFFER_MIN_MS, scaled));
+}
 
 type TtStore = {
   get: (key: string) => TTEntry | undefined;
@@ -793,11 +818,50 @@ export type MateProbeReport = {
 export function findBestMove(state: GameState, color: Color, options: SearchOptions): Move | null {
   const legalMoves = options.legalMoves ?? getAllLegalMoves(state, color);
   if (legalMoves.length === 0) {
+    if (options.instrumentation) {
+      options.instrumentation.depthCompleted = 0;
+      options.instrumentation.durationMs = 0;
+      options.instrumentation.nps = 0;
+      options.instrumentation.fallbackUsed = false;
+      options.instrumentation.softStopUsed = false;
+      options.instrumentation.hardStopUsed = false;
+      options.instrumentation.stopReason = 'none';
+    }
     return null;
   }
 
   const now = options.now ?? defaultNow;
   const start = options.maxTimeMs ? now() : 0;
+  const bufferMs =
+    options.maxTimeMs !== undefined ? getDeadlineBufferMs(options.maxTimeMs) : 0;
+  const effectiveDeadline =
+    options.maxTimeMs !== undefined
+      ? start + Math.max(0, options.maxTimeMs - bufferMs)
+      : 0;
+  const instrumentation = options.instrumentation;
+  const instrumentationStart = instrumentation ? now() : 0;
+  if (instrumentation) {
+    instrumentation.nodes = 0;
+    instrumentation.cutoffs = 0;
+    instrumentation.depthCompleted = options.depth;
+    instrumentation.durationMs = 0;
+    instrumentation.nps = 0;
+    instrumentation.fallbackUsed = false;
+    instrumentation.softStopUsed = false;
+    instrumentation.hardStopUsed = false;
+    instrumentation.stopReason = 'none';
+    instrumentation.budgetMs = options.maxTimeMs ?? null;
+    instrumentation.effectiveBudgetMs =
+      options.maxTimeMs !== undefined ? Math.max(0, options.maxTimeMs - bufferMs) : null;
+  }
+  const finalizeInstrumentation = () => {
+    if (!instrumentation) {
+      return;
+    }
+    const duration = Math.max(0, now() - instrumentationStart);
+    instrumentation.durationMs = duration;
+    instrumentation.nps = duration > 0 ? (instrumentation.nodes * 1000) / duration : 0;
+  };
   let nodeCounter = 0;
   const shouldStop = () => {
     if (options.stopRequested && options.stopRequested()) {
@@ -806,7 +870,7 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
     if (options.maxTimeMs === undefined) {
       return false;
     }
-    return now() - start >= options.maxTimeMs;
+    return now() >= effectiveDeadline;
   };
   const shouldStopChecked =
     options.maxTimeMs !== undefined || options.stopRequested
@@ -842,6 +906,7 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
 
   for (const move of ordered) {
     if (shouldStop()) {
+      finalizeInstrumentation();
       return bestSoFar ?? move;
     }
     const next = cloneState(state);
@@ -863,7 +928,8 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
       ordering,
       shouldStopChecked,
       options.nnueMix,
-      options.microQuiescenceDepth
+      options.microQuiescenceDepth,
+      instrumentation
     );
     const givesCheck = isInCheck(next, opponentColor(color));
     const repeatKey = playForWin ? getPositionKey(next) : null;
@@ -890,6 +956,7 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
 
   if (rootScores.length === 1) {
     storeRootTt(options, state, rootScores[0].move, rootScores[0].baseScore);
+    finalizeInstrumentation();
     return rootScores[0].move;
   }
 
@@ -945,6 +1012,7 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
   const index = Math.floor(options.rng() * windowed.length);
   const chosen = windowed[index];
   storeRootTt(options, state, chosen.move, chosen.baseScore);
+  finalizeInstrumentation();
   return chosen.move;
 }
 
@@ -960,12 +1028,47 @@ export function findBestMoveTimed(
 
   const now = options.now ?? defaultNow;
   const start = now();
-  const shouldStop = () => {
-    if (options.stopRequested && options.stopRequested()) {
-      return true;
+  const bufferMs = getDeadlineBufferMs(options.maxTimeMs);
+  const effectiveDeadline = start + Math.max(0, options.maxTimeMs - bufferMs);
+  const instrumentation = options.instrumentation;
+  const instrumentationStart = instrumentation ? now() : 0;
+  if (instrumentation) {
+    instrumentation.nodes = 0;
+    instrumentation.cutoffs = 0;
+    instrumentation.depthCompleted = 0;
+    instrumentation.durationMs = 0;
+    instrumentation.nps = 0;
+    instrumentation.fallbackUsed = false;
+    instrumentation.softStopUsed = false;
+    instrumentation.hardStopUsed = false;
+    instrumentation.stopReason = 'none';
+    instrumentation.budgetMs = options.maxTimeMs ?? null;
+    instrumentation.effectiveBudgetMs = Math.max(0, options.maxTimeMs - bufferMs);
+  }
+  const finalizeInstrumentation = () => {
+    if (!instrumentation) {
+      return;
     }
-    return now() - start >= options.maxTimeMs;
+    const duration = Math.max(0, now() - instrumentationStart);
+    instrumentation.durationMs = duration;
+    instrumentation.nps = duration > 0 ? (instrumentation.nodes * 1000) / duration : 0;
   };
+  const setStopReason = (reason: StopReason) => {
+    if (!instrumentation || instrumentation.stopReason !== 'none') {
+      return;
+    }
+    instrumentation.stopReason = reason;
+  };
+  const getStopReason = (): StopReason => {
+    if (options.stopRequested && options.stopRequested()) {
+      return 'external_cancel';
+    }
+    if (now() >= effectiveDeadline) {
+      return 'mid_search_deadline';
+    }
+    return 'none';
+  };
+  const shouldStop = () => getStopReason() !== 'none';
   let best: Move | null = null;
   let prevScore: number | null = null;
   const tt = options.tt ?? (options.maxThinking ? new Map<string, TTEntry>() : undefined);
@@ -977,22 +1080,44 @@ export function findBestMoveTimed(
     : 0;
   const aspirationMaxRetries =
     options.aspirationMaxRetries ?? DEFAULT_ASPIRATION_MAX_RETRIES;
-
+  let depthCompleted = 0;
   for (let depth = 1; depth <= options.maxDepth; depth += 1) {
-    if (shouldStop()) {
+    const preStopReason = getStopReason();
+    if (preStopReason !== 'none') {
+      if (instrumentation) {
+        if (preStopReason === 'external_cancel') {
+          setStopReason('external_cancel');
+        } else {
+          instrumentation.softStopUsed = true;
+          setStopReason('pre_iter_gate');
+        }
+      }
       break;
     }
     if (ordering && depth > 1) {
       decayHistory(ordering);
     }
     options.onDepth?.(depth);
+    let stopDuringDepth = false;
+    let midSearchStopReason: StopReason = 'none';
+    const shouldStopChecked = () => {
+      const reason = getStopReason();
+      if (reason !== 'none') {
+        stopDuringDepth = true;
+        if (midSearchStopReason === 'none') {
+          midSearchStopReason = reason;
+        }
+        return true;
+      }
+      return false;
+    };
     let scored: { move: Move | null; score: number | null } | null = null;
     if (options.maxThinking && prevScore !== null && aspirationWindow > 0) {
       const outcome = runAspirationSearch(
         prevScore,
         aspirationWindow,
         aspirationMaxRetries,
-        shouldStop,
+        shouldStopChecked,
         (alpha, beta) =>
           scoreRootMoves(
             state,
@@ -1018,11 +1143,12 @@ export function findBestMoveTimed(
               maxThinking: options.maxThinking,
               usePvs,
               rootDiagnostics: options.rootDiagnostics,
+              instrumentation,
               tt,
               ordering
             },
             { alpha, beta },
-            shouldStop
+            shouldStopChecked
           ),
         (result) => result.score
       );
@@ -1052,18 +1178,32 @@ export function findBestMoveTimed(
           maxThinking: options.maxThinking,
           usePvs,
           rootDiagnostics: options.rootDiagnostics,
+          instrumentation,
           tt,
           ordering
         },
         undefined,
-        shouldStop
+        shouldStopChecked
       );
       scored = { move: result.move, score: result.score };
+    }
+
+    if (stopDuringDepth) {
+      if (instrumentation) {
+        instrumentation.hardStopUsed = true;
+        setStopReason(
+          midSearchStopReason === 'external_cancel'
+            ? 'external_cancel'
+            : 'mid_search_deadline'
+        );
+      }
+      break;
     }
 
     if (scored?.move) {
       best = scored.move;
       prevScore = scored.score;
+      depthCompleted = depth;
       options.onProgress?.({
         depth,
         move: scored.move,
@@ -1073,9 +1213,18 @@ export function findBestMoveTimed(
   }
 
   if (best) {
+    if (instrumentation) {
+      instrumentation.depthCompleted = depthCompleted;
+    }
+    finalizeInstrumentation();
     return best;
   }
 
+  if (instrumentation) {
+    instrumentation.fallbackUsed = true;
+    instrumentation.depthCompleted = Math.max(instrumentation.depthCompleted, 1);
+  }
+  finalizeInstrumentation();
   return findBestMove(state, color, {
     depth: 1,
     rng: options.rng,
@@ -1182,11 +1331,13 @@ export function findBestMoveTimedDebug(
 
   const now = options.now ?? defaultNow;
   const start = now();
+  const bufferMs = getDeadlineBufferMs(options.maxTimeMs);
+  const effectiveDeadline = start + Math.max(0, options.maxTimeMs - bufferMs);
   const shouldStop = () => {
     if (options.stopRequested && options.stopRequested()) {
       return true;
     }
-    return now() - start >= options.maxTimeMs;
+    return now() >= effectiveDeadline;
   };
   const tt = options.tt ?? (options.maxThinking ? new Map<string, TTEntry>() : undefined);
   const ordering =
@@ -1206,7 +1357,7 @@ export function findBestMoveTimedDebug(
   let prevScore: number | null = null;
 
   for (let depth = 1; depth <= options.maxDepth; depth += 1) {
-    if (now() - start >= options.maxTimeMs) {
+    if (now() >= effectiveDeadline) {
       break;
     }
     if (ordering && depth > 1) {
@@ -1415,7 +1566,8 @@ function scoreRootMoves(
       options.ordering,
       shouldStop,
       options.nnueMix,
-      options.microQuiescenceDepth
+      options.microQuiescenceDepth,
+      options.instrumentation
     );
     const givesCheck = isInCheck(next, opponentColor(color));
     const repeatKey = playForWin ? getPositionKey(next) : null;
@@ -1544,11 +1696,32 @@ function alphaBeta(
   ordering?: OrderingState,
   stopChecker?: () => boolean,
   nnueMix?: number,
-  microQuiescenceDepth?: number
+  microQuiescenceDepth?: number,
+  instrumentation?: SearchInstrumentation
 ): number {
+  if (instrumentation) {
+    instrumentation.nodes += 1;
+  }
   if (stopChecker && stopChecker()) {
     return evaluateState(state, maximizingColor, { maxThinking, nnueMix });
   }
+  let stopTicker = 0;
+  const shouldStopLoop = () => {
+    if (!stopChecker) {
+      return false;
+    }
+    if (instrumentation) {
+      if ((instrumentation.nodes & 1023) !== 0) {
+        return false;
+      }
+      return stopChecker();
+    }
+    stopTicker += 1;
+    if ((stopTicker & 1023) !== 0) {
+      return false;
+    }
+    return stopChecker();
+  };
   const legalMoves = getAllLegalMoves(state, currentColor);
   const alphaOrig = alpha;
   const betaOrig = beta;
@@ -1596,7 +1769,8 @@ function alphaBeta(
           ply,
           microDepth,
           nnueMix,
-          stopChecker
+          stopChecker,
+          instrumentation
         );
       }
       return evaluateState(state, maximizingColor, { maxThinking, nnueMix });
@@ -1611,7 +1785,8 @@ function alphaBeta(
       ply,
       0,
       nnueMix,
-      stopChecker
+      stopChecker,
+      instrumentation
     );
   }
 
@@ -1644,13 +1819,20 @@ function alphaBeta(
       ordering,
       stopChecker,
       nnueMix,
-      microQuiescenceDepth
+      microQuiescenceDepth,
+      instrumentation
     );
     if (maximizing) {
       if (nullScore >= beta) {
+        if (instrumentation) {
+          instrumentation.cutoffs += 1;
+        }
         return nullScore;
       }
     } else if (nullScore <= alpha) {
+      if (instrumentation) {
+        instrumentation.cutoffs += 1;
+      }
       return nullScore;
     }
   }
@@ -1667,7 +1849,7 @@ function alphaBeta(
     let value = -Infinity;
     let bestMove: Move | undefined;
     for (let index = 0; index < ordered.length; index += 1) {
-      if (stopChecker && stopChecker()) {
+      if (shouldStopLoop()) {
         return value;
       }
       const move = ordered[index];
@@ -1697,7 +1879,8 @@ function alphaBeta(
           ordering,
           stopChecker,
           nnueMix,
-          microQuiescenceDepth
+          microQuiescenceDepth,
+          instrumentation
         );
         if (nextScore > alpha && nextScore < beta) {
           nextScore = alphaBeta(
@@ -1715,7 +1898,8 @@ function alphaBeta(
             ordering,
             stopChecker,
             nnueMix,
-            microQuiescenceDepth
+            microQuiescenceDepth,
+            instrumentation
           );
         }
       } else {
@@ -1734,7 +1918,8 @@ function alphaBeta(
           ordering,
           stopChecker,
           nnueMix,
-          microQuiescenceDepth
+          microQuiescenceDepth,
+          instrumentation
         );
       }
       if (reduction > 0 && reducedDepth < depth - 1 && nextScore > alpha) {
@@ -1753,7 +1938,8 @@ function alphaBeta(
           ordering,
           stopChecker,
           nnueMix,
-          microQuiescenceDepth
+          microQuiescenceDepth,
+          instrumentation
         );
       }
       if (stopChecker && stopChecker()) {
@@ -1765,6 +1951,9 @@ function alphaBeta(
       }
       alpha = Math.max(alpha, value);
       if (alpha >= beta) {
+        if (instrumentation) {
+          instrumentation.cutoffs += 1;
+        }
         if (ordering && isQuietForOrdering(state, move, currentColor)) {
           if (maxThinking) {
             recordKiller(ordering, ply, move);
@@ -1789,7 +1978,7 @@ function alphaBeta(
   let value = Infinity;
   let bestMove: Move | undefined;
   for (let index = 0; index < ordered.length; index += 1) {
-    if (stopChecker && stopChecker()) {
+    if (shouldStopLoop()) {
       return value;
     }
     const move = ordered[index];
@@ -1819,7 +2008,8 @@ function alphaBeta(
         ordering,
         stopChecker,
         nnueMix,
-        microQuiescenceDepth
+        microQuiescenceDepth,
+        instrumentation
       );
       if (nextScore < beta && nextScore > alpha) {
         nextScore = alphaBeta(
@@ -1837,7 +2027,8 @@ function alphaBeta(
           ordering,
           stopChecker,
           nnueMix,
-          microQuiescenceDepth
+          microQuiescenceDepth,
+          instrumentation
         );
       }
     } else {
@@ -1856,7 +2047,8 @@ function alphaBeta(
         ordering,
         stopChecker,
         nnueMix,
-        microQuiescenceDepth
+        microQuiescenceDepth,
+        instrumentation
       );
     }
     if (reduction > 0 && reducedDepth < depth - 1 && nextScore < beta) {
@@ -1875,7 +2067,8 @@ function alphaBeta(
         ordering,
         stopChecker,
         nnueMix,
-        microQuiescenceDepth
+        microQuiescenceDepth,
+        instrumentation
       );
     }
     if (stopChecker && stopChecker()) {
@@ -1887,6 +2080,9 @@ function alphaBeta(
     }
     beta = Math.min(beta, value);
     if (alpha >= beta) {
+      if (instrumentation) {
+        instrumentation.cutoffs += 1;
+      }
       if (ordering && isQuietForOrdering(state, move, currentColor)) {
         if (maxThinking) {
           recordKiller(ordering, ply, move);
@@ -2177,8 +2373,12 @@ function microQuiescence(
   ply: number,
   depthLeft: number,
   nnueMix?: number,
-  stopChecker?: () => boolean
+  stopChecker?: () => boolean,
+  instrumentation?: SearchInstrumentation
 ): number {
+  if (instrumentation) {
+    instrumentation.nodes += 1;
+  }
   if (stopChecker && stopChecker()) {
     return evaluateState(state, maximizingColor, { maxThinking: false, nnueMix });
   }
@@ -2233,11 +2433,15 @@ function microQuiescence(
           ply + 1,
           depthLeft - 1,
           nnueMix,
-          stopChecker
+          stopChecker,
+          instrumentation
         )
       );
       alpha = Math.max(alpha, value);
       if (alpha >= beta) {
+        if (instrumentation) {
+          instrumentation.cutoffs += 1;
+        }
         break;
       }
     }
@@ -2264,11 +2468,15 @@ function microQuiescence(
         ply + 1,
         depthLeft - 1,
         nnueMix,
-        stopChecker
+        stopChecker,
+        instrumentation
       )
     );
     beta = Math.min(beta, value);
     if (alpha >= beta) {
+      if (instrumentation) {
+        instrumentation.cutoffs += 1;
+      }
       break;
     }
   }
@@ -2330,11 +2538,32 @@ function quiescence(
   ply: number,
   qDepth: number,
   nnueMix?: number,
-  stopChecker?: () => boolean
+  stopChecker?: () => boolean,
+  instrumentation?: SearchInstrumentation
 ): number {
+  if (instrumentation) {
+    instrumentation.nodes += 1;
+  }
   if (stopChecker && stopChecker()) {
     return evaluateState(state, maximizingColor, { maxThinking: true, nnueMix });
   }
+  let stopTicker = 0;
+  const shouldStopLoop = () => {
+    if (!stopChecker) {
+      return false;
+    }
+    if (instrumentation) {
+      if ((instrumentation.nodes & 1023) !== 0) {
+        return false;
+      }
+      return stopChecker();
+    }
+    stopTicker += 1;
+    if ((stopTicker & 1023) !== 0) {
+      return false;
+    }
+    return stopChecker();
+  };
   const legalMoves = getAllLegalMoves(state, currentColor);
   if (legalMoves.length === 0) {
     if (isInCheck(state, currentColor)) {
@@ -2351,11 +2580,17 @@ function quiescence(
 
   if (maximizing) {
     if (standPat >= beta) {
+      if (instrumentation) {
+        instrumentation.cutoffs += 1;
+      }
       return standPat;
     }
     alpha = Math.max(alpha, standPat);
   } else {
     if (standPat <= alpha) {
+      if (instrumentation) {
+        instrumentation.cutoffs += 1;
+      }
       return standPat;
     }
     beta = Math.min(beta, standPat);
@@ -2387,7 +2622,7 @@ function quiescence(
   if (maximizing) {
     let value = standPat;
     for (const move of ordered) {
-      if (stopChecker && stopChecker()) {
+      if (shouldStopLoop()) {
         return value;
       }
       const next = cloneState(state);
@@ -2405,7 +2640,8 @@ function quiescence(
           ply + 1,
           qDepth + 1,
           nnueMix,
-          stopChecker
+          stopChecker,
+          instrumentation
         )
       );
       if (stopChecker && stopChecker()) {
@@ -2413,6 +2649,9 @@ function quiescence(
       }
       alpha = Math.max(alpha, value);
       if (alpha >= beta) {
+        if (instrumentation) {
+          instrumentation.cutoffs += 1;
+        }
         break;
       }
     }
@@ -2421,7 +2660,7 @@ function quiescence(
 
   let value = standPat;
   for (const move of ordered) {
-    if (stopChecker && stopChecker()) {
+    if (shouldStopLoop()) {
       return value;
     }
     const next = cloneState(state);
@@ -2439,7 +2678,8 @@ function quiescence(
         ply + 1,
         qDepth + 1,
         nnueMix,
-        stopChecker
+        stopChecker,
+        instrumentation
       )
     );
     if (stopChecker && stopChecker()) {
@@ -2447,6 +2687,9 @@ function quiescence(
     }
     beta = Math.min(beta, value);
     if (alpha >= beta) {
+      if (instrumentation) {
+        instrumentation.cutoffs += 1;
+      }
       break;
     }
   }
