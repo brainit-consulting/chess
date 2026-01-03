@@ -1,5 +1,19 @@
 # ScorpionChessEngineVsStockfish Benchmark Plan
 
+## Phase 9.3b Max budget selection fixed (Max 1000 vs SF500, b3, NNUE_MIX=0)
+
+RunId: phase9-diag-max-nnue0-vs-sf500-b3-seed7000-r3  
+- W/D/L: 0-0-6 | Avg plies: 62.2 | Timeouts: 0/185 (0.00%)  
+- stopReason: mid_search_deadline=178, none=7, pre_iter_gate=0, external_cancel=0  
+- budget sample (game-0001): ply1 budget=10000 eff=9750 dur=9750.9ms; ply3 budget=10000 eff=9750 dur=9760.4ms
+
+RunId: phase9-diag-max-nnue0-vs-sf500-b3-seed7001-r3  
+- W/D/L: 0-0-6 | Avg plies: 54.2 | Timeouts: 0/161 (0.00%)  
+- stopReason: mid_search_deadline=158, none=3, pre_iter_gate=0, external_cancel=0  
+- budget sample (game-0001): ply1 budget=10000 eff=9750 dur=9757.4ms; ply3 budget=10000 eff=9750 dur=9756.8ms
+
+Conclusion: Max now uses the correct 10s budget (eff 9.75s) and timeouts dropped to 0% on b3.
+
 ## Phase 9.3a Max budget plumbing diagnostic (Max 1000 vs SF500, b6, NNUE_MIX=0)
 
 RunId: phase9-diag-max-nnue0-vs-sf500-b6-seed7000-r2  
