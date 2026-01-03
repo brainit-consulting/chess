@@ -58,6 +58,8 @@ type RunConfig = {
   maxPlies: number;
   swap: boolean;
   fenSuite: boolean;
+  whiteSide: EngineSide;
+  blackSide: EngineSide;
   outDir?: string;
   baseSeed: number;
 };
@@ -282,6 +284,8 @@ async function main(): Promise<void> {
     maxPlies: args.maxPlies ?? DEFAULT_MAX_PLIES,
     swap: args.swap ?? DEFAULT_SWAP,
     fenSuite: args.fenSuite ?? DEFAULT_FEN_SUITE,
+    whiteSide: args.whiteSide ?? 'hard',
+    blackSide: args.blackSide ?? 'max',
     outDir,
     baseSeed: args.baseSeed ?? DEFAULT_BASE_SEED
   };
@@ -307,11 +311,16 @@ async function main(): Promise<void> {
     max: createTimingTotals()
   };
 
-  const rounds = buildRounds(config.batchSize, config.swap);
+  const rounds = buildRounds(config.batchSize, config.swap, config.whiteSide, config.blackSide);
   for (let index = 0; index < rounds.length; index += 1) {
     const round = rounds[index];
     const gameId = index + 1;
-    const segment = round.white === 'hard' ? segmentTotals.hardAsWhite : segmentTotals.hardAsBlack;
+    const segment =
+      round.white === 'hard'
+        ? segmentTotals.hardAsWhite
+        : round.black === 'hard'
+          ? segmentTotals.hardAsBlack
+          : segmentTotals.hardAsWhite;
     const baseSeed = config.baseSeed + index;
     let attempt = 0;
     let result: Awaited<ReturnType<typeof runSingleGame>>;
@@ -326,6 +335,7 @@ async function main(): Promise<void> {
         startFen: start.fen,
         fenSuite: config.fenSuite,
         white: round.white,
+        black: round.black,
         hardMs: config.hardMs,
         maxMs: config.maxMs,
         maxPlies: config.maxPlies,
@@ -424,6 +434,7 @@ async function runSingleGame(options: {
   startFen: string | null;
   fenSuite: boolean;
   white: EngineSide;
+  black: EngineSide;
   hardMs: number;
   maxMs: number;
   maxPlies: number;
@@ -489,6 +500,7 @@ async function runSingleGame(options: {
           status.winner,
           pgnMoves,
           options.white,
+          options.black,
           options.round,
           options.hardMs,
           options.maxMs
@@ -510,7 +522,7 @@ async function runSingleGame(options: {
             hardMs: options.hardMs,
             maxMs: options.maxMs,
             whiteLabel: labelForSide(options.white),
-            blackLabel: labelForSide(options.white === 'hard' ? 'max' : 'hard'),
+            blackLabel: labelForSide(options.black),
             fenSuite: options.fenSuite,
             startFen,
             openingMoves: options.opening ?? null,
@@ -536,7 +548,7 @@ async function runSingleGame(options: {
         };
       }
 
-      const side = state.activeColor === 'w' ? options.white : options.white === 'hard' ? 'max' : 'hard';
+      const side = state.activeColor === 'w' ? options.white : options.black;
       const targetMs = side === 'hard' ? options.hardMs : options.maxMs;
       const moveResult = await pickEngineMove(
         state,
@@ -597,6 +609,7 @@ async function runSingleGame(options: {
     undefined,
     pgnMoves,
     options.white,
+    options.black,
     options.round,
     options.hardMs,
     options.maxMs
@@ -617,7 +630,7 @@ async function runSingleGame(options: {
       hardMs: options.hardMs,
       maxMs: options.maxMs,
       whiteLabel: labelForSide(options.white),
-      blackLabel: labelForSide(options.white === 'hard' ? 'max' : 'hard'),
+      blackLabel: labelForSide(options.black),
       fenSuite: options.fenSuite,
       startFen,
       openingMoves: options.opening ?? null,
@@ -713,6 +726,7 @@ function finalizeGame(
   winner: Color | undefined,
   moves: PgnMove[],
   whiteSide: EngineSide,
+  blackSide: EngineSide,
   round: number,
   hardMs: number,
   maxMs: number
@@ -724,11 +738,12 @@ function finalizeGame(
     result = '1/2-1/2';
   }
 
-  const outcome = resolveOutcome(result, whiteSide);
+  const outcome = resolveOutcome(result, whiteSide, blackSide);
   const pgn = buildSelfPlayPgn({
     moves,
     result,
     whiteSide,
+    blackSide,
     round,
     hardMs,
     maxMs
@@ -741,6 +756,7 @@ function buildSelfPlayPgn(options: {
   moves: PgnMove[];
   result: string;
   whiteSide: EngineSide;
+  blackSide: EngineSide;
   round: number;
   hardMs: number;
   maxMs: number;
@@ -752,7 +768,7 @@ function buildSelfPlayPgn(options: {
     `[Date "${formatPgnDate(date)}"]`,
     `[Round "${options.round}"]`,
     `[White "${labelForSide(options.whiteSide)}"]`,
-    `[Black "${labelForSide(options.whiteSide === 'hard' ? 'max' : 'hard')}"]`,
+    `[Black "${labelForSide(options.blackSide)}"]`,
     `[Result "${options.result}"]`,
     `[TimeControl "${options.hardMs}/${options.maxMs}"]`,
     `[Variant "Standard"]`
@@ -1029,7 +1045,7 @@ function summarizeTimings(moveTimings: MoveTiming[]): { hard: SideTimings; max: 
   };
 }
 
-function resolveOutcome(result: string, whiteSide: EngineSide): 'win' | 'loss' | 'draw' {
+function resolveOutcome(result: string, whiteSide: EngineSide, blackSide: EngineSide): 'win' | 'loss' | 'draw' {
   if (result === '1/2-1/2') {
     return 'draw';
   }
@@ -1037,21 +1053,29 @@ function resolveOutcome(result: string, whiteSide: EngineSide): 'win' | 'loss' |
   if (whiteSide === 'hard') {
     return whiteWon ? 'win' : 'loss';
   }
-  return whiteWon ? 'loss' : 'win';
+  if (blackSide === 'hard') {
+    return whiteWon ? 'loss' : 'win';
+  }
+  return whiteWon ? 'win' : 'loss';
 }
 
 function labelForSide(side: EngineSide): string {
   return side === 'hard' ? 'Scorpion Hard' : 'Scorpion Max';
 }
 
-function buildRounds(batchSize: number, swap: boolean): { round: number; white: EngineSide }[] {
-  const rounds: { round: number; white: EngineSide }[] = [];
+function buildRounds(
+  batchSize: number,
+  swap: boolean,
+  whiteSide: EngineSide,
+  blackSide: EngineSide
+): { round: number; white: EngineSide; black: EngineSide }[] {
+  const rounds: { round: number; white: EngineSide; black: EngineSide }[] = [];
   for (let i = 0; i < batchSize; i += 1) {
-    rounds.push({ round: i + 1, white: 'hard' });
+    rounds.push({ round: i + 1, white: whiteSide, black: blackSide });
   }
   if (swap) {
     for (let i = 0; i < batchSize; i += 1) {
-      rounds.push({ round: batchSize + i + 1, white: 'max' });
+      rounds.push({ round: batchSize + i + 1, white: blackSide, black: whiteSide });
     }
   }
   return rounds;
@@ -1067,6 +1091,8 @@ function parseArgs(argv: string[]): {
   outDir?: string;
   baseSeed?: number;
   runId?: string;
+  whiteSide?: EngineSide;
+  blackSide?: EngineSide;
 } {
   const result: {
     batchSize?: number;
@@ -1078,7 +1104,19 @@ function parseArgs(argv: string[]): {
     outDir?: string;
     baseSeed?: number;
     runId?: string;
+    whiteSide?: EngineSide;
+    blackSide?: EngineSide;
   } = {};
+
+  const parseSide = (value: string | undefined): EngineSide | undefined => {
+    if (!value) {
+      return undefined;
+    }
+    if (value === 'hard' || value === 'max') {
+      return value;
+    }
+    throw new Error(`Invalid side "${value}". Use "hard" or "max".`);
+  };
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -1110,6 +1148,17 @@ function parseArgs(argv: string[]): {
       i += 1;
     } else if (arg === '--runId') {
       result.runId = argv[i + 1];
+      i += 1;
+    } else if (arg === '--white') {
+      result.whiteSide = parseSide(argv[i + 1]);
+      i += 1;
+    } else if (arg === '--black') {
+      result.blackSide = parseSide(argv[i + 1]);
+      i += 1;
+    } else if (arg === '--both') {
+      const side = parseSide(argv[i + 1]);
+      result.whiteSide = side;
+      result.blackSide = side;
       i += 1;
     }
   }
@@ -1303,6 +1352,7 @@ function buildRunReadme(): string {
     '## How to run',
     '- npm run bench:selfplay',
     '- Optional: --batch 10 --hardMs 1000 --maxMs 10000 --swap/--no-swap --fenSuite/--no-fenSuite --outDir <path> --seed 1000',
+    '- Optional sides: --white hard|max --black hard|max (or --both max)',
     '',
     '## Metrics',
     '- W/D/L: results from Hard vs Max across all games.',
