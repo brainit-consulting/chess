@@ -8,6 +8,15 @@ Semantic Versioning.
 ## [Unreleased]
 ### Changed
 
+## [1.1.60] - 2026-01-03
+
+### Changed
+
+- Add an Experimental NNUE toggle (Max only, default OFF) with mix slider and safe fallbacks.
+- Add a root drawish repetition penalty to reduce shuffle loops without forcing losses.
+- NNUE weight loading support in workers (still OFF by default).
+- Update the in-UI version label to v1.1.60.
+
 ## [1.1.59] - 2026-01-02
 
 ### Changed
