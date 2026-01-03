@@ -153,7 +153,11 @@ export function evaluateState(
   }
 
   const weights = getNnueWeights() ?? getOrCreateDefaultWeights();
-  const nnueScore = clampScore(evaluateNnue(state, weights));
+  const rawNnueScore = evaluateNnue(state, weights);
+  if (!Number.isFinite(rawNnueScore)) {
+    return perspective === 'w' ? classicalScore : -classicalScore;
+  }
+  const nnueScore = clampScore(rawNnueScore);
   const blended = classicalScore * (1 - nnueMix) + nnueScore * nnueMix;
   return perspective === 'w' ? blended : -blended;
 }

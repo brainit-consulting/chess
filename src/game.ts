@@ -22,6 +22,7 @@ import {
   MAX_THINKING_CAP_MS,
   chooseMove
 } from './ai/ai';
+import { parseNnueWeights, setNnueWeights } from './ai/nnue';
 import { explainMove } from './ai/aiExplain';
 import {
   AiExplainOptions,
@@ -79,12 +80,17 @@ type Preferences = {
   humanColor: Color;
   autoSnapHumanView: boolean;
   coordinateMode: CoordinateMode;
+  nnueEnabled: boolean;
+  nnueMix: number;
 };
 
 const DEFAULT_NAMES: PlayerNames = { white: 'White', black: 'Black' };
 const DEFAULT_AI_DELAY_MS = 700;
 const HUMAN_VS_AI_DELAY_MS = 380;
 const HARD_THINKING_MS = 1000;
+const NNUE_DEFAULT_MIX = 0.05;
+const NNUE_MIN_MIX = 0;
+const NNUE_MAX_MIX = 0.2;
 const EXPLAIN_TIMEOUT_MS = 10000;
 const HARD_STOP_GRACE_MS = 80;
 const DEBUG_AI_TIMING_KEY = 'chess.debugAiTiming';
@@ -99,7 +105,9 @@ const STORAGE_KEYS = {
   analyzerChoice: 'chess.analyzerChoice',
   humanColor: 'chess.humanColor',
   autoSnapHumanView: 'chess.autoSnapHumanView',
-  coordinateMode: 'chess.coordinateMode'
+  coordinateMode: 'chess.coordinateMode',
+  nnueEnabled: 'chess.nnueEnabled',
+  nnueMix: 'chess.nnueMix'
 };
 const AI_LABELS: Record<AiDifficulty, string> = {
   easy: 'Easy',
@@ -115,6 +123,23 @@ function isDebugAiTimingEnabled(): boolean {
   } catch {
     return false;
   }
+}
+
+function clampNnueMix(value: number): number {
+  if (!Number.isFinite(value)) {
+    return NNUE_DEFAULT_MIX;
+  }
+  return Math.min(NNUE_MAX_MIX, Math.max(NNUE_MIN_MIX, value));
+}
+
+function getNnueWeightsPath(): string | null {
+  const env = (import.meta as { env?: Record<string, string | undefined> }).env;
+  const value = env?.VITE_NNUE_WEIGHTS_PATH ?? env?.NNUE_WEIGHTS_PATH;
+  if (!value) {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 export class GameController {
@@ -172,6 +197,13 @@ export class GameController {
   private autoSnapHumanView = true;
   private coordinateMode: CoordinateMode = 'fixed-white';
   private coordinateDebugEnabled = false;
+  private nnueEnabled = false;
+  private nnueMix = NNUE_DEFAULT_MIX;
+  private nnueWeightsReady = false;
+  private nnueWeightsLoading = false;
+  private nnueWeightsRequestId = 0;
+  private pendingNnueWeightsRequestId: number | null = null;
+  private nnueWeightsWarningShown = false;
   private hintMove: Move | null = null;
   private hintRequestId = 0;
   private hintPositionKey: string | null = null;
@@ -202,6 +234,8 @@ export class GameController {
     this.humanColor = preferences.humanColor;
     this.autoSnapHumanView = preferences.autoSnapHumanView;
     this.coordinateMode = preferences.coordinateMode;
+    this.nnueEnabled = preferences.nnueEnabled;
+    this.nnueMix = preferences.nnueMix;
     this.coordinateDebugEnabled = this.loadCoordinateDebug();
     const soundEnabled = SoundManager.loadEnabled();
     this.sound = new SoundManager(soundEnabled);
@@ -243,6 +277,8 @@ export class GameController {
       onAnalyzeGame: () => this.openAnalyzer(),
       onCoordinateModeChange: (mode) => this.setCoordinateMode(mode),
       onToggleCoordinateDebug: (enabled) => this.setCoordinateDebug(enabled),
+      onToggleNnue: (enabled) => this.setNnueEnabled(enabled),
+      onNnueMixChange: (mix) => this.setNnueMix(mix),
       onUiStateChange: (state) => this.handleUiStateChange(state)
     }, {
       mode: this.mode,
@@ -259,8 +295,13 @@ export class GameController {
       humanColor: this.humanColor,
       autoSnapHumanView: this.autoSnapHumanView,
       coordinateMode: this.coordinateMode,
-      coordinateDebugEnabled: this.coordinateDebugEnabled
+      coordinateDebugEnabled: this.coordinateDebugEnabled,
+      nnueEnabled: this.nnueEnabled,
+      nnueMix: this.nnueMix
     });
+    if (this.nnueEnabled) {
+      void this.ensureNnueWeightsLoaded();
+    }
     this.stats = new GameStats();
     this.stats.reset(this.state);
     this.ui.setScores(this.stats.getScores());
@@ -501,6 +542,7 @@ export class GameController {
         ? HARD_THINKING_MS
         : undefined;
     const maxDepth = this.aiDifficulty === 'max' ? MAX_THINKING_DEPTH_CAP : undefined;
+    const nnueMix = this.getNnueMixForMove(this.aiDifficulty);
     const debugTiming = isDebugAiTimingEnabled();
     const request: AiWorkerRequest = {
       kind: 'move',
@@ -513,7 +555,8 @@ export class GameController {
       recentPositions: playForWin ? this.getRecentPositionKeys() : undefined,
       maxTimeMs,
       maxDepth,
-      debugTiming
+      debugTiming,
+      nnueMix
     };
 
     if (debugTiming) {
@@ -764,6 +807,29 @@ export class GameController {
     this.ui.setAnalyzerChoice(choice);
   }
 
+  private setNnueEnabled(enabled: boolean): void {
+    if (this.nnueEnabled === enabled) {
+      return;
+    }
+    this.nnueEnabled = enabled;
+    this.persistPreferences();
+    this.ui.setNnueEnabled(enabled);
+    if (enabled) {
+      this.nnueWeightsWarningShown = false;
+      void this.ensureNnueWeightsLoaded();
+    }
+  }
+
+  private setNnueMix(mix: number): void {
+    const clamped = clampNnueMix(mix);
+    if (this.nnueMix === clamped) {
+      return;
+    }
+    this.nnueMix = clamped;
+    this.persistPreferences();
+    this.ui.setNnueMix(clamped);
+  }
+
   private openAnalyzer(): void {
     if (typeof window === 'undefined') {
       return;
@@ -814,6 +880,85 @@ export class GameController {
 
   private getAiDelayMs(): number {
     return this.mode === 'aivai' ? this.aiDelayMs : HUMAN_VS_AI_DELAY_MS;
+  }
+
+  private getNnueMixForMove(difficulty: AiDifficulty): number {
+    if (!this.nnueEnabled || difficulty !== 'max') {
+      return 0;
+    }
+    if (!this.nnueWeightsReady) {
+      if (!this.nnueWeightsLoading) {
+        void this.ensureNnueWeightsLoaded();
+      }
+      return 0;
+    }
+    return this.nnueMix;
+  }
+
+  private warnNnueUnavailable(message: string): void {
+    if (this.nnueWeightsWarningShown) {
+      return;
+    }
+    this.nnueWeightsWarningShown = true;
+    this.ui.showTemporaryNotice(message, 3000);
+  }
+
+  private async ensureNnueWeightsLoaded(): Promise<void> {
+    if (!this.nnueEnabled || this.nnueWeightsReady || this.nnueWeightsLoading) {
+      return;
+    }
+    const path = getNnueWeightsPath();
+    if (!path) {
+      this.warnNnueUnavailable('NNUE weights not found. Using classical evaluation.');
+      return;
+    }
+    this.nnueWeightsLoading = true;
+    this.nnueWeightsReady = false;
+    const requestId = ++this.nnueWeightsRequestId;
+    this.pendingNnueWeightsRequestId = requestId;
+    try {
+      const response = await fetch(path);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const buffer = await response.arrayBuffer();
+      const weights = parseNnueWeights(buffer);
+      setNnueWeights(weights);
+      this.postNnueWeights(buffer, requestId);
+    } catch (error) {
+      this.pendingNnueWeightsRequestId = null;
+      this.nnueWeightsLoading = false;
+      this.nnueWeightsReady = false;
+      setNnueWeights(null);
+      const reason =
+        error instanceof Error ? error.message : 'Unknown error loading weights';
+      this.warnNnueUnavailable(`NNUE weights unavailable (${reason}). Using classical eval.`);
+    }
+  }
+
+  private postNnueWeights(buffer: ArrayBuffer, requestId: number): void {
+    if (!this.aiWorker) {
+      this.nnueWeightsReady = true;
+      this.nnueWeightsLoading = false;
+      return;
+    }
+    try {
+      this.aiWorker.postMessage(
+        { kind: 'nnue-weights', requestId, weights: buffer },
+        [buffer]
+      );
+    } catch {
+      try {
+        this.aiWorker.postMessage({ kind: 'nnue-weights', requestId, weights: buffer });
+      } catch (error) {
+        this.nnueWeightsLoading = false;
+        this.nnueWeightsReady = false;
+        setNnueWeights(null);
+        const reason =
+          error instanceof Error ? error.message : 'Unable to post NNUE weights';
+        this.warnNnueUnavailable(`NNUE weights unavailable (${reason}). Using classical eval.`);
+      }
+    }
   }
 
   private getDefaultView(): 'white' | 'black' {
@@ -946,6 +1091,8 @@ export class GameController {
     let humanColor: Color = 'w';
     let autoSnapHumanView = true;
     let coordinateMode: CoordinateMode = 'fixed-white';
+    let nnueEnabled = false;
+    let nnueMix = NNUE_DEFAULT_MIX;
 
     if (storage) {
       const rawNames = storage.getItem(STORAGE_KEYS.names);
@@ -1035,6 +1182,19 @@ export class GameController {
         coordinateMode = 'hidden';
       }
 
+      const rawNnueEnabled = storage.getItem(STORAGE_KEYS.nnueEnabled);
+      if (rawNnueEnabled !== null) {
+        nnueEnabled = rawNnueEnabled === 'true';
+      }
+
+      const rawNnueMix = storage.getItem(STORAGE_KEYS.nnueMix);
+      if (rawNnueMix) {
+        const parsed = Number(rawNnueMix);
+        if (Number.isFinite(parsed)) {
+          nnueMix = clampNnueMix(parsed);
+        }
+      }
+
       storage.setItem(STORAGE_KEYS.names, JSON.stringify(names));
       storage.setItem(STORAGE_KEYS.ai, JSON.stringify(ai));
       storage.setItem(STORAGE_KEYS.mode, mode);
@@ -1046,6 +1206,8 @@ export class GameController {
       storage.setItem(STORAGE_KEYS.humanColor, humanColor);
       storage.setItem(STORAGE_KEYS.autoSnapHumanView, autoSnapHumanView.toString());
       storage.setItem(STORAGE_KEYS.coordinateMode, coordinateMode);
+      storage.setItem(STORAGE_KEYS.nnueEnabled, nnueEnabled.toString());
+      storage.setItem(STORAGE_KEYS.nnueMix, nnueMix.toFixed(2));
     }
 
     return {
@@ -1059,7 +1221,9 @@ export class GameController {
       analyzerChoice,
       humanColor,
       autoSnapHumanView,
-      coordinateMode
+      coordinateMode,
+      nnueEnabled,
+      nnueMix
     };
   }
 
@@ -1083,6 +1247,8 @@ export class GameController {
     storage.setItem(STORAGE_KEYS.humanColor, this.humanColor);
     storage.setItem(STORAGE_KEYS.autoSnapHumanView, this.autoSnapHumanView.toString());
     storage.setItem(STORAGE_KEYS.coordinateMode, this.coordinateMode);
+    storage.setItem(STORAGE_KEYS.nnueEnabled, this.nnueEnabled.toString());
+    storage.setItem(STORAGE_KEYS.nnueMix, this.nnueMix.toFixed(2));
   }
 
   private resetPositionHistory(): void {
@@ -1152,20 +1318,21 @@ export class GameController {
     } else {
       const debugTiming = isDebugAiTimingEnabled() && request.kind === 'move';
       const startedAt = debugTiming ? performance.now() : 0;
-      response = {
-        kind: 'move',
-        requestId: request.requestId,
-        move: chooseMove(request.state, {
-          color: request.color,
-          difficulty: request.difficulty,
-          seed: request.seed,
-          playForWin: request.playForWin,
-          recentPositions: request.recentPositions,
-          depthOverride: request.depthOverride,
-          maxTimeMs: request.maxTimeMs,
-          maxDepth: request.maxDepth
-        })
-      };
+        response = {
+          kind: 'move',
+          requestId: request.requestId,
+          move: chooseMove(request.state, {
+            color: request.color,
+            difficulty: request.difficulty,
+            seed: request.seed,
+            playForWin: request.playForWin,
+            recentPositions: request.recentPositions,
+            depthOverride: request.depthOverride,
+            maxTimeMs: request.maxTimeMs,
+            maxDepth: request.maxDepth,
+            nnueMix: request.nnueMix
+          })
+        };
       if (debugTiming) {
         const durationMs = performance.now() - startedAt;
         console.log('[AI] response (no worker)', {
@@ -1182,6 +1349,22 @@ export class GameController {
   }
 
   private handleAiWorkerMessage(response: AiWorkerResponse): void {
+    if (response.kind === 'nnue-weights') {
+      if (this.pendingNnueWeightsRequestId !== response.requestId) {
+        return;
+      }
+      this.pendingNnueWeightsRequestId = null;
+      this.nnueWeightsLoading = false;
+      if (response.ok) {
+        this.nnueWeightsReady = true;
+        return;
+      }
+      this.nnueWeightsReady = false;
+      setNnueWeights(null);
+      const message = response.error ?? 'NNUE weights unavailable.';
+      this.warnNnueUnavailable(`NNUE weights unavailable (${message}). Using classical eval.`);
+      return;
+    }
     if (response.kind === 'progress') {
       this.handleAiProgress(response);
       return;

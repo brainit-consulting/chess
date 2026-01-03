@@ -1,5 +1,11 @@
 # ScorpionChessEngineVsStockfish Benchmark Plan
 
+## Phase 10.1 UI NNUE toggle + root repetition guardrail (Hard 1000 vs SF500, b3, NNUE off)
+
+RunId: phase10-ui-nnue-rep-hard1000-vs-sf500-b3  
+- W/D/L: 0-0-6 | Avg plies: 32.8 | Timeouts: 1/97 (1.03%)  
+- End reasons: mate=6, repetition=0, other=0
+
 ## Phase 9.3b Max budget selection fixed (Max 1000 vs SF500, b3, NNUE_MIX=0)
 
 RunId: phase9-diag-max-nnue0-vs-sf500-b3-seed7000-r3  

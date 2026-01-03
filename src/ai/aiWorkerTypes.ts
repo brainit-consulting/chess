@@ -14,6 +14,7 @@ export type AiMoveRequest = {
   maxTimeMs?: number;
   maxDepth?: number;
   debugTiming?: boolean;
+  nnueMix?: number;
 };
 
 export type AiStopRequest = {
@@ -83,13 +84,28 @@ export type AiExplainResponse = {
   explanation: AiExplainResult;
 };
 
+export type AiNnueWeightsRequest = {
+  kind: 'nnue-weights';
+  requestId: number;
+  weights: ArrayBuffer;
+};
+
+export type AiNnueWeightsResponse = {
+  kind: 'nnue-weights';
+  requestId: number;
+  ok: boolean;
+  error?: string;
+};
+
 export type AiWorkerResponse =
   | AiMoveResponse
   | AiProgressResponse
   | AiHintResponse
-  | AiExplainResponse;
+  | AiExplainResponse
+  | AiNnueWeightsResponse;
 export type AiWorkerRequest =
   | AiMoveRequest
   | AiStopRequest
   | AiHintRequest
-  | AiExplainRequest;
+  | AiExplainRequest
+  | AiNnueWeightsRequest;
