@@ -417,6 +417,28 @@ body {
   flex-wrap: wrap;
 }
 
+.control-note {
+  width: 100%;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.control-note-line {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.control-note-line span {
+  flex: 1;
+}
+
+
 .panel-view-row {
   justify-content: space-between;
   gap: 12px;
@@ -586,6 +608,7 @@ button:hover {
 button:active {
   transform: translateY(0);
 }
+
 
 .modal {
   position: absolute;

@@ -11,7 +11,7 @@ import engineLogoUrl from '../../graphics/ScorpionChessEngineLogo.png';
 
 const PLAYER_GUIDE_URL = `${import.meta.env.BASE_URL}player-user-guide.md`;
 const LIVE_URL = 'https://brainit-consulting.github.io/chess/';
-const APP_VERSION = 'v1.1.65';
+const APP_VERSION = 'v1.1.66';
 
 export type UiState = {
   visible: boolean;
@@ -81,6 +81,7 @@ const UI_STATE_KEY = 'chess.uiState';
 const PANEL_VIEW_KEY = 'chess.uiPanelView';
 const PANEL_VIEW_BY_MODE_KEY = 'chess.uiPanelViewByMode';
 const ADVANCED_STATE_KEY = 'chess.uiAdvancedOpen';
+const PLAY_FOR_WIN_INFO_KEY = 'chess.playForWinInfoOpen';
 
 function clampNnueMix(value: number): number {
   if (!Number.isFinite(value)) {
@@ -174,6 +175,9 @@ export class GameUI {
   private pieceSetSelect: HTMLSelectElement;
   private playForWinToggle: HTMLInputElement;
   private playForWinRow: HTMLDivElement;
+  private playForWinInfoOpen = false;
+  private playForWinInfoToggle: HTMLButtonElement;
+  private playForWinInfoDetails: HTMLDivElement;
   private hintRow: HTMLDivElement;
   private hintToggle: HTMLInputElement;
   private soundToggle: HTMLInputElement;
@@ -353,6 +357,7 @@ export class GameUI {
     const initialMusicVolume = options.musicVolume ?? 0.2;
     const initialPieceSet = options.pieceSet ?? 'scifi';
     const initialPlayForWin = options.playForWin ?? true;
+    const initialPlayForWinInfoOpen = this.loadPlayForWinInfoOpen();
     const initialHintMode = options.hintMode ?? false;
     const initialAnalyzerChoice = options.analyzerChoice ?? DEFAULT_ANALYZER;
     const initialHumanColor = options.humanColor ?? 'w';
@@ -578,7 +583,50 @@ export class GameUI {
     const playForWinText = document.createElement('span');
     playForWinText.textContent = 'Play for Win';
     playForWinLabel.append(this.playForWinToggle, playForWinText);
-    this.playForWinRow.append(playForWinLabel);
+
+    const playForWinSummary = document.createElement('div');
+    playForWinSummary.className = 'control-note-line';
+
+    const playForWinSummaryText = document.createElement('span');
+    playForWinSummaryText.textContent =
+      'Prefers wins over early draws (may take more risks).';
+
+    this.playForWinInfoToggle = document.createElement('button');
+    this.playForWinInfoToggle.type = 'button';
+    this.playForWinInfoToggle.className = 'ghost info-button';
+    this.playForWinInfoToggle.innerHTML = `
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.6" />
+        <path d="M10.5 10.25a1.75 1.75 0 1 1 3.5 0c0 1.3-1.75 1.5-1.75 3"
+          fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+        <circle cx="12" cy="16.8" r="1" fill="currentColor" />
+      </svg>
+    `;
+    this.playForWinInfoToggle.setAttribute('aria-label', 'More about Play for Win');
+    this.playForWinInfoToggle.title = 'More about Play for Win';
+    this.playForWinInfoToggle.addEventListener('click', () => {
+      this.setPlayForWinInfoOpen(!this.playForWinInfoOpen);
+    });
+
+    playForWinSummary.append(playForWinSummaryText, this.playForWinInfoToggle);
+
+    this.playForWinInfoDetails = document.createElement('div');
+    this.playForWinInfoDetails.className = 'control-note';
+    this.playForWinInfoDetails.append(
+      this.makeInfoLine(
+        'When on, reduces early repetition/draw loops and plays on for wins.'
+      ),
+      this.makeInfoLine(
+        'When off, allows safer draw choices when equal or slightly worse.'
+      ),
+      this.makeInfoLine('Applies in Max Thinking and is independent of NNUE mix.')
+    );
+
+    this.playForWinRow.append(
+      playForWinLabel,
+      playForWinSummary,
+      this.playForWinInfoDetails
+    );
 
     this.aiVsAiRow = document.createElement('div');
     this.aiVsAiRow.className = 'control-row expand-only';
@@ -969,6 +1017,7 @@ export class GameUI {
     this.setMode(initialMode);
     this.setPieceSet(initialPieceSet);
     this.setPlayForWin(initialPlayForWin);
+    this.setPlayForWinInfoOpen(initialPlayForWinInfoOpen);
     this.setHintMode(initialHintMode);
     this.setHumanColor(initialHumanColor);
     this.setAutoSnapEnabled(initialAutoSnap);
@@ -1176,6 +1225,21 @@ export class GameUI {
 
   setPlayForWin(enabled: boolean): void {
     this.playForWinToggle.checked = enabled;
+  }
+
+  setPlayForWinInfoOpen(open: boolean): void {
+    this.playForWinInfoOpen = open;
+    this.playForWinInfoDetails.classList.toggle('hidden', !open);
+    this.playForWinInfoToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    const storage = this.getStorage();
+    if (!storage) {
+      return;
+    }
+    try {
+      storage.setItem(PLAY_FOR_WIN_INFO_KEY, open.toString());
+    } catch {
+      // Ignore persistence failures so UI state updates still apply.
+    }
   }
 
   setHintMode(enabled: boolean): void {
@@ -1652,6 +1716,12 @@ export class GameUI {
     return button;
   }
 
+  private makeInfoLine(text: string): HTMLDivElement {
+    const line = document.createElement('div');
+    line.textContent = text;
+    return line;
+  }
+
   private makeModeButton(label: string, mode: GameMode): HTMLButtonElement {
     const button = this.makeButton(label, () => this.handleModeSelect(mode));
     button.classList.add('segment');
@@ -1707,7 +1777,7 @@ export class GameUI {
     this.humanColorGroup.classList.toggle('hidden', !hvaiMode);
     this.autoSnapRow.classList.toggle('hidden', !hvaiMode);
     this.delayRow.classList.toggle('hidden', this.mode === 'hvh');
-    this.playForWinRow.classList.toggle('hidden', !aiVsAiMode);
+    this.playForWinRow.classList.toggle('hidden', this.mode === 'hvh');
     this.hintRow.classList.toggle('hidden', !hvaiMode);
     this.hintToggle.disabled = !hvaiMode;
     this.aiVsAiReady = this.mode === 'aivai' && !this.aiVsAiStarted;
@@ -1836,6 +1906,21 @@ export class GameUI {
     this.essentialsSection.classList.toggle('advanced-essentials-hidden', !showEssentials);
     this.advancedSection.classList.toggle('open', showAdvanced);
     this.advancedSection.classList.toggle('hidden', !showAdvanced);
+  }
+
+  private loadPlayForWinInfoOpen(): boolean {
+    const storage = this.getStorage();
+    if (!storage) {
+      return false;
+    }
+    const raw = storage.getItem(PLAY_FOR_WIN_INFO_KEY);
+    if (raw === 'true') {
+      return true;
+    }
+    if (raw === 'false') {
+      return false;
+    }
+    return false;
   }
 
   private loadUiState(): UiState {
