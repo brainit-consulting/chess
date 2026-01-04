@@ -11,7 +11,7 @@ import engineLogoUrl from '../../graphics/ScorpionChessEngineLogo.png';
 
 const PLAYER_GUIDE_URL = `${import.meta.env.BASE_URL}player-user-guide.md`;
 const LIVE_URL = 'https://brainit-consulting.github.io/chess/';
-const APP_VERSION = 'v1.1.61';
+const APP_VERSION = 'v1.1.62';
 
 export type UiState = {
   visible: boolean;

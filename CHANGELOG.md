@@ -8,6 +8,14 @@ Semantic Versioning.
 ## [Unreleased]
 ### Changed
 
+## [1.1.62] - 2026-01-04
+
+### Changed
+
+- Core eval now includes a small early-queen penalty outside MaxThinking.
+- Add tests covering the core early-queen penalty behavior.
+- Update the in-UI version label to v1.1.62.
+
 ## [1.1.61] - 2026-01-03
 
 ### Changed
