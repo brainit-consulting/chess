@@ -85,6 +85,7 @@ const DRAWISH_REPEAT_THRESHOLD = 80;
 const DRAWISH_REPEAT_LOSS_THRESHOLD = -150;
 const ROOT_BACKTRACK_PENALTY_CP = 12;
 const BACKTRACK_ESCAPE_MARGIN = 150;
+const ROOT_THREEFOLD_PENALTY_CP = 40;
 const DRAW_HOLD_THRESHOLD_DEFAULT = -80;
 const TWO_PLY_REPEAT_TOP_N_DEFAULT = 6;
 const ROOT_DIAGNOSTICS_TOP_N = 5;
@@ -518,6 +519,40 @@ export function applyRootBacktrackPenaltyForTest(
   return applyRootBacktrackPenalty(state, color, scores as RootScore[]);
 }
 
+// Test-only: expose root threefold avoidance with synthetic scores.
+export function applyRootThreefoldAvoidanceForTest(
+  state: GameState,
+  color: Color,
+  scores: {
+    move: Move;
+    baseScore: number;
+    score: number;
+    repeatCount: number;
+    isRepeat: boolean;
+    givesCheck?: boolean;
+  }[],
+  options: {
+    recentPositions?: string[];
+    drawHoldThreshold?: number;
+  },
+  playForWin: boolean
+): {
+  move: Move;
+  baseScore: number;
+  score: number;
+  repeatCount: number;
+  isRepeat: boolean;
+  givesCheck?: boolean;
+}[] {
+  return applyRootThreefoldAvoidance(
+    state,
+    color,
+    scores as RootScore[],
+    options as SearchOptions,
+    playForWin
+  );
+}
+
 // Test-only: expose repetition tie-break candidates with synthetic scores.
 export function getRepetitionTieBreakCandidatesForTest(
   scores: {
@@ -810,6 +845,52 @@ function applyRootBacktrackPenalty(
       return entry;
     }
     return { ...entry, score: entry.score - ROOT_BACKTRACK_PENALTY_CP };
+  });
+}
+
+function applyRootThreefoldAvoidance(
+  state: GameState,
+  color: Color,
+  scores: RootScore[],
+  options: SearchOptions,
+  playForWin: boolean
+): RootScore[] {
+  if (!playForWin || !options.recentPositions?.length) {
+    return scores;
+  }
+  if (isInCheck(state, color)) {
+    return scores;
+  }
+  const drawHoldThreshold = options.drawHoldThreshold ?? DRAW_HOLD_THRESHOLD_DEFAULT;
+  let bestNonThreefold: number | null = null;
+  for (const entry of scores) {
+    if (entry.repeatCount < 2) {
+      if (bestNonThreefold === null || entry.baseScore > bestNonThreefold) {
+        bestNonThreefold = entry.baseScore;
+      }
+    }
+  }
+  if (bestNonThreefold === null) {
+    return scores;
+  }
+
+  return scores.map((entry) => {
+    if (entry.repeatCount < 2) {
+      return entry;
+    }
+    if (entry.givesCheck) {
+      return entry;
+    }
+    if (getMateInfo(entry.baseScore)) {
+      return entry;
+    }
+    if (entry.baseScore <= drawHoldThreshold) {
+      return entry;
+    }
+    if (bestNonThreefold < entry.baseScore - BACKTRACK_ESCAPE_MARGIN) {
+      return entry;
+    }
+    return { ...entry, score: entry.score - ROOT_THREEFOLD_PENALTY_CP };
   });
 }
 
@@ -1109,7 +1190,14 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
   }
 
   const backtrackAdjusted = applyRootBacktrackPenalty(state, color, rootScores);
-  const adjustedScores = applyRepetitionPolicy(backtrackAdjusted, options, playForWin);
+  const threefoldAdjusted = applyRootThreefoldAvoidance(
+    state,
+    color,
+    backtrackAdjusted,
+    options,
+    playForWin
+  );
+  const adjustedScores = applyRepetitionPolicy(threefoldAdjusted, options, playForWin);
   const twoPlyAdjusted = applyTwoPlyLoopPenalty(
     state,
     color,
@@ -1752,7 +1840,14 @@ function scoreRootMoves(
   }
 
   const backtrackAdjusted = applyRootBacktrackPenalty(state, color, rootScores);
-  const adjustedScores = applyRepetitionPolicy(backtrackAdjusted, options, playForWin);
+  const threefoldAdjusted = applyRootThreefoldAvoidance(
+    state,
+    color,
+    backtrackAdjusted,
+    options,
+    playForWin
+  );
+  const adjustedScores = applyRepetitionPolicy(threefoldAdjusted, options, playForWin);
   const twoPlyAdjusted = applyTwoPlyLoopPenalty(
     state,
     color,

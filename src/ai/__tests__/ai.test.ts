@@ -1450,6 +1450,54 @@ describe('AI move selection', () => {
     expect(backtrackScore).toBe(0);
   });
 
+  it('penalizes immediate threefold repetition when drawish alternatives exist', () => {
+    const state = createEmptyState();
+    addPiece(state, 'king', 'w', sq(4, 0));
+    addPiece(state, 'king', 'b', sq(4, 7));
+    state.activeColor = 'w';
+
+    const repeatMove: Move = { from: sq(4, 0), to: sq(4, 1) };
+    const altMove: Move = { from: sq(4, 0), to: sq(3, 0) };
+
+    const adjusted = search.applyRootThreefoldAvoidanceForTest(
+      state,
+      'w',
+      [
+        { move: repeatMove, baseScore: 0, score: 0, repeatCount: 2, isRepeat: true },
+        { move: altMove, baseScore: -5, score: -5, repeatCount: 0, isRepeat: false }
+      ],
+      { recentPositions: ['x', 'x'] },
+      true
+    );
+
+    const repeatScore = adjusted.find((entry) => sameMove(entry.move, repeatMove))?.score ?? 0;
+    expect(repeatScore).toBeLessThan(0);
+  });
+
+  it('allows threefold repetition when clearly worse', () => {
+    const state = createEmptyState();
+    addPiece(state, 'king', 'w', sq(4, 0));
+    addPiece(state, 'king', 'b', sq(4, 7));
+    state.activeColor = 'w';
+
+    const repeatMove: Move = { from: sq(4, 0), to: sq(4, 1) };
+    const altMove: Move = { from: sq(4, 0), to: sq(3, 0) };
+
+    const adjusted = search.applyRootThreefoldAvoidanceForTest(
+      state,
+      'w',
+      [
+        { move: repeatMove, baseScore: -200, score: -200, repeatCount: 2, isRepeat: true },
+        { move: altMove, baseScore: -350, score: -350, repeatCount: 0, isRepeat: false }
+      ],
+      { recentPositions: ['x', 'x'], drawHoldThreshold: -80 },
+      true
+    );
+
+    const repeatScore = adjusted.find((entry) => sameMove(entry.move, repeatMove))?.score ?? 0;
+    expect(repeatScore).toBe(-200);
+  });
+
   it('disables null-move pruning in pawn-only endgames', () => {
     const state = createEmptyState();
     addPiece(state, 'king', 'w', sq(4, 0));
