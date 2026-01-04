@@ -83,6 +83,8 @@ const REPETITION_AVOID_LOSS_THRESHOLD = -200;
 const DRAWISH_REPEAT_PENALTY_CP = 15;
 const DRAWISH_REPEAT_THRESHOLD = 80;
 const DRAWISH_REPEAT_LOSS_THRESHOLD = -150;
+const ROOT_BACKTRACK_PENALTY_CP = 12;
+const BACKTRACK_ESCAPE_MARGIN = 150;
 const DRAW_HOLD_THRESHOLD_DEFAULT = -80;
 const TWO_PLY_REPEAT_TOP_N_DEFAULT = 6;
 const ROOT_DIAGNOSTICS_TOP_N = 5;
@@ -493,6 +495,29 @@ export function applyDrawishRepeatPenaltyForTest(
   return applyDrawishRepeatPenalty(scores as RootScore[], options as SearchOptions, playForWin);
 }
 
+// Test-only: expose root backtrack penalty logic with synthetic scores.
+export function applyRootBacktrackPenaltyForTest(
+  state: GameState,
+  color: Color,
+  scores: {
+    move: Move;
+    baseScore: number;
+    score: number;
+    repeatCount: number;
+    isRepeat: boolean;
+    givesCheck?: boolean;
+  }[]
+): {
+  move: Move;
+  baseScore: number;
+  score: number;
+  repeatCount: number;
+  isRepeat: boolean;
+  givesCheck?: boolean;
+}[] {
+  return applyRootBacktrackPenalty(state, color, scores as RootScore[]);
+}
+
 // Test-only: expose repetition tie-break candidates with synthetic scores.
 export function getRepetitionTieBreakCandidatesForTest(
   scores: {
@@ -726,6 +751,66 @@ function getProgressBias(
   }
 
   return bias;
+}
+
+function isRootBacktrackMove(previousMove: Move | null | undefined, move: Move): boolean {
+  if (!previousMove) {
+    return false;
+  }
+  return (
+    move.from.file === previousMove.to.file &&
+    move.from.rank === previousMove.to.rank &&
+    move.to.file === previousMove.from.file &&
+    move.to.rank === previousMove.from.rank
+  );
+}
+
+function applyRootBacktrackPenalty(
+  state: GameState,
+  color: Color,
+  scores: RootScore[]
+): RootScore[] {
+  const previousMove = state.lastMoveByColor?.[color] ?? null;
+  if (!previousMove) {
+    return scores;
+  }
+  if (isInCheck(state, color)) {
+    return scores;
+  }
+
+  let bestNonBacktrack: number | null = null;
+  for (const entry of scores) {
+    if (!isRootBacktrackMove(previousMove, entry.move)) {
+      if (bestNonBacktrack === null || entry.baseScore > bestNonBacktrack) {
+        bestNonBacktrack = entry.baseScore;
+      }
+    }
+  }
+  if (bestNonBacktrack === null) {
+    return scores;
+  }
+
+  return scores.map((entry) => {
+    if (!isRootBacktrackMove(previousMove, entry.move)) {
+      return entry;
+    }
+    if (entry.givesCheck) {
+      return entry;
+    }
+    if (entry.baseScore <= DRAWISH_REPEAT_LOSS_THRESHOLD) {
+      return entry;
+    }
+    if (Math.abs(entry.baseScore) > DRAWISH_REPEAT_THRESHOLD) {
+      return entry;
+    }
+    if (getMateInfo(entry.baseScore)) {
+      return entry;
+    }
+    if (bestNonBacktrack < entry.baseScore - BACKTRACK_ESCAPE_MARGIN) {
+      return entry;
+    }
+    return { ...entry, score: entry.score - ROOT_BACKTRACK_PENALTY_CP };
+  });
 }
 
 function applyTwoPlyLoopPenalty(
@@ -1023,7 +1108,8 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
     return rootScores[0].move;
   }
 
-  const adjustedScores = applyRepetitionPolicy(rootScores, options, playForWin);
+  const backtrackAdjusted = applyRootBacktrackPenalty(state, color, rootScores);
+  const adjustedScores = applyRepetitionPolicy(backtrackAdjusted, options, playForWin);
   const twoPlyAdjusted = applyTwoPlyLoopPenalty(
     state,
     color,
@@ -1665,7 +1751,8 @@ function scoreRootMoves(
     return { move: ordered[0] ?? null, score: null, scoredMoves: [] };
   }
 
-  const adjustedScores = applyRepetitionPolicy(rootScores, options, playForWin);
+  const backtrackAdjusted = applyRootBacktrackPenalty(state, color, rootScores);
+  const adjustedScores = applyRepetitionPolicy(backtrackAdjusted, options, playForWin);
   const twoPlyAdjusted = applyTwoPlyLoopPenalty(
     state,
     color,

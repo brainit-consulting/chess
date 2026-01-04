@@ -38,6 +38,7 @@ export interface GameState {
   halfmoveClock: number;
   fullmoveNumber: number;
   lastMove: Move | null;
+  lastMoveByColor?: { w: Move | null; b: Move | null };
   positionCounts?: Map<string, number>;
   nnue?: NnueState;
 }
@@ -66,6 +67,7 @@ export function createEmptyState(): GameState {
     halfmoveClock: 0,
     fullmoveNumber: 1,
     lastMove: null,
+    lastMoveByColor: { w: null, b: null },
     positionCounts: new Map()
   };
 }
@@ -258,6 +260,10 @@ export function applyMove(state: GameState, move: Move): GameState {
     state.fullmoveNumber += 1;
   }
 
+  if (!state.lastMoveByColor) {
+    state.lastMoveByColor = { w: null, b: null };
+  }
+  state.lastMoveByColor[movingPiece.color] = cloneMove(move);
   state.lastMove = cloneMove(move);
   state.activeColor = opponentColor(state.activeColor);
   recordPosition(state);
@@ -791,6 +797,12 @@ function cloneState(state: GameState): GameState {
   for (const [id, piece] of state.pieces) {
     pieces.set(id, { ...piece });
   }
+  const lastMoveByColor = state.lastMoveByColor
+    ? {
+        w: state.lastMoveByColor.w ? cloneMove(state.lastMoveByColor.w) : null,
+        b: state.lastMoveByColor.b ? cloneMove(state.lastMoveByColor.b) : null
+      }
+    : undefined;
   return {
     board,
     pieces,
@@ -800,6 +812,7 @@ function cloneState(state: GameState): GameState {
     halfmoveClock: state.halfmoveClock,
     fullmoveNumber: state.fullmoveNumber,
     lastMove: state.lastMove ? cloneMove(state.lastMove) : null,
+    lastMoveByColor,
     positionCounts: state.positionCounts ? new Map(state.positionCounts) : undefined
   };
 }

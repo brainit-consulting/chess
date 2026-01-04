@@ -1407,6 +1407,49 @@ describe('AI move selection', () => {
     expect(recaptureIndex).toBeLessThan(quietIndex);
   });
 
+  it('penalizes immediate backtracks at root when a close alternative exists', () => {
+    const state = createEmptyState();
+    addPiece(state, 'king', 'w', sq(4, 0));
+    addPiece(state, 'king', 'b', sq(4, 7));
+    addPiece(state, 'rook', 'w', sq(0, 1));
+    state.activeColor = 'w';
+    state.lastMoveByColor = { w: { from: sq(0, 0), to: sq(0, 1) }, b: null };
+
+    const backtrack: Move = { from: sq(0, 1), to: sq(0, 0) };
+    const improve: Move = { from: sq(0, 1), to: sq(0, 2) };
+
+    const chosen = search.findBestMove(state, 'w', {
+      depth: 1,
+      rng: () => 0,
+      legalMoves: [backtrack, improve],
+      topMoveWindow: 0,
+      fairnessWindow: 0
+    });
+
+    expect(chosen).not.toBeNull();
+    expect(sameMove(chosen as Move, backtrack)).toBe(false);
+  });
+
+  it('does not penalize backtracks when alternatives are significantly worse', () => {
+    const state = createEmptyState();
+    addPiece(state, 'king', 'w', sq(4, 0));
+    addPiece(state, 'king', 'b', sq(4, 7));
+    addPiece(state, 'rook', 'w', sq(0, 1));
+    state.activeColor = 'w';
+    state.lastMoveByColor = { w: { from: sq(0, 0), to: sq(0, 1) }, b: null };
+
+    const backtrack: Move = { from: sq(0, 1), to: sq(0, 0) };
+    const blunder: Move = { from: sq(0, 1), to: sq(1, 1) };
+
+    const adjusted = search.applyRootBacktrackPenaltyForTest(state, 'w', [
+      { move: backtrack, baseScore: 0, score: 0, repeatCount: 0, isRepeat: false },
+      { move: blunder, baseScore: -400, score: -400, repeatCount: 0, isRepeat: false }
+    ]);
+
+    const backtrackScore = adjusted.find((entry) => sameMove(entry.move, backtrack))?.score ?? 0;
+    expect(backtrackScore).toBe(0);
+  });
+
   it('disables null-move pruning in pawn-only endgames', () => {
     const state = createEmptyState();
     addPiece(state, 'king', 'w', sq(4, 0));
