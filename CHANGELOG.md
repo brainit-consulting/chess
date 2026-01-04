@@ -8,6 +8,13 @@ Semantic Versioning.
 ## [Unreleased]
 ### Changed
 
+## [1.1.64] - 2026-01-04
+
+### Changed
+
+- Apply root threefold avoidance even in MaxThinking (uses positionCounts when recentPositions are absent).
+- Update the in-UI version label to v1.1.64.
+
 ## [1.1.63] - 2026-01-04
 
 ### Changed
