@@ -8,6 +8,12 @@ Semantic Versioning.
 ## [Unreleased]
 ### Changed
 
+## [1.1.66] - 2026-01-04
+
+### Changed
+
+- Clarified and fixed Play for Win toggle behavior across AI modes (including MaxThinking / NNUE mix).
+
 ## [1.1.65] - 2026-01-04
 
 ### Changed

@@ -550,7 +550,7 @@ export class GameController {
     this.aiBestSoFarMove = this.selectFallbackAiMove();
     this.aiBestSoFarRequestId = requestId;
 
-    const playForWin = this.mode === 'aivai' && this.playForWinAiVsAi;
+    const playForWin = this.mode !== 'hvh' && this.playForWinAiVsAi;
     const maxTimeMs =
       this.aiDifficulty === 'max'
         ? MAX_THINKING_CAP_MS
@@ -1484,7 +1484,7 @@ export class GameController {
       }
       const preMoveState = this.cloneState(this.state);
       const recentPositions = this.getRecentPositionKeys();
-      const playForWin = this.mode === 'aivai' && this.playForWinAiVsAi;
+      const playForWin = this.mode !== 'hvh' && this.playForWinAiVsAi;
       this.setAiThinkingActive(false);
       this.applyAndAdvance(response.move);
       this.setLastAiMove(preMoveState, response.move, {
