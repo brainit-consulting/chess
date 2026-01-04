@@ -8,6 +8,14 @@ Semantic Versioning.
 ## [Unreleased]
 ### Changed
 
+## [1.1.65] - 2026-01-04
+
+### Changed
+
+- Apply root anti-backtrack and threefold avoidance in MaxThinking even when playForWin is false (UI path).
+- Add UI-path Max vs Max smoke runner and tests to prevent rook-shuffle repetition regressions.
+- Fix two-ply penalty evaluation to respect nnueMix in diagnostics.
+
 ## [1.1.64] - 2026-01-04
 
 ### Changed
