@@ -30,6 +30,7 @@ const KING_CASTLED_BONUS = 35;
 const KING_MOVE_PENALTY = 8;
 const PAWN_SHIELD_PENALTY = 8;
 const EARLY_QUEEN_PENALTY = 20;
+const CORE_EARLY_QUEEN_PENALTY_SCALE = 1;
 const KING_UNCASTLED_PENALTY = 12;
 const KING_CENTRAL_PENALTY = 10;
 const KING_QUEEN_PRESENT_MULTIPLIER = 1.4;
@@ -141,9 +142,21 @@ export function evaluateState(
     -kingRingPenaltyScore(state, context, 'w') +
     kingRingPenaltyScore(state, context, 'b');
   const filePressure = filePressureScore(state, context);
+  const coreEarlyQueen =
+    options.maxThinking
+      ? 0
+      : (earlyQueenScore(state, squares, 'w') - earlyQueenScore(state, squares, 'b')) *
+        CORE_EARLY_QUEEN_PENALTY_SCALE;
   const maxScore = options.maxThinking ? evaluateMaxThinking(state, context) : 0;
   const classicalScore =
-    material + mobility + checkScore + kingExposure + kingRingPenalty + filePressure + maxScore;
+    material +
+    mobility +
+    checkScore +
+    kingExposure +
+    kingRingPenalty +
+    filePressure +
+    coreEarlyQueen +
+    maxScore;
 
   const nnueMix = options.maxThinking
     ? clamp01(options.nnueMix ?? NNUE_MIX_DEFAULT)

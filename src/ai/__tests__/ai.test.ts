@@ -1218,6 +1218,42 @@ describe('AI move selection', () => {
     expect(pressureEval).toBeGreaterThan(noPressureEval);
   });
 
+  it('penalizes early queen moves in core eval', () => {
+    const base = createEmptyState();
+    addPiece(base, 'king', 'w', sq(4, 0));
+    addPiece(base, 'king', 'b', sq(4, 7));
+    addPiece(base, 'queen', 'w', sq(3, 0));
+    addPiece(base, 'queen', 'b', sq(3, 7));
+    addPiece(base, 'knight', 'w', sq(6, 0));
+    addPiece(base, 'knight', 'b', sq(6, 7));
+    base.fullmoveNumber = 2;
+
+    const movedWhite = cloneState(base);
+    const whiteQueen = [...movedWhite.pieces.values()].find(
+      (piece) => piece.type === 'queen' && piece.color === 'w'
+    );
+    if (!whiteQueen) {
+      throw new Error('Expected white queen for early queen penalty test.');
+    }
+    movedWhite.pieces.set(whiteQueen.id, { ...whiteQueen, hasMoved: true });
+
+    const movedBlack = cloneState(base);
+    const blackQueen = [...movedBlack.pieces.values()].find(
+      (piece) => piece.type === 'queen' && piece.color === 'b'
+    );
+    if (!blackQueen) {
+      throw new Error('Expected black queen for early queen penalty test.');
+    }
+    movedBlack.pieces.set(blackQueen.id, { ...blackQueen, hasMoved: true });
+
+    const baseEval = evaluateState(base, 'w', { maxThinking: false });
+    const movedWhiteEval = evaluateState(movedWhite, 'w', { maxThinking: false });
+    const movedBlackEval = evaluateState(movedBlack, 'w', { maxThinking: false });
+
+    expect(movedWhiteEval).toBeLessThan(baseEval);
+    expect(movedBlackEval).toBeGreaterThan(baseEval);
+  });
+
   it('retries aspiration windows on score swings (deterministic)', () => {
     const retries = search.simulateAspirationRetriesForTest([100, 5], 0, 10, 3);
     expect(retries).toBe(1);
@@ -1571,7 +1607,7 @@ describe('AI move selection', () => {
     expect(hasCastle).toBe(true);
   });
 
-  it('applies early queen penalties only in max thinking', () => {
+  it('applies early queen penalties at least as strongly in max thinking', () => {
     const state = createEmptyState();
     addPiece(state, 'king', 'w', sq(4, 0));
     addPiece(state, 'king', 'b', sq(4, 7));
@@ -1585,7 +1621,7 @@ describe('AI move selection', () => {
 
     const base = evaluateState(state, 'w');
     const max = evaluateState(state, 'w', { maxThinking: true });
-    expect(max).toBeLessThan(base);
+    expect(max).toBeLessThanOrEqual(base);
   });
 
   it('rewards central minor placement in max thinking', () => {
