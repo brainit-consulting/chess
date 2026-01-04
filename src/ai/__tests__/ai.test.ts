@@ -1498,6 +1498,36 @@ describe('AI move selection', () => {
     expect(repeatScore).toBe(-200);
   });
 
+  it('avoids threefold repetition in max-thinking when alternatives exist', () => {
+    const state = createEmptyState();
+    addPiece(state, 'king', 'w', sq(4, 0));
+    addPiece(state, 'king', 'b', sq(4, 7));
+    addPiece(state, 'rook', 'w', sq(0, 1));
+    state.activeColor = 'w';
+    state.lastMoveByColor = { w: { from: sq(0, 0), to: sq(0, 1) }, b: null };
+
+    const repeatMove: Move = { from: sq(0, 1), to: sq(0, 0) };
+    const altMove: Move = { from: sq(0, 1), to: sq(0, 2) };
+
+    const next = cloneState(state);
+    next.activeColor = 'w';
+    applyMove(next, repeatMove);
+    const repeatKey = getPositionKey(next);
+    state.positionCounts = new Map([[repeatKey, 2]]);
+
+    const chosen = search.findBestMove(state, 'w', {
+      depth: 1,
+      rng: () => 0,
+      legalMoves: [repeatMove, altMove],
+      maxThinking: true,
+      topMoveWindow: 0,
+      fairnessWindow: 0
+    });
+
+    expect(chosen).not.toBeNull();
+    expect(sameMove(chosen as Move, repeatMove)).toBe(false);
+  });
+
   it('disables null-move pruning in pawn-only endgames', () => {
     const state = createEmptyState();
     addPiece(state, 'king', 'w', sq(4, 0));

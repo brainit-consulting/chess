@@ -855,7 +855,9 @@ function applyRootThreefoldAvoidance(
   options: SearchOptions,
   playForWin: boolean
 ): RootScore[] {
-  if (!playForWin || !options.recentPositions?.length) {
+  const hasRepetitionContext = Boolean(options.recentPositions?.length || state.positionCounts);
+  const allowForMode = playForWin || Boolean(options.maxThinking);
+  if (!allowForMode || !hasRepetitionContext) {
     return scores;
   }
   if (isInCheck(state, color)) {
@@ -1125,9 +1127,9 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
   });
   const ordered = orderRootMovesForRepeatAvoidance(state, color, orderedBase, options, playForWin);
   let bestSoFar: Move | null = ordered[0] ?? legalMoves[0] ?? null;
-  const positionCounts = playForWin
+  const positionCounts = options.recentPositions?.length
     ? buildPositionCounts(options.recentPositions ?? [])
-    : undefined;
+    : state.positionCounts;
   const topMoveWindow = options.topMoveWindow ?? DEFAULT_TOP_MOVE_WINDOW;
   const fairnessWindow = options.fairnessWindow ?? DEFAULT_FAIRNESS_WINDOW;
   const rootScores: RootScore[] = [];
@@ -1160,7 +1162,7 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
       instrumentation
     );
     const givesCheck = isInCheck(next, opponentColor(color));
-    const repeatKey = playForWin ? getPositionKey(next) : null;
+    const repeatKey = positionCounts ? getPositionKey(next) : null;
     const repeatCount =
       repeatKey && positionCounts ? positionCounts.get(repeatKey) ?? 0 : 0;
     const progressBias = getProgressBias(
@@ -1778,9 +1780,9 @@ function scoreRootMoves(
   const ordered = orderRootMovesForRepeatAvoidance(state, color, orderedBase, options, playForWin);
   const alpha = window?.alpha ?? -Infinity;
   const beta = window?.beta ?? Infinity;
-  const positionCounts = playForWin
+  const positionCounts = options.recentPositions?.length
     ? buildPositionCounts(options.recentPositions ?? [])
-    : undefined;
+    : state.positionCounts;
   const topMoveWindow = options.topMoveWindow ?? DEFAULT_TOP_MOVE_WINDOW;
   const fairnessWindow = options.fairnessWindow ?? DEFAULT_FAIRNESS_WINDOW;
 
@@ -1812,7 +1814,7 @@ function scoreRootMoves(
       options.instrumentation
     );
     const givesCheck = isInCheck(next, opponentColor(color));
-    const repeatKey = playForWin ? getPositionKey(next) : null;
+    const repeatKey = positionCounts ? getPositionKey(next) : null;
     const repeatCount =
       repeatKey && positionCounts ? positionCounts.get(repeatKey) ?? 0 : 0;
     const progressBias = getProgressBias(
