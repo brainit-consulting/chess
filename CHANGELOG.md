@@ -15,6 +15,7 @@ Semantic Versioning.
 - Apply root anti-backtrack and threefold avoidance in MaxThinking even when playForWin is false (UI path).
 - Add UI-path Max vs Max smoke runner and tests to prevent rook-shuffle repetition regressions.
 - Fix two-ply penalty evaluation to respect nnueMix in diagnostics.
+- “Fixed AI vs AI MaxThinking repetition loops (rook/queen shuffle).”
 
 ## [1.1.64] - 2026-01-04
 
