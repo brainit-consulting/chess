@@ -30,6 +30,7 @@ import {
   createInitialState,
   getAllLegalMoves,
   getLegalMovesForSquare,
+  getPieceAt,
   getPieceSquares,
   getPositionKey,
   GameState,
@@ -77,6 +78,39 @@ function createSequenceRng(values: number[]): () => number {
     index += 1;
     return value;
   };
+}
+
+type PlyRecord = {
+  color: 'w' | 'b';
+  from: Square;
+  to: Square;
+  piece: string;
+};
+
+function isBacktrack(a: PlyRecord, b: PlyRecord): boolean {
+  return (
+    a.from.file === b.to.file &&
+    a.from.rank === b.to.rank &&
+    a.to.file === b.from.file &&
+    a.to.rank === b.from.rank
+  );
+}
+
+function detectRookShuffle(records: PlyRecord[]): boolean {
+  if (records.length < 4) {
+    return false;
+  }
+  const w1 = records[records.length - 4];
+  const b1 = records[records.length - 3];
+  const w2 = records[records.length - 2];
+  const b2 = records[records.length - 1];
+  if (w1.color !== 'w' || w2.color !== 'w' || b1.color !== 'b' || b2.color !== 'b') {
+    return false;
+  }
+  if (w1.piece !== 'rook' || w2.piece !== 'rook' || b1.piece !== 'rook' || b2.piece !== 'rook') {
+    return false;
+  }
+  return isBacktrack(w1, w2) && isBacktrack(b1, b2);
 }
 
 describe('AI move selection', () => {
@@ -1527,6 +1561,104 @@ describe('AI move selection', () => {
     expect(chosen).not.toBeNull();
     expect(sameMove(chosen as Move, repeatMove)).toBe(false);
   });
+
+  it('avoids root repetition in timed max search when playForWin is false', () => {
+    const state = createEmptyState();
+    addPiece(state, 'king', 'w', sq(4, 0));
+    addPiece(state, 'king', 'b', sq(4, 7));
+    addPiece(state, 'rook', 'w', sq(0, 1));
+    state.activeColor = 'w';
+    state.lastMoveByColor = { w: { from: sq(0, 0), to: sq(0, 1) }, b: null };
+
+    const repeatMove: Move = { from: sq(0, 1), to: sq(0, 0) };
+    const altMove: Move = { from: sq(0, 1), to: sq(0, 2) };
+
+    const next = cloneState(state);
+    applyMove(next, repeatMove);
+    const repeatKey = getPositionKey(next);
+    state.positionCounts = new Map([[repeatKey, 2]]);
+
+    const chosen = search.findBestMoveTimed(state, 'w', {
+      maxDepth: 1,
+      maxTimeMs: 200,
+      rng: () => 0,
+      legalMoves: [repeatMove, altMove],
+      maxThinking: true,
+      topMoveWindow: 0,
+      fairnessWindow: 0
+    });
+
+    expect(chosen).not.toBeNull();
+    expect(sameMove(chosen as Move, repeatMove)).toBe(false);
+  });
+
+  it('allows threefold repetition in max thinking when below draw-hold threshold', () => {
+    const state = createEmptyState();
+    addPiece(state, 'king', 'w', sq(4, 0));
+    addPiece(state, 'king', 'b', sq(4, 7));
+    state.activeColor = 'w';
+
+    const repeatMove: Move = { from: sq(4, 0), to: sq(4, 1) };
+    const altMove: Move = { from: sq(4, 0), to: sq(3, 0) };
+
+    const adjusted = search.applyRootThreefoldAvoidanceForTest(
+      state,
+      'w',
+      [
+        { move: repeatMove, baseScore: -200, score: -200, repeatCount: 2, isRepeat: true },
+        { move: altMove, baseScore: -350, score: -350, repeatCount: 0, isRepeat: false }
+      ],
+      { drawHoldThreshold: -80, maxThinking: true },
+      false
+    );
+
+    const repeatScore = adjusted.find((entry) => sameMove(entry.move, repeatMove))?.score ?? 0;
+    expect(repeatScore).toBe(-200);
+  });
+
+  it(
+    'avoids immediate rook shuffle in max-thinking UI path',
+    () => {
+      const state = createInitialState();
+      const records: PlyRecord[] = [];
+      const maxPlies = 12;
+
+      for (let ply = 1; ply <= maxPlies; ply += 1) {
+        const response = computeAiMove({
+          kind: 'move',
+          requestId: ply,
+          state,
+          color: state.activeColor,
+          difficulty: 'max',
+          seed: 1,
+          playForWin: false,
+          maxTimeMs: 100,
+          maxDepth: 2,
+          nnueMix: 0
+        });
+        expect(response && response.kind === 'move' && response.move).toBeTruthy();
+        const move = response?.kind === 'move' ? response.move : null;
+        expect(move).not.toBeNull();
+        if (!move) {
+          return;
+        }
+        const piece = getPieceAt(state, move.from);
+        records.push({
+          color: state.activeColor,
+          from: { ...move.from },
+          to: { ...move.to },
+          piece: piece?.type ?? 'unknown'
+        });
+
+        applyMove(state, move);
+        const key = getPositionKey(state);
+        const count = state.positionCounts?.get(key) ?? 0;
+        expect(count).toBeLessThan(3);
+        expect(detectRookShuffle(records)).toBe(false);
+      }
+    },
+    20000
+  );
 
   it('disables null-move pruning in pawn-only endgames', () => {
     const state = createEmptyState();

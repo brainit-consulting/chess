@@ -14,7 +14,8 @@
     "test": "vitest",
     "test:run": "vitest --run",
     "bench:quick": "tsx scripts/bench/quickVsStockfish.ts",
-    "bench:selfplay": "tsx scripts/bench/selfPlay.ts"
+    "bench:selfplay": "tsx scripts/bench/selfPlay.ts",
+    "smoke:ui-max": "tsx scripts/smoke/uiMaxAiVsAi.ts"
   },
   "dependencies": {
     "three": "^0.164.0"

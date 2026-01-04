@@ -263,7 +263,7 @@ function applyRepetitionPolicy(
   options: SearchOptions,
   playForWin: boolean
 ): RootScore[] {
-  if (!playForWin || !options.recentPositions?.length) {
+  if (!playForWin) {
     return scores;
   }
   if (scores.length <= 1) {
@@ -323,7 +323,7 @@ function applyRootContempt(
   options: SearchOptions,
   playForWin: boolean
 ): RootScore[] {
-  if (!playForWin || !options.recentPositions?.length) {
+  if (!playForWin) {
     return scores;
   }
   const contempt = options.contemptCp ?? 0;
@@ -344,7 +344,7 @@ function applyDrawishRepeatPenalty(
   options: SearchOptions,
   playForWin: boolean
 ): RootScore[] {
-  if (!playForWin || !options.recentPositions?.length) {
+  if (!playForWin) {
     return scores;
   }
   if (scores.length <= 1) {
@@ -376,7 +376,7 @@ function getRepetitionTieBreakCandidates(
   options: SearchOptions,
   playForWin: boolean
 ): RootScore[] | null {
-  if (!playForWin || !options.recentPositions?.length) {
+  if (!playForWin) {
     return null;
   }
   const scale = options.repetitionPenaltyScale ?? 0;
@@ -686,7 +686,16 @@ function orderRootMovesForRepeatAvoidance(
   options: SearchOptions,
   playForWin: boolean
 ): Move[] {
-  if (!playForWin || !options.recentPositions?.length) {
+  if (!playForWin) {
+    return moves;
+  }
+  const repetitionKeys =
+    options.recentPositions?.length
+      ? options.recentPositions
+      : state.positionCounts
+        ? Array.from(state.positionCounts.keys())
+        : [];
+  if (repetitionKeys.length === 0) {
     return moves;
   }
   const drawHoldThreshold = options.drawHoldThreshold ?? DRAW_HOLD_THRESHOLD_DEFAULT;
@@ -697,7 +706,7 @@ function orderRootMovesForRepeatAvoidance(
   if (baseEval < drawHoldThreshold) {
     return moves;
   }
-  const recentSet = new Set(options.recentPositions);
+  const recentSet = new Set(repetitionKeys);
   const annotated = moves.map((move, index) => {
     const quietCandidate = !move.promotion && !isCaptureMove(state, move);
     if (!quietCandidate) {
@@ -925,7 +934,8 @@ function applyTwoPlyLoopPenalty(
       recentSet,
       positionCounts,
       penaltyBase,
-      Boolean(options.maxThinking)
+      Boolean(options.maxThinking),
+      options.nnueMix
     );
     if (penalty > 0) {
       penalizedMoves.set(entry.move, penalty);
@@ -952,7 +962,8 @@ function computeTwoPlyPenalty(
   recentSet: Set<string>,
   positionCounts: Map<string, number> | undefined,
   penaltyBase: number,
-  maxThinking: boolean
+  maxThinking: boolean,
+  nnueMix?: number
 ): number {
   const next = cloneState(state);
   next.activeColor = color;
@@ -969,7 +980,7 @@ function computeTwoPlyPenalty(
     follow.activeColor = opponent;
     applyMoveWithNnue(follow, reply);
     const key = getPositionKey(follow);
-    const score = evaluateState(follow, color, { maxThinking, nnueMix: options.nnueMix });
+    const score = evaluateState(follow, color, { maxThinking, nnueMix });
     if (score < worstScore) {
       worstScore = score;
       repeatKey = key;
@@ -1117,6 +1128,7 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
     options.ordering ?? (options.maxThinking ? createOrderingState(options.depth + 4) : undefined);
   const usePvs = options.usePvs ?? false;
   const playForWin = Boolean(options.playForWin && options.recentPositions?.length);
+  const repeatPolicyActive = playForWin || Boolean(options.maxThinking);
   const preferred = options.tt ? options.tt.get(getPositionKey(state))?.bestMove : undefined;
   const orderedBase = orderMoves(state, legalMoves, color, options.rng, {
     preferred,
@@ -1125,11 +1137,18 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
     ply: 0,
     prevMove: state.lastMove
   });
-  const ordered = orderRootMovesForRepeatAvoidance(state, color, orderedBase, options, playForWin);
+  const ordered = orderRootMovesForRepeatAvoidance(
+    state,
+    color,
+    orderedBase,
+    options,
+    repeatPolicyActive
+  );
   let bestSoFar: Move | null = ordered[0] ?? legalMoves[0] ?? null;
   const positionCounts = options.recentPositions?.length
     ? buildPositionCounts(options.recentPositions ?? [])
     : state.positionCounts;
+  const hasRepetitionContext = Boolean(options.recentPositions?.length || positionCounts?.size);
   const topMoveWindow = options.topMoveWindow ?? DEFAULT_TOP_MOVE_WINDOW;
   const fairnessWindow = options.fairnessWindow ?? DEFAULT_FAIRNESS_WINDOW;
   const rootScores: RootScore[] = [];
@@ -1197,22 +1216,22 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
     color,
     backtrackAdjusted,
     options,
-    playForWin
+    repeatPolicyActive
   );
-  const adjustedScores = applyRepetitionPolicy(threefoldAdjusted, options, playForWin);
+  const adjustedScores = applyRepetitionPolicy(threefoldAdjusted, options, repeatPolicyActive);
   const twoPlyAdjusted = applyTwoPlyLoopPenalty(
     state,
     color,
     adjustedScores,
     options,
-    playForWin,
+    repeatPolicyActive,
     positionCounts
   );
-  const contemptAdjusted = applyRootContempt(twoPlyAdjusted, options, playForWin);
+  const contemptAdjusted = applyRootContempt(twoPlyAdjusted, options, repeatPolicyActive);
   const repeatAdjusted = applyDrawishRepeatPenalty(
     contemptAdjusted,
     options,
-    playForWin
+    repeatPolicyActive
   );
   const scoredMoves = repeatAdjusted.map((entry) => ({
     move: entry.move,
@@ -1222,12 +1241,13 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
 
   const bestScore = Math.max(...scoredMoves.map((entry) => entry.score));
   const baseBest = Math.max(...scoredMoves.map((entry) => entry.baseScore));
+  const windowingActive = repeatPolicyActive && hasRepetitionContext;
   let windowed =
-    playForWin && topMoveWindow > 0
+    windowingActive && topMoveWindow > 0
       ? scoredMoves.filter((entry) => entry.score >= bestScore - topMoveWindow)
       : scoredMoves.filter((entry) => entry.score === bestScore);
 
-  if (playForWin) {
+  if (windowingActive) {
     windowed = windowed.filter((entry) => entry.baseScore >= baseBest - fairnessWindow);
     if (windowed.length === 0) {
       const baseLeaders = scoredMoves.filter((entry) => entry.baseScore === baseBest);
@@ -1241,7 +1261,7 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
   const tieBreakCandidates = getRepetitionTieBreakCandidates(
     repeatAdjusted,
     options,
-    playForWin
+    repeatPolicyActive
   );
   if (tieBreakCandidates) {
     const tieBreakMoves = new Set(tieBreakCandidates.map((entry) => entry.move));
@@ -1251,7 +1271,12 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
     }
   }
 
-  windowed = enforceRootRepetitionAvoidance(windowed, repeatAdjusted, options, playForWin);
+  windowed = enforceRootRepetitionAvoidance(
+    windowed,
+    repeatAdjusted,
+    options,
+    repeatPolicyActive
+  );
 
   const index = Math.floor(options.rng() * windowed.length);
   const chosen = windowed[index];
@@ -1770,6 +1795,7 @@ function scoreRootMoves(
   rootDiagnostics?: RootDiagnostics;
 } {
   const playForWin = Boolean(options.playForWin && options.recentPositions?.length);
+  const repeatPolicyActive = playForWin || Boolean(options.maxThinking);
   const orderedBase = orderMoves(state, options.legalMoves ?? [], color, options.rng, {
     preferred: options.tt ? options.tt.get(getPositionKey(state))?.bestMove : undefined,
     maxThinking: options.maxThinking,
@@ -1777,12 +1803,19 @@ function scoreRootMoves(
     ply: 0,
     prevMove: state.lastMove
   });
-  const ordered = orderRootMovesForRepeatAvoidance(state, color, orderedBase, options, playForWin);
+  const ordered = orderRootMovesForRepeatAvoidance(
+    state,
+    color,
+    orderedBase,
+    options,
+    repeatPolicyActive
+  );
   const alpha = window?.alpha ?? -Infinity;
   const beta = window?.beta ?? Infinity;
   const positionCounts = options.recentPositions?.length
     ? buildPositionCounts(options.recentPositions ?? [])
     : state.positionCounts;
+  const hasRepetitionContext = Boolean(options.recentPositions?.length || positionCounts?.size);
   const topMoveWindow = options.topMoveWindow ?? DEFAULT_TOP_MOVE_WINDOW;
   const fairnessWindow = options.fairnessWindow ?? DEFAULT_FAIRNESS_WINDOW;
 
@@ -1847,22 +1880,22 @@ function scoreRootMoves(
     color,
     backtrackAdjusted,
     options,
-    playForWin
+    repeatPolicyActive
   );
-  const adjustedScores = applyRepetitionPolicy(threefoldAdjusted, options, playForWin);
+  const adjustedScores = applyRepetitionPolicy(threefoldAdjusted, options, repeatPolicyActive);
   const twoPlyAdjusted = applyTwoPlyLoopPenalty(
     state,
     color,
     adjustedScores,
     options,
-    playForWin,
+    repeatPolicyActive,
     positionCounts
   );
-  const contemptAdjusted = applyRootContempt(twoPlyAdjusted, options, playForWin);
+  const contemptAdjusted = applyRootContempt(twoPlyAdjusted, options, repeatPolicyActive);
   const repeatAdjusted = applyDrawishRepeatPenalty(
     contemptAdjusted,
     options,
-    playForWin
+    repeatPolicyActive
   );
   const scoredMoves = repeatAdjusted.map((entry) => {
     const mateInfo = getMateInfo(entry.score);
@@ -1877,12 +1910,13 @@ function scoreRootMoves(
 
   const bestScore = Math.max(...scoredMoves.map((entry) => entry.score));
   const baseBest = Math.max(...scoredMoves.map((entry) => entry.baseScore));
+  const windowingActive = repeatPolicyActive && hasRepetitionContext;
   let windowed =
-    playForWin && topMoveWindow > 0
+    windowingActive && topMoveWindow > 0
       ? scoredMoves.filter((entry) => entry.score >= bestScore - topMoveWindow)
       : scoredMoves.filter((entry) => entry.score === bestScore);
 
-  if (playForWin) {
+  if (windowingActive) {
     windowed = windowed.filter((entry) => entry.baseScore >= baseBest - fairnessWindow);
     if (windowed.length === 0) {
       const baseLeaders = scoredMoves.filter((entry) => entry.baseScore === baseBest);
@@ -1892,7 +1926,7 @@ function scoreRootMoves(
         contemptAdjusted.find((entry) => entry.move === chosen.move) ?? contemptAdjusted[0];
       const rootDiagnostics =
         options.rootDiagnostics && chosenEntry
-          ? buildRootDiagnostics(contemptAdjusted, chosenEntry, options, playForWin)
+          ? buildRootDiagnostics(contemptAdjusted, chosenEntry, options, repeatPolicyActive)
           : undefined;
       storeRootTt(options, state, chosen.move, chosen.baseScore);
       return { move: chosen.move, score: chosen.score, scoredMoves, rootDiagnostics };
@@ -1902,7 +1936,7 @@ function scoreRootMoves(
   const tieBreakCandidates = getRepetitionTieBreakCandidates(
     repeatAdjusted,
     options,
-    playForWin
+    repeatPolicyActive
   );
   if (tieBreakCandidates) {
     const tieBreakMoves = new Set(tieBreakCandidates.map((entry) => entry.move));
@@ -1912,14 +1946,19 @@ function scoreRootMoves(
     }
   }
 
-  windowed = enforceRootRepetitionAvoidance(windowed, repeatAdjusted, options, playForWin);
+  windowed = enforceRootRepetitionAvoidance(
+    windowed,
+    repeatAdjusted,
+    options,
+    repeatPolicyActive
+  );
 
   const index = Math.floor(options.rng() * windowed.length);
   const chosen = windowed[index];
   const chosenEntry = contemptAdjusted.find((entry) => entry.move === chosen.move) ?? contemptAdjusted[0];
   const rootDiagnostics =
     options.rootDiagnostics && chosenEntry
-      ? buildRootDiagnostics(contemptAdjusted, chosenEntry, options, playForWin)
+      ? buildRootDiagnostics(contemptAdjusted, chosenEntry, options, repeatPolicyActive)
       : undefined;
   storeRootTt(options, state, chosen.move, chosen.baseScore);
   return { move: chosen.move, score: chosen.score, scoredMoves, rootDiagnostics };
