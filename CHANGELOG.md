@@ -8,6 +8,14 @@ Semantic Versioning.
 ## [Unreleased]
 ### Changed
 
+## [1.1.63] - 2026-01-04
+
+### Changed
+
+- Root backtrack penalty to reduce immediate shuffle moves.
+- Root threefold avoidance penalty for drawish repetition loops.
+- Update the in-UI version label to v1.1.63.
+
 ## [1.1.62] - 2026-01-04
 
 ### Changed
