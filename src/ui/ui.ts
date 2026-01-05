@@ -1272,18 +1272,26 @@ export class GameUI {
     this.musicHintEl.classList.toggle('hidden', !visible);
   }
 
-  private applyAnalyzerChoice(choice: AnalyzerChoice): void {
-    const option = ANALYZER_OPTIONS[choice] ?? ANALYZER_OPTIONS.buddy;
-    this.helpAnalyzerLink.href = option.url;
-    this.helpAnalyzerLink.textContent = option.label;
-    this.summaryAnalyzerLink.href = option.url;
-    this.summaryAnalyzerLink.textContent = option.label;
-    const tooltip = `Analyze in ${option.label}`;
-    this.summaryAnalyzeButton.title = tooltip;
-    this.summaryAnalyzeButton.setAttribute('aria-label', tooltip);
-    this.analyzerButton.title = tooltip;
-    this.analyzerButton.setAttribute('aria-label', tooltip);
-  }
+private applyAnalyzerChoice(choice: AnalyzerChoice): void {
+  const option = ANALYZER_OPTIONS[choice] ?? ANALYZER_OPTIONS.buddy;
+
+  const applyToLink = (a: HTMLAnchorElement) => {
+    a.href = option.url;
+    a.textContent = option.label;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+  };
+
+  applyToLink(this.helpAnalyzerLink);
+  applyToLink(this.summaryAnalyzerLink);
+
+  const tooltip = `Analyze in ${option.label}`;
+  this.summaryAnalyzeButton.title = tooltip;
+  this.summaryAnalyzeButton.setAttribute('aria-label', tooltip);
+  this.analyzerButton.title = tooltip;
+  this.analyzerButton.setAttribute('aria-label', tooltip);
+}
+
 
   setAiVsAiState(state: { started: boolean; running: boolean }): void {
     this.aiVsAiStarted = state.started;
