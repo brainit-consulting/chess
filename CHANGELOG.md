@@ -8,6 +8,10 @@ Semantic Versioning.
 ## [Unreleased]
 ### Changed
 
+## v1.1.67
+- Fix: Analyzer links now open via anchor navigation for Edge compatibility.
+
+
 ## [1.1.66] - 2026-01-04
 
 ### Changed
