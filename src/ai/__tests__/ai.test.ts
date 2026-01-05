@@ -36,7 +36,8 @@ import {
   GameState,
   Piece,
   Square,
-  Move
+  Move,
+  isInCheck
 } from '../../rules';
 
 const sq = (file: number, rank: number): Square => ({ file, rank });
@@ -753,10 +754,10 @@ describe('AI move selection', () => {
     expect(repeatScore).toBeLessThan(altScore);
   });
 
-  it('does not penalize repeating checks in drawish positions', () => {
-    const repeatMove: Move = { from: sq(0, 0), to: sq(1, 0) };
-    const altMove: Move = { from: sq(0, 0), to: sq(0, 1) };
-    const scores = [
+    it('does not penalize repeating checks in drawish positions', () => {
+      const repeatMove: Move = { from: sq(0, 0), to: sq(1, 0) };
+      const altMove: Move = { from: sq(0, 0), to: sq(0, 1) };
+      const scores = [
       {
         move: repeatMove,
         baseScore: 10,
@@ -782,8 +783,99 @@ describe('AI move selection', () => {
     );
     const repeatScore = adjusted.find((entry) => entry.move === repeatMove)?.score ?? 0;
 
-    expect(repeatScore).toBe(10);
-  });
+      expect(repeatScore).toBe(10);
+    });
+
+    it('nudges root away from cheap checking loops in drawish positions', () => {
+      const state = createEmptyState();
+      addPiece(state, 'king', 'w', sq(6, 0));
+      addPiece(state, 'queen', 'w', sq(7, 4));
+      addPiece(state, 'king', 'b', sq(6, 7));
+      addPiece(state, 'queen', 'b', sq(3, 7));
+      state.activeColor = 'w';
+
+      const checkMove: Move = { from: sq(7, 4), to: sq(7, 6) };
+      const quietMove: Move = { from: sq(7, 4), to: sq(4, 4) };
+
+      const next = cloneState(state);
+      next.activeColor = 'w';
+      applyMove(next, { ...checkMove });
+      const givesCheck = isInCheck(next, 'b');
+      expect(givesCheck).toBe(true);
+
+      const adjusted = search.applyRootAntiPerpetualCheckForTest(
+        state,
+        'w',
+        [
+          {
+            move: checkMove,
+            baseScore: 12,
+            score: 12,
+            repeatCount: 1,
+            isRepeat: true,
+            givesCheck
+          },
+          {
+            move: quietMove,
+            baseScore: 10,
+            score: 10,
+            repeatCount: 0,
+            isRepeat: false,
+            givesCheck: false
+          }
+        ],
+        { baseEval: 0 }
+      );
+      const checkScore = adjusted.find((entry) => entry.move === checkMove)?.score ?? 0;
+      const quietScore = adjusted.find((entry) => entry.move === quietMove)?.score ?? 0;
+
+      expect(checkScore).toBeLessThan(quietScore);
+    });
+
+    it('allows checking when clearly losing', () => {
+      const state = createEmptyState();
+      addPiece(state, 'king', 'w', sq(6, 0));
+      addPiece(state, 'queen', 'w', sq(7, 4));
+      addPiece(state, 'king', 'b', sq(6, 7));
+      addPiece(state, 'queen', 'b', sq(3, 7));
+      state.activeColor = 'w';
+
+      const checkMove: Move = { from: sq(7, 4), to: sq(7, 6) };
+      const quietMove: Move = { from: sq(7, 4), to: sq(4, 4) };
+
+      const next = cloneState(state);
+      next.activeColor = 'w';
+      applyMove(next, { ...checkMove });
+      const givesCheck = isInCheck(next, 'b');
+      expect(givesCheck).toBe(true);
+
+      const adjusted = search.applyRootAntiPerpetualCheckForTest(
+        state,
+        'w',
+        [
+          {
+            move: checkMove,
+            baseScore: -30,
+            score: -30,
+            repeatCount: 1,
+            isRepeat: true,
+            givesCheck
+          },
+          {
+            move: quietMove,
+            baseScore: -40,
+            score: -40,
+            repeatCount: 0,
+            isRepeat: false,
+            givesCheck: false
+          }
+        ],
+        { baseEval: -200 }
+      );
+      const checkScore = adjusted.find((entry) => entry.move === checkMove)?.score ?? 0;
+
+      expect(checkScore).toBe(-30);
+    });
 
   it('keeps PVS selection consistent with full-window search', () => {
     const state = createEmptyState();

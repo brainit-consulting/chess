@@ -83,6 +83,10 @@ const REPETITION_AVOID_LOSS_THRESHOLD = -200;
 const DRAWISH_REPEAT_PENALTY_CP = 15;
 const DRAWISH_REPEAT_THRESHOLD = 80;
 const DRAWISH_REPEAT_LOSS_THRESHOLD = -150;
+const ANTI_PERPETUAL_CHECK_PENALTY_CP = 10;
+const ANTI_PERPETUAL_CHECK_DRAWISH_BAND = 40;
+const ANTI_PERPETUAL_CHECK_LOSS_THRESHOLD = -120;
+const ANTI_PERPETUAL_CHECK_EVAL_JUMP = 80;
 const ROOT_BACKTRACK_PENALTY_CP = 12;
 const BACKTRACK_ESCAPE_MARGIN = 150;
 const ROOT_THREEFOLD_PENALTY_CP = 40;
@@ -216,6 +220,11 @@ type RootScore = {
   repeatCount: number;
   isRepeat: boolean;
   givesCheck: boolean;
+};
+
+type RootCheckPenaltyOptions = {
+  maxThinking?: boolean;
+  nnueMix?: number;
 };
 
 type RootMoveReason =
@@ -368,6 +377,63 @@ function applyDrawishRepeatPenalty(
       return entry;
     }
     return { ...entry, score: entry.score - DRAWISH_REPEAT_PENALTY_CP };
+    });
+  }
+
+function applyRootAntiPerpetualCheck(
+  state: GameState,
+  color: Color,
+  scores: RootScore[],
+  options: RootCheckPenaltyOptions,
+  baseEvalOverride?: number
+): RootScore[] {
+  if (scores.length <= 1) {
+    return scores;
+  }
+  let hasCheck = false;
+  let hasNonCheck = false;
+  for (const entry of scores) {
+    if (entry.givesCheck) {
+      hasCheck = true;
+    } else {
+      hasNonCheck = true;
+    }
+    if (hasCheck && hasNonCheck) {
+      break;
+    }
+  }
+  if (!hasCheck || !hasNonCheck) {
+    return scores;
+  }
+  if (isInCheck(state, color)) {
+    return scores;
+  }
+  const baseEval =
+    baseEvalOverride ??
+    evaluateState(state, color, {
+      maxThinking: Boolean(options.maxThinking),
+      nnueMix: options.nnueMix
+    });
+  if (Math.abs(baseEval) > ANTI_PERPETUAL_CHECK_DRAWISH_BAND) {
+    return scores;
+  }
+  return scores.map((entry) => {
+    if (!entry.givesCheck) {
+      return entry;
+    }
+    if (isCaptureMove(state, entry.move) || entry.move.promotion) {
+      return entry;
+    }
+    if (getMateInfo(entry.baseScore)) {
+      return entry;
+    }
+    if (entry.baseScore <= ANTI_PERPETUAL_CHECK_LOSS_THRESHOLD) {
+      return entry;
+    }
+    if (entry.baseScore - baseEval >= ANTI_PERPETUAL_CHECK_EVAL_JUMP) {
+      return entry;
+    }
+    return { ...entry, score: entry.score - ANTI_PERPETUAL_CHECK_PENALTY_CP };
   });
 }
 
@@ -492,8 +558,41 @@ export function applyDrawishRepeatPenaltyForTest(
   repeatCount: number;
   isRepeat: boolean;
   givesCheck?: boolean;
-}[] {
+  }[] {
   return applyDrawishRepeatPenalty(scores as RootScore[], options as SearchOptions, playForWin);
+}
+
+export function applyRootAntiPerpetualCheckForTest(
+  state: GameState,
+  color: Color,
+  scores: {
+    move: Move;
+    baseScore: number;
+    score: number;
+    repeatCount: number;
+    isRepeat: boolean;
+    givesCheck?: boolean;
+  }[],
+  options: {
+    baseEval?: number;
+    maxThinking?: boolean;
+    nnueMix?: number;
+  } = {}
+): {
+  move: Move;
+  baseScore: number;
+  score: number;
+  repeatCount: number;
+  isRepeat: boolean;
+  givesCheck?: boolean;
+}[] {
+  return applyRootAntiPerpetualCheck(
+    state,
+    color,
+    scores as RootScore[],
+    options,
+    options.baseEval
+  );
 }
 
 // Test-only: expose root backtrack penalty logic with synthetic scores.
@@ -1204,13 +1303,14 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
     });
   }
 
-  if (rootScores.length === 1) {
-    storeRootTt(options, state, rootScores[0].move, rootScores[0].baseScore);
-    finalizeInstrumentation();
-    return rootScores[0].move;
-  }
+    if (rootScores.length === 1) {
+      storeRootTt(options, state, rootScores[0].move, rootScores[0].baseScore);
+      finalizeInstrumentation();
+      return rootScores[0].move;
+    }
 
-  const backtrackAdjusted = applyRootBacktrackPenalty(state, color, rootScores);
+    const checkAdjusted = applyRootAntiPerpetualCheck(state, color, rootScores, options);
+    const backtrackAdjusted = applyRootBacktrackPenalty(state, color, checkAdjusted);
   const threefoldAdjusted = applyRootThreefoldAvoidance(
     state,
     color,
@@ -1874,7 +1974,8 @@ function scoreRootMoves(
     return { move: ordered[0] ?? null, score: null, scoredMoves: [] };
   }
 
-  const backtrackAdjusted = applyRootBacktrackPenalty(state, color, rootScores);
+  const checkAdjusted = applyRootAntiPerpetualCheck(state, color, rootScores, options);
+  const backtrackAdjusted = applyRootBacktrackPenalty(state, color, checkAdjusted);
   const threefoldAdjusted = applyRootThreefoldAvoidance(
     state,
     color,
