@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Scorpion Chess — Git Cheat Sheet (Manual Workflow)</title>
+  <style>
+    :root{
+      --bg:#0b0b10;
+      --card:#12121a;
+      --card2:#0f0f16;
+      --text:#f2f2f6;
+      --muted:#b7b7c6;
+      --accent:#7B3FA0;
+      --accent2:#4CAF50;
+      --border:rgba(255,255,255,.10);
+      --shadow: 0 18px 60px rgba(0,0,0,.45);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:var(--sans);
+      background: radial-gradient(1200px 600px at 30% -10%, rgba(123,63,160,.22), transparent 60%),
+                  radial-gradient(900px 500px at 90% 10%, rgba(76,175,80,.14), transparent 55%),
+                  var(--bg);
+      color:var(--text);
+      line-height:1.5;
+    }
+    .wrap{
+      max-width: 1040px;
+      margin: 0 auto;
+      padding: 28px 18px 56px;
+    }
+    header{
+      display:flex;
+      flex-wrap:wrap;
+      gap:14px;
+      align-items:flex-end;
+      justify-content:space-between;
+      padding: 14px 16px;
+      border:1px solid var(--border);
+      border-radius: 18px;
+      background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.03));
+      box-shadow: var(--shadow);
+    }
+    .title{
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+    }
+    h1{
+      margin:0;
+      font-size: 22px;
+      letter-spacing:.2px;
+    }
+    .sub{
+      color:var(--muted);
+      font-size: 13px;
+    }
+    .badge{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding: 8px 10px;
+      border-radius: 999px;
+      border:1px solid var(--border);
+      background: rgba(255,255,255,.04);
+      color: var(--muted);
+      font-size: 12px;
+      white-space:nowrap;
+    }
+    .dot{
+      width:10px;height:10px;border-radius:50%;
+      background: var(--accent2);
+      box-shadow: 0 0 0 6px rgba(76,175,80,.12);
+    }
+    .grid{
+      display:grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 14px;
+      margin-top: 14px;
+    }
+    .card{
+      grid-column: span 12;
+      border:1px solid var(--border);
+      border-radius: 18px;
+      background: linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.025));
+      box-shadow: 0 14px 44px rgba(0,0,0,.38);
+      overflow:hidden;
+    }
+    .card .hd{
+      padding: 14px 16px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      background: rgba(0,0,0,.18);
+    }
+    .card h2{
+      margin:0;
+      font-size: 15px;
+      letter-spacing:.15px;
+    }
+    .pill{
+      font-size: 12px;
+      color: var(--muted);
+      padding: 6px 10px;
+      border-radius: 999px;
+      border:1px solid var(--border);
+      background: rgba(255,255,255,.03);
+      white-space:nowrap;
+    }
+    .bd{
+      padding: 14px 16px 16px;
+    }
+    .cols{
+      display:grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 12px;
+    }
+    .col6{ grid-column: span 12; }
+    @media (min-width: 860px){
+      .col6{ grid-column: span 6; }
+    }
+    .note{
+      padding: 10px 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(123,63,160,.35);
+      background: rgba(123,63,160,.10);
+      color: var(--text);
+      font-size: 13px;
+    }
+    .note strong{ color:#fff; }
+    .k{
+      color: #fff;
+      font-weight: 600;
+    }
+    ul{
+      margin: 10px 0 0 18px;
+      padding:0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    li{ margin: 6px 0; }
+    pre{
+      margin: 10px 0 0;
+      padding: 12px 12px;
+      border-radius: 14px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.35);
+      overflow:auto;
+      font-family: var(--mono);
+      font-size: 12.5px;
+      line-height: 1.45;
+      color: #f2f2f6;
+    }
+    code{ font-family: var(--mono); }
+    .callout{
+      display:flex;
+      gap:10px;
+      align-items:flex-start;
+      padding: 12px;
+      border-radius: 16px;
+      border:1px solid rgba(76,175,80,.30);
+      background: rgba(76,175,80,.10);
+      color: var(--text);
+      font-size: 13px;
+      margin-top: 10px;
+    }
+    .callout .ic{
+      width:28px;height:28px;border-radius:10px;
+      background: rgba(76,175,80,.22);
+      display:flex;align-items:center;justify-content:center;
+      flex:0 0 auto;
+      border:1px solid rgba(76,175,80,.25);
+    }
+    .footer{
+      margin-top: 16px;
+      color: var(--muted);
+      font-size: 12px;
+      text-align:center;
+    }
+    .kbd{
+      display:inline-block;
+      padding: 2px 7px;
+      border-radius: 8px;
+      border:1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.06);
+      color:#fff;
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+    a{ color: #d7c6ef; text-decoration: none; }
+    a:hover{ text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+<div style="display:flex;align-items:center;gap:12px">
+  <img src="graphics/ScorpionChessEngineLogo.png"
+       alt="Scorpion Chess Engine Logo"
+       style="height:42px;width:auto;filter:drop-shadow(0 6px 18px rgba(0,0,0,.45))"/>
+</div>
+
+      <div class="title">
+        <h1>Scorpion Chess — Git Cheat Sheet</h1>
+        <div class="sub">Manual workflow used in our repo (Windows + VS Code + worktrees). Includes the v1.1.67 release example.</div>
+      </div>
+      <div class="badge" title="Clean main, safe WIP, reproducible releases">
+        <span class="dot"></span>
+        <span><span class="k">Goal:</span> keep <code>main</code> clean & ship tagged releases</span>
+      </div>
+    </header>
+
+    <div class="grid">
+      <section class="card">
+        <div class="hd">
+          <h2>1) Sanity checks (run constantly)</h2>
+          <span class="pill">fast confidence</span>
+        </div>
+        <div class="bd cols">
+          <div class="col6">
+            <div class="note"><strong>Where am I?</strong> (branch + cleanliness)</div>
+            <pre><code>git branch --show-current
+git status</code></pre>
+          </div>
+          <div class="col6">
+            <div class="note"><strong>What version am I on?</strong> (tag proximity)</div>
+            <pre><code>git describe --tags
+git describe --tags --exact-match</code></pre>
+            <div class="callout">
+              <div class="ic">✓</div>
+              <div>
+                <div><span class="k">Example:</span> <code>v1.1.66-1-g9756f67</code> means 1 commit after v1.1.66 (pre v1.1.67).</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="hd">
+          <h2>2) Worktrees: why VS Code “can’t switch to main” sometimes</h2>
+          <span class="pill">worktree rule</span>
+        </div>
+        <div class="bd cols">
+          <div class="col6">
+            <div class="note"><strong>Rule:</strong> a branch can only be checked out in one worktree at a time.</div>
+            <ul>
+              <li>If <code>main</code> is checked out in another folder, Git will block switching to it here.</li>
+              <li>Fix by switching folders, or “freeing” main from the other worktree.</li>
+            </ul>
+          </div>
+          <div class="col6">
+            <div class="note"><strong>Free main from another worktree</strong> (example: chess-baseline)</div>
+            <pre><code>cd /d H:\chess-baseline
+git switch -c parking/baseline</code></pre>
+            <div class="note" style="margin-top:10px"><strong>Then switch this folder to main</strong></div>
+            <pre><code>cd /d H:\chess
+git switch main
+git pull origin main</code></pre>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="hd">
+          <h2>3) Archive WIP without committing (safe, reversible)</h2>
+          <span class="pill">keep main clean</span>
+        </div>
+        <div class="bd cols">
+          <div class="col6">
+            <div class="note"><strong>Stash everything (tracked + untracked)</strong></div>
+            <pre><code>git stash push -u -m "WIP: king-safety experiments"
+git status</code></pre>
+            <ul>
+              <li>Use when you want a clean <code>main</code> immediately.</li>
+              <li>LF/CRLF warnings on Windows are normal.</li>
+            </ul>
+          </div>
+          <div class="col6">
+            <div class="note"><strong>Restore later</strong></div>
+            <pre><code>git stash list
+git stash show -p stash@{0}
+git stash pop</code></pre>
+          </div>
+        </div>
+        <div class="bd" style="padding-top:0">
+          <div class="note"><strong>Optional: permanent archive marker (tag)</strong></div>
+          <pre><code>git tag archive/v1.1.67-king-safety
+git push origin archive/v1.1.67-king-safety</code></pre>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="hd">
+          <h2>4) Release flow (example: ship v1.1.67)</h2>
+          <span class="pill">minimal diff</span>
+        </div>
+        <div class="bd cols">
+          <div class="col6">
+            <div class="note"><strong>A) Update UI footer version</strong> (Scorpion Chess)</div>
+            <pre><code>git grep -n "APP_VERSION" src
+# edit: src/ui/ui.ts
+# const APP_VERSION = 'v1.1.67';</code></pre>
+            <div class="note" style="margin-top:10px"><strong>B) Update CHANGELOG</strong></div>
+            <pre><code># edit: CHANGELOG.md (top)
+## v1.1.67
+- Fix: Analyzer links now open via anchor navigation for Edge compatibility.</code></pre>
+          </div>
+          <div class="col6">
+            <div class="note"><strong>C) Review + commit only what you intend</strong></div>
+            <pre><code>git diff -- src/ui/ui.ts
+git diff -- CHANGELOG.md
+git status --porcelain
+
+git add src/ui/ui.ts CHANGELOG.md
+git commit -m "chore(release): v1.1.67"</code></pre>
+            <div class="note" style="margin-top:10px"><strong>D) Tag + push</strong></div>
+            <pre><code>git tag v1.1.67
+git push origin main
+git push origin v1.1.67</code></pre>
+          </div>
+        </div>
+        <div class="bd" style="padding-top:0">
+          <div class="callout">
+            <div class="ic">✓</div>
+            <div>
+              <div><span class="k">Verify release:</span></div>
+              <pre style="margin-top:6px"><code>git describe --tags --exact-match
+# expect: v1.1.67</code></pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="hd">
+          <h2>5) VS Code: open the right folder every time</h2>
+          <span class="pill">avoid confusion</span>
+        </div>
+        <div class="bd cols">
+          <div class="col6">
+            <div class="note"><strong>Open main in H:\chess</strong></div>
+            <pre><code>cd /d H:\chess
+code .</code></pre>
+            <ul>
+              <li>Branch shown bottom-left should be <code>main</code>.</li>
+              <li>Confirm via <code>git branch --show-current</code>.</li>
+            </ul>
+          </div>
+          <div class="col6">
+            <div class="note"><strong>Quick keyboard tip</strong></div>
+            <ul>
+              <li><span class="kbd">Ctrl</span> + <span class="kbd">Shift</span> + <span class="kbd">P</span> → “Git: Checkout to…”</li>
+              <li>If worktrees block it, switch folders (not branches).</li>
+            </ul>
+          </div>
+        </div>
+      
+<section class="card">
+  <div class="hd">
+    <h2>6) Common Git Commands (Quick Reference)</h2>
+    <span class="pill">everyday use</span>
+  </div>
+  <div class="bd cols">
+    <div class="col6">
+      <div class="note"><strong>Status & inspection</strong></div>
+      <pre><code>git status
+git log --oneline --decorate -5
+git diff
+git diff --staged
+git show</code></pre>
+    </div>
+    <div class="col6">
+      <div class="note"><strong>Branching & navigation</strong></div>
+      <pre><code>git branch
+git branch --show-current
+git switch &lt;branch&gt;
+git switch -c &lt;new-branch&gt;</code></pre>
+    </div>
+  </div>
+  <div class="bd cols" style="padding-top:0">
+    <div class="col6">
+      <div class="note"><strong>Committing & undo</strong></div>
+      <pre><code>git add &lt;file&gt;
+git commit -m "message"
+git commit --amend
+git restore &lt;file&gt;
+git reset HEAD~1</code></pre>
+    </div>
+    <div class="col6">
+      <div class="note"><strong>Remote & tags</strong></div>
+      <pre><code>git fetch
+git pull
+git push
+git tag
+git tag vX.Y.Z
+git push origin vX.Y.Z</code></pre>
+    </div>
+  </div>
+</section>
+
+
+      <div class="footer">
+        
+      </div>
+    </div>
+  </div>
+</body>
+</html>
