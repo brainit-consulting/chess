@@ -85,6 +85,11 @@ npm run test:run
 
 - Quick benchmark harness: `npm run bench:quick -- --stockfish "C:\path\to\stockfish.exe" --batch 10 --movetime 200 --mode hard`
 - "Timed out moves" in the report mean the harness forced a fallback because a best move did not arrive before `movetime + grace`.
+- `bin` batch helpers (Windows): convenience wrappers that lock in known-good settings for repeatable runs without retyping long commands.
+  - `bin/run_scorpion_baseline.bat`: baseline Scorpion vs Stockfish run used for progress tracking.
+  - `bin/run_scorpion_sf_ladder.bat`: main Stockfish time ladder to find a comparable strength point.
+  - `bin/run_scorpion_sf_ladder_weak10.bat`: very weak Stockfish ladder with fewer games for fast sanity checks.
+  - `bin/run_scorpion_sf_ladder_weak6_swap.bat`: same weak ladder with color swapping enabled.
 
 ## Structure
 

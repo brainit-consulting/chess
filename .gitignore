@@ -4,6 +4,9 @@ scripts/bench/quick-results/
 scripts/bench/quick-results/run-*/
 scripts/bench/quick-run-state.json
 benchmarks/selfplay/run-*/
+benchmarks/**/game-*.pgn
+benchmarks/**/game-*-meta.json
+benchmarks/**/summary.json
 *.log
 analysis/
 dataset*.jsonl*
