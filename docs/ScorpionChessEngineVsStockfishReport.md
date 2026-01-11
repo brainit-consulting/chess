@@ -18,6 +18,146 @@ Notes:
 Report updates will appear between the markers below.
 
 <!-- REPORT:START -->
+Last updated: 2026-01-11T04:49:37.845Z (UTC) | 2026-01-10 23:49:37 ET
+Series: Post-fix baseline series
+Roadmap phase: Unknown
+
+Config: Scorpion max @ 10000ms | Stockfish movetime 5ms | swap=false | fenSuite=true | seed=7000
+Commit: a3c244eea2848cd98792c90289c26e65fb5b1272
+Command: C:\Program Files\nodejs\node.exe H:\chess\scripts\bench\quickVsStockfish.ts --stockfish H:\chess\bin\stockfish-windows-x86-64-avx2.exe --reset --mode max --movetime 15000 --sf-ladder 5,10,20,40,80 --games 10 --fenSuite --threads 1 --hash 128 --max-plies 200 --seed 7000 --runId max15s_sf_ladder_weak10 --outDir H:\chess\benchmarks\baseline\max15s_sf_ladder_weak10
+Stockfish: H:\chess\bin\stockfish-windows-x86-64-avx2.exe
+Settings: Threads=1, Hash=128MB, Ponder=false
+Movetime targets: Scorpion=10000ms, Stockfish=5ms
+Timeout tolerance: +25ms (bench-only stop-latency/jitter slack)
+Next ladder rung: paused (Stockfish=5ms)
+Output: H:\chess\benchmarks\baseline\max15s_sf_ladder_weak10
+
+Cumulative: 0-1-9 (10 games)
+Score: 0.050
+Elo delta: -512 (95% CI -911 to -112)
+Avg plies per game: 75.7
+End reasons: mate=9, stalemate=0, repetition=1, 50-move=0, other=0
+Timed out moves: 0/376
+Avg ms (non-timeout): 9732.2, Avg ms (timeout): 0.0
+Max ms (non-timeout): 10021.4, Max ms (timeout): 0.0
+
+Batch history:
+Batch | Games | W | D | L | Score | Elo | Scorpion ms (target/avg) | Stockfish ms (target/avg) | Timeouts | Timed-out moves | Avg ms (ok/timeout) | Max ms (ok/timeout) | Stop Latency (avg ms) | Overhead
+--- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | ---
+1 | 10 | 0 | 1 | 9 | 0.050 | -512 | 10000/9732.2 | 5/4.9 | B:0 SF:0 | 0/376 | 9732.2/0.0 | 10021.4/0.0 | 5.8 | 1
+
+Last updated: 2026-01-11T03:23:06.244Z (UTC) | 2026-01-10 22:23:06 ET
+Series: Post-fix baseline series
+Roadmap phase: Unknown
+
+Config: Scorpion max @ 10000ms | Stockfish movetime 5ms | swap=false | fenSuite=true | seed=7000
+Commit: a3c244eea2848cd98792c90289c26e65fb5b1272
+Command: C:\Program Files\nodejs\node.exe H:\chess\scripts\bench\quickVsStockfish.ts --stockfish H:\chess\bin\stockfish-windows-x86-64-avx2.exe --reset --mode max --movetime 15000 --sf-ladder 5,10,20,40,80 --games 10 --fenSuite --threads 1 --hash 128 --max-plies 200 --seed 7000 --runId max15s_sf_ladder_weak10 --outDir H:\chess\benchmarks\baseline\max15s_sf_ladder_weak10
+Stockfish: H:\chess\bin\stockfish-windows-x86-64-avx2.exe
+Settings: Threads=1, Hash=128MB, Ponder=false
+Movetime targets: Scorpion=10000ms, Stockfish=5ms
+Timeout tolerance: +25ms (bench-only stop-latency/jitter slack)
+Next ladder rung: paused (Stockfish=5ms)
+Output: H:\chess\benchmarks\baseline\max15s_sf_ladder_weak10
+
+Cumulative: 0-0-10 (10 games)
+Score: 0.000
+Elo delta: Outside estimation range (shutout).
+Avg plies per game: 64.9
+End reasons: mate=10, stalemate=0, repetition=0, 50-move=0, other=0
+Timed out moves: 0/322
+Avg ms (non-timeout): 9718.5, Avg ms (timeout): 0.0
+Max ms (non-timeout): 10030.8, Max ms (timeout): 0.0
+
+Batch history:
+Batch | Games | W | D | L | Score | Elo | Scorpion ms (target/avg) | Stockfish ms (target/avg) | Timeouts | Timed-out moves | Avg ms (ok/timeout) | Max ms (ok/timeout) | Stop Latency (avg ms) | Overhead
+--- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | ---
+1 | 10 | 0 | 0 | 10 | 0.000 | n/a | 10000/9718.5 | 5/4.9 | B:0 SF:0 | 0/322 | 9718.5/0.0 | 10030.8/0.0 | 25.5 | 1
+
+Last updated: 2026-01-11T02:25:05.236Z (UTC) | 2026-01-10 21:25:05 ET
+Series: Post-fix baseline series
+Roadmap phase: Unknown
+
+Config: Scorpion max @ 10000ms | Stockfish movetime 5ms | swap=false | fenSuite=true | seed=7000
+Commit: f1bf2aecf9922c18a6db9f0d42d88a36cb7fc7a4
+Command: C:\Program Files\nodejs\node.exe H:\chess\scripts\bench\quickVsStockfish.ts --stockfish H:\chess\bin\stockfish-windows-x86-64-avx2.exe --reset --mode max --movetime 15000 --sf-ladder 5,10,20,40,80 --games 10 --fenSuite --threads 1 --hash 128 --max-plies 200 --seed 7000 --runId max15s_sf_ladder_weak10 --outDir H:\chess\benchmarks\baseline\max15s_sf_ladder_weak10
+Stockfish: H:\chess\bin\stockfish-windows-x86-64-avx2.exe
+Settings: Threads=1, Hash=128MB, Ponder=false
+Movetime targets: Scorpion=10000ms, Stockfish=5ms
+Timeout tolerance: +25ms (bench-only stop-latency/jitter slack)
+Next ladder rung: paused (Stockfish=5ms)
+Output: H:\chess\benchmarks\baseline\max15s_sf_ladder_weak10
+
+Cumulative: 0-0-10 (10 games)
+Score: 0.000
+Elo delta: Outside estimation range (shutout).
+Avg plies per game: 76.1
+End reasons: mate=10, stalemate=0, repetition=0, 50-move=0, other=0
+Timed out moves: 0/378
+Avg ms (non-timeout): 9748.7, Avg ms (timeout): 0.0
+Max ms (non-timeout): 10094.6, Max ms (timeout): 0.0
+
+Batch history:
+Batch | Games | W | D | L | Score | Elo | Scorpion ms (target/avg) | Stockfish ms (target/avg) | Timeouts | Timed-out moves | Avg ms (ok/timeout) | Max ms (ok/timeout) | Stop Latency (avg ms) | Overhead
+--- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | ---
+1 | 10 | 0 | 0 | 10 | 0.000 | n/a | 10000/9748.7 | 5/5.1 | B:0 SF:0 | 0/378 | 9748.7/0.0 | 10094.6/0.0 | 37.6 | 8
+
+Last updated: 2026-01-11T02:10:41.623Z (UTC) | 2026-01-10 21:10:41 ET
+Series: Post-fix baseline series
+Roadmap phase: Unknown
+
+Config: Scorpion max @ 10000ms | Stockfish movetime 5ms | swap=false | fenSuite=true | seed=7000
+Commit: f1bf2aecf9922c18a6db9f0d42d88a36cb7fc7a4
+Command: C:\Program Files\nodejs\node.exe H:\chess\scripts\bench\quickVsStockfish.ts --stockfish H:\chess\bin\ScorpionHeart.exe --reset --mode max --movetime 15000 --sf-ladder 5,10,20,40,80 --games 10 --fenSuite --threads 1 --hash 128 --max-plies 200 --seed 7000 --runId max15s_sf_ladder_weak10 --outDir H:\chess\benchmarks\baseline\max15s_sf_ladder_weak10
+Stockfish: H:\chess\bin\ScorpionHeart.exe
+Settings: Threads=1, Hash=128MB, Ponder=false
+Movetime targets: Scorpion=10000ms, Stockfish=5ms
+Timeout tolerance: +25ms (bench-only stop-latency/jitter slack)
+Next ladder rung: paused (Stockfish=5ms)
+Output: H:\chess\benchmarks\baseline\max15s_sf_ladder_weak10
+
+Cumulative: 0-0-10 (10 games)
+Score: 0.000
+Elo delta: Outside estimation range (shutout).
+Avg plies per game: 67.9
+End reasons: mate=10, stalemate=0, repetition=0, 50-move=0, other=0
+Timed out moves: 1/337
+Avg ms (non-timeout): 9786.2, Avg ms (timeout): 10110.9
+Max ms (non-timeout): 10084.7, Max ms (timeout): 10110.9
+
+Batch history:
+Batch | Games | W | D | L | Score | Elo | Scorpion ms (target/avg) | Stockfish ms (target/avg) | Timeouts | Timed-out moves | Avg ms (ok/timeout) | Max ms (ok/timeout) | Stop Latency (avg ms) | Overhead
+--- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | ---
+1 | 10 | 0 | 0 | 10 | 0.000 | n/a | 10000/9787.2 | 5/5.1 | B:1 SF:0 | 1/337 | 9786.2/10110.9 | 10084.7/10110.9 | 52.9 | 4
+
+Last updated: 2026-01-11T00:49:14.582Z (UTC) | 2026-01-10 19:49:14 ET
+Series: Post-fix baseline series
+Roadmap phase: Unknown
+
+Config: Scorpion max @ 10000ms | Stockfish movetime 5ms | swap=false | fenSuite=true | seed=7000
+Commit: f1bf2aecf9922c18a6db9f0d42d88a36cb7fc7a4
+Command: C:\Program Files\nodejs\node.exe H:\chess\scripts\bench\quickVsStockfish.ts --stockfish H:\chess\bin\ScorpionHeart.exe --reset --mode max --movetime 15000 --sf-ladder 5,10,20,40,80 --games 10 --fenSuite --threads 1 --hash 128 --max-plies 200 --seed 7000 --runId max15s_sf_ladder_weak10 --outDir H:\chess\benchmarks\baseline\max15s_sf_ladder_weak10
+Stockfish: H:\chess\bin\ScorpionHeart.exe
+Settings: Threads=1, Hash=128MB, Ponder=false
+Movetime targets: Scorpion=10000ms, Stockfish=5ms
+Timeout tolerance: +25ms (bench-only stop-latency/jitter slack)
+Next ladder rung: paused (Stockfish=5ms)
+Output: H:\chess\benchmarks\baseline\max15s_sf_ladder_weak10
+
+Cumulative: 0-0-10 (10 games)
+Score: 0.000
+Elo delta: Outside estimation range (shutout).
+Avg plies per game: 67.7
+End reasons: mate=10, stalemate=0, repetition=0, 50-move=0, other=0
+Timed out moves: 0/336
+Avg ms (non-timeout): 9741.6, Avg ms (timeout): 0.0
+Max ms (non-timeout): 10115.4, Max ms (timeout): 0.0
+
+Batch history:
+Batch | Games | W | D | L | Score | Elo | Scorpion ms (target/avg) | Stockfish ms (target/avg) | Timeouts | Timed-out moves | Avg ms (ok/timeout) | Max ms (ok/timeout) | Stop Latency (avg ms) | Overhead
+--- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | ---
+1 | 10 | 0 | 0 | 10 | 0.000 | n/a | 10000/9741.6 | 5/5.2 | B:0 SF:0 | 0/336 | 9741.6/0.0 | 10115.4/0.0 | 57.4 | 7
+
 Last updated: 2026-01-10T23:14:52.604Z (UTC) | 2026-01-10 18:14:52 ET
 Series: Post-fix baseline series
 Roadmap phase: Unknown
