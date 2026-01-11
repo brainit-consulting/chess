@@ -16,18 +16,28 @@ type Pending = {
 export class StockfishClient {
   private proc: ReturnType<typeof spawn>;
   private rl: readline.Interface;
+  private stderr: readline.Interface | null = null;
+  private stderrBuffer: string[] = [];
   private ready: Pending | null = null;
   private uciReady: Pending | null = null;
   private bestMove: Pending | null = null;
+  private quitting = false;
 
   constructor(private config: StockfishConfig) {
     this.proc = spawn(this.config.path, [], { stdio: 'pipe' });
     this.rl = readline.createInterface({ input: this.proc.stdout });
+    if (this.proc.stderr) {
+      this.stderr = readline.createInterface({ input: this.proc.stderr });
+      this.stderr.on('line', (line) => this.captureStderr(line));
+    }
     this.proc.on('error', (error) => {
       this.rejectAll(error);
     });
-    this.proc.on('exit', () => {
-      this.rejectAll(new Error('Stockfish process exited'));
+    this.proc.on('exit', (code, signal) => {
+      if (this.quitting) {
+        return;
+      }
+      this.rejectAll(this.buildExitError(code, signal));
     });
     this.rl.on('line', (line) => this.handleLine(line));
   }
@@ -63,8 +73,10 @@ export class StockfishClient {
   }
 
   quit(): void {
+    this.quitting = true;
     this.send('quit');
     this.rl.close();
+    this.stderr?.close();
     this.proc.kill();
   }
 
@@ -105,6 +117,28 @@ export class StockfishClient {
     return new Promise((resolve, reject) => {
       this.bestMove = { resolve, reject };
     });
+  }
+
+  private captureStderr(line: string): void {
+    this.stderrBuffer.push(line);
+    if (this.stderrBuffer.length > 20) {
+      this.stderrBuffer.shift();
+    }
+  }
+
+  private buildExitError(code: number | null, signal: NodeJS.Signals | null): Error {
+    const details: string[] = [];
+    if (code !== null) {
+      details.push(`code=${code}`);
+    }
+    if (signal) {
+      details.push(`signal=${signal}`);
+    }
+    if (this.stderrBuffer.length > 0) {
+      details.push(`stderr=${this.stderrBuffer.join(' | ')}`);
+    }
+    const suffix = details.length > 0 ? ` (${details.join(', ')})` : '';
+    return new Error(`Stockfish process exited${suffix}`);
   }
 
   private rejectAll(error: Error): void {

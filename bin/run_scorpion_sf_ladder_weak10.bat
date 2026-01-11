@@ -10,8 +10,11 @@ cd /d H:\chess
 echo Starting Scorpion MaxThinking vs weak Stockfish ladder...
 echo.
 
+set STOCKFISH_EXE=H:\chess\bin\stockfish-windows-x86-64-avx2.exe
+if not exist "%STOCKFISH_EXE%" set STOCKFISH_EXE=H:\chess\bin\ScorpionHeart.exe
+
 node --import tsx scripts/bench/quickVsStockfish.ts ^
-  --stockfish H:\chess\bin\ScorpionHeart.exe ^
+  --stockfish "%STOCKFISH_EXE%" ^
   --reset ^
   --mode max ^
   --movetime 15000 ^
