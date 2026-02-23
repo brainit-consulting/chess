@@ -105,6 +105,18 @@ Goal: Reduce early threefolds without changing time caps.
   - Guard new terms with feature flags and tune weights down if regressions appear.
 - Results (seed 4000 fastcheck)
   - 0-9-1, repetition 80%, mate 10%.
+- Phase 2a - Pawn structure + bishop pair (implemented, commit b778dce)
+  - Added: doubled pawn penalty (-15cp), isolated pawn penalty (-20cp), passed pawn bonus (+20cp base + 10cp/rank advanced), bishop pair bonus (+30cp, Max only).
+  - Pawn structure terms apply to all difficulty levels; bishop pair is Max-only.
+  - Upgraded pawnFiles from boolean[] to number[] (backward-compatible).
+  - 6 new unit tests (128 total passing).
+  - Self-play results (runId `pawnstruct-v1`, Hard 1000ms vs Max 3000ms, 10 games, seed 9000, swap, fenSuite):
+    - W/D/L (Hard perspective): 4-5-1, score 65%.
+    - Mate rate: 50% (up from 25% baseline).
+    - Repetition rate: 30% (down from 75% on s8002).
+    - Avg plies: 103.3 (up from 92.5).
+    - Decision: accepted.
+  - Remaining Phase 2 items (not yet implemented): rook 7th-rank bonus, connected passers, tapered evaluation.
 
 ## Phase 3 - Search and ordering improvements (moderate risk)
 
