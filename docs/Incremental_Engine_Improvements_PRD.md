@@ -46,7 +46,8 @@ Secondary metrics (diagnostic only):
 ## 7) Benchmark Suite (Initial)
 Use existing harness/scripts. Start with the smallest viable test:
 - **Smoke**: 4-12 games (sanity only, not proof of improvement).
-- **Quick ladder**: `max15s_sf_ladder_weak6_swap` for early signal.
+- **Quick ladder**: `max15s_sf_ladder_weak4` (2/4/8/16ms) for early signal.
+- **Quick swap sanity**: `max15s_sf_ladder_weak6_swap` for color balance checks.
 - **Baseline run**: `baseline_max15s_vs_sf12000` for stronger confidence.
 
 The chosen benchmark must be recorded in the report, including:
@@ -57,9 +58,9 @@ The chosen benchmark must be recorded in the report, including:
 
 ## 8) Acceptance Criteria
 An improvement is accepted only if it meets **all**:
-- **Sample size**: minimum 200 games for acceptance (50 for exploratory only).
-- **Score threshold**: > 55% score over the matched run OR
-- **Elo threshold**: +15 Elo with 95% confidence above 0.
+- **Sample size**: minimum 200 games for acceptance (50 for confirmation; 10 for quick signal only).
+- **Relative score delta**: >= +10% score vs baseline on the same settings and game count OR
+- **Elo delta**: +10 Elo with 95% confidence above 0.
 - **No sanity regressions** (sanity batch must pass).
 
 If thresholds are not met, classify the change as **inconclusive** or **regression**.
@@ -80,6 +81,36 @@ Use `scripts/analysis/createBenchmarkReport.ts` (or `bin/run_benchmark_report.ba
 ## 11) Dependencies
 - Existing bench harness and scripts in `scripts/` and `bin/`.
 - Local Stockfish integration already configured in repo docs.
+
+## 12) Incremental Improvement Task Board
+### Search & Pruning
+- [!] Move ordering: history heuristic + killer moves + counter-move history. Pass: meets Section 8 acceptance criteria vs weak4 and no sanity regressions. Fail: fails criteria or new tactical blunders.
+- [!] SEE-lite capture safety for major-piece captures (queen/rook) in move ordering. Pass: meets Section 8 acceptance criteria vs weak4 and reduces queen/rook hangs; Fail: fails criteria or increases blunders.
+- [!] Root capture sanity check for major-piece captures (queen/rook) with negative SEE-lite. Pass: meets Section 8 acceptance criteria vs weak4 and reduces queen/rook hangs; Fail: fails criteria or increases blunders.
+- [!] Root quiet-move queen/rook hang filter using SEE-lite on opponent captures. Pass: meets Section 8 acceptance criteria vs weak4 and reduces queen/rook hangs; Fail: fails criteria or increases blunders.
+- [~] Late move reductions (LMR) with safe re-search. Pass: meets Section 8 acceptance criteria vs weak4; Fail: tactical regression or fails criteria.
+- [~] Null-move pruning depth + verification. Pass: meets Section 8 acceptance criteria vs weak4; Fail: mate-in-N regression or fails criteria.
+
+### Evaluation
+- [~] Tapered piece-square tables (opening/endgame). Pass: meets Section 8 acceptance criteria vs weak4; Fail: fails criteria or worsens endgame conversion.
+- [~] Mobility and king safety terms. Pass: meets Section 8 acceptance criteria vs weak4; Fail: fails criteria or increases timeouts.
+- [!] Hanging major piece penalty (queen/rook) when attacked and undefended. Pass: meets Section 8 acceptance criteria vs weak4 and reduces tactical hangs; Fail: fails criteria or increases blunders.
+- [!] LPDO-style attacked-vs-defended penalty for major pieces (queen/rook). Pass: meets Section 8 acceptance criteria vs weak4 and reduces queen/rook hangs; Fail: fails criteria or increases blunders.
+- [~] Endgame weighting (passed pawns, opposition). Pass: meets Section 8 acceptance criteria vs weak4; Fail: fails criteria or worsens endgame outcomes.
+
+### Quiescence
+- [~] Add checks and promotions to quiescence. Pass: meets Section 8 acceptance criteria and reduces tactical losses; Fail: fails criteria or increases blunders.
+
+### Time Management
+- [~] Allocate time by eval volatility or depth stability. Pass: meets Section 8 acceptance criteria and reduces time losses; Fail: fails criteria or increases timeouts.
+
+### TT & Pruning Stability
+- [~] Transposition table replacement/aging tuning. Pass: meets Section 8 acceptance criteria and improves score stability; Fail: fails criteria or unstable results.
+
+### Measurement Protocol
+- [~] Quick signal run: 10 games on weak4 to decide continue/drop. Pass: >=10% score OR >=+5% score delta vs baseline 10-game; Fail: <=5% score and no improvement.
+- [~] Confirmation run: 50-100 games on weak4. Pass: >=+10% score delta or +10 Elo (CI above 0); Fail: <=0% score delta or CI includes 0.
+- [~] Acceptance run: 200 games on weak4 per Section 8. Pass: meets Section 8; Fail: does not.
 
 ## Appendix A) Benchmark Report Template
 ```
@@ -104,6 +135,7 @@ Use `scripts/analysis/createBenchmarkReport.ts` (or `bin/run_benchmark_report.ba
 - Score %:
 - Elo estimate:
 - Confidence notes:
+- Quick-signal verdict (10-game): pass/fail vs >=10% or >=+5% vs baseline.
 
 ## 4) Decision
 - Accepted / Inconclusive / Regression

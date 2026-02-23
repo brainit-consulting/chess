@@ -1,0 +1,21 @@
+{
+  "error": "Move selection failed.",
+  "details": {
+    "gameId": 1,
+    "mode": "max",
+    "engineColor": "w",
+    "engineLabel": "Scorpion (Max Thinking)",
+    "opening": null,
+    "startFen": "rnb1kbnr/pp2pppp/2p5/q7/3P4/2N5/PPP2PPP/R1BQKBNR w KQkq - 0 5",
+    "seed": 7000,
+    "plies": 0,
+    "finalFen": "rnb1kbnr/pp2pppp/2p5/q7/3P4/2N5/PPP2PPP/R1BQKBNR w KQkq - 0 5",
+    "lastMoveUci": null,
+    "lastMoveSan": null,
+    "moveTimings": [],
+    "termination": {
+      "trigger": "engine_worker_error",
+      "message": "rootOrdered is not defined"
+    }
+  }
+}

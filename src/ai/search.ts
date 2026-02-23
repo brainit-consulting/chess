@@ -100,6 +100,7 @@ const DEFAULT_ASPIRATION_MAX_RETRIES = 3;
 const SEE_ORDER_PENALTY_THRESHOLD = -200;
 const SEE_ORDER_PENALTY_BASE = 400;
 const SEE_QUIESCENCE_PRUNE_THRESHOLD = -350;
+const ROOT_MAJOR_HANG_SEE_THRESHOLD = 0;
 const COUNTERMOVE_BONUS = 900;
 const HARD_HISTORY_BONUS_CAP = 250;
 const MAX_HISTORY_BONUS_CAP = 1000;
@@ -114,7 +115,7 @@ const PROGRESS_BONUS_KING_SAFETY = 4;
 const PROGRESS_BONUS_PAWN = 3;
 const PROGRESS_BONUS_PAWN_ADVANCED = 3;
 const ROOK_SHUFFLE_PENALTY = 6;
-const LMR_MIN_DEPTH = 3;
+const LMR_MIN_DEPTH = 4;
 const LMR_START_MOVE = 3;
 const LMR_REDUCTION = 1;
 const NULL_MOVE_MIN_DEPTH = 3;
@@ -734,6 +735,75 @@ function orderRootMovesForRepeatAvoidance(
   return annotated.map((entry) => entry.move);
 }
 
+function filterRootMovesForQuietMajorHang(
+  state: GameState,
+  color: Color,
+  moves: Move[],
+  maxThinking: boolean
+): Move[] {
+  if (!maxThinking) {
+    return moves;
+  }
+  if (moves.length <= 1) {
+    return moves;
+  }
+  let hasSafe = false;
+  const safeMoves: Move[] = [];
+  for (const move of moves) {
+    const movingPiece = getPieceAt(state, move.from);
+    if (!movingPiece) {
+      safeMoves.push(move);
+      hasSafe = true;
+      continue;
+    }
+    const next = cloneState(state);
+    next.activeColor = color;
+    applyMoveWithNnue(next, move);
+    const givesCheck = isInCheck(next, opponentColor(color));
+    const quiet =
+      !isCaptureMove(state, move) &&
+      !move.promotion &&
+      !givesCheck;
+    if (!quiet) {
+      safeMoves.push(move);
+      hasSafe = true;
+      continue;
+    }
+    if (movingPiece.type !== 'queen' && movingPiece.type !== 'rook') {
+      safeMoves.push(move);
+      hasSafe = true;
+      continue;
+    }
+    const movedId = next.board[move.to.rank]?.[move.to.file];
+    if (!movedId) {
+      safeMoves.push(move);
+      hasSafe = true;
+      continue;
+    }
+    const opponentMoves = getAllLegalMoves(next, opponentColor(color));
+    let unsafe = false;
+    for (const reply of opponentMoves) {
+      if (reply.capturedId !== movedId) {
+        continue;
+      }
+      const seeNet = seeLiteNet(next, reply, opponentColor(color));
+      if (seeNet >= ROOT_MAJOR_HANG_SEE_THRESHOLD) {
+        unsafe = true;
+        break;
+      }
+    }
+    if (unsafe) {
+      continue;
+    }
+    safeMoves.push(move);
+    hasSafe = true;
+  }
+  if (!hasSafe) {
+    return moves;
+  }
+  return safeMoves;
+}
+
 function getProgressBias(
   state: GameState,
   move: Move,
@@ -1144,7 +1214,13 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
     options,
     repeatPolicyActive
   );
-  let bestSoFar: Move | null = ordered[0] ?? legalMoves[0] ?? null;
+  const rootOrdered = filterRootMovesForQuietMajorHang(
+    state,
+    color,
+    ordered,
+    options.maxThinking ?? false
+  );
+  let bestSoFar: Move | null = rootOrdered[0] ?? ordered[0] ?? legalMoves[0] ?? null;
   const positionCounts = options.recentPositions?.length
     ? buildPositionCounts(options.recentPositions ?? [])
     : state.positionCounts;
@@ -1153,7 +1229,7 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
   const fairnessWindow = options.fairnessWindow ?? DEFAULT_FAIRNESS_WINDOW;
   const rootScores: RootScore[] = [];
 
-  for (const move of ordered) {
+  for (const move of rootOrdered) {
     if (shouldStop()) {
       finalizeInstrumentation();
       return bestSoFar ?? move;
@@ -1810,6 +1886,12 @@ function scoreRootMoves(
     options,
     repeatPolicyActive
   );
+  const rootOrdered = filterRootMovesForQuietMajorHang(
+    state,
+    color,
+    ordered,
+    options.maxThinking ?? false
+  );
   const alpha = window?.alpha ?? -Infinity;
   const beta = window?.beta ?? Infinity;
   const positionCounts = options.recentPositions?.length
@@ -1820,7 +1902,7 @@ function scoreRootMoves(
   const fairnessWindow = options.fairnessWindow ?? DEFAULT_FAIRNESS_WINDOW;
 
   const rootScores: RootScore[] = [];
-  for (const move of ordered) {
+  for (const move of rootOrdered) {
     if (shouldStop && shouldStop()) {
       break;
     }
@@ -2145,6 +2227,7 @@ function alphaBeta(
   if (maximizing) {
     let value = -Infinity;
     let bestMove: Move | undefined;
+    let historyRecorded = false;
     for (let index = 0; index < ordered.length; index += 1) {
       if (shouldStopLoop()) {
         return value;
@@ -2257,9 +2340,18 @@ function alphaBeta(
             recordCounterMove(ordering, state.lastMove, move);
           }
           recordHistory(ordering, move, depth);
+          historyRecorded = true;
         }
         break;
       }
+    }
+    if (
+      ordering &&
+      !historyRecorded &&
+      bestMove &&
+      isQuietForOrdering(state, bestMove, currentColor)
+    ) {
+      recordHistory(ordering, bestMove, Math.max(1, depth - 1));
     }
     if (tt && key) {
       tt.set(key, {
@@ -2274,6 +2366,7 @@ function alphaBeta(
 
   let value = Infinity;
   let bestMove: Move | undefined;
+  let historyRecorded = false;
   for (let index = 0; index < ordered.length; index += 1) {
     if (shouldStopLoop()) {
       return value;
@@ -2386,9 +2479,18 @@ function alphaBeta(
           recordCounterMove(ordering, state.lastMove, move);
         }
         recordHistory(ordering, move, depth);
+        historyRecorded = true;
       }
       break;
     }
+  }
+  if (
+    ordering &&
+    !historyRecorded &&
+    bestMove &&
+    isQuietForOrdering(state, bestMove, currentColor)
+  ) {
+    recordHistory(ordering, bestMove, Math.max(1, depth - 1));
   }
   if (tt && key) {
     tt.set(key, {
