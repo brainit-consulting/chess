@@ -2041,3 +2041,126 @@ describe('NNUE scaffolding', () => {
     }
   });
 });
+
+describe('pawn structure evaluation', () => {
+  it('penalizes doubled pawns', () => {
+    const doubled = createEmptyState();
+    addPiece(doubled, 'king', 'w', sq(4, 0));
+    addPiece(doubled, 'king', 'b', sq(4, 7));
+    addPiece(doubled, 'pawn', 'w', sq(4, 1));
+    addPiece(doubled, 'pawn', 'w', sq(4, 3));
+    addPiece(doubled, 'pawn', 'b', sq(0, 6));
+    addPiece(doubled, 'pawn', 'b', sq(1, 6));
+
+    const separated = createEmptyState();
+    addPiece(separated, 'king', 'w', sq(4, 0));
+    addPiece(separated, 'king', 'b', sq(4, 7));
+    addPiece(separated, 'pawn', 'w', sq(4, 1));
+    addPiece(separated, 'pawn', 'w', sq(3, 3));
+    addPiece(separated, 'pawn', 'b', sq(0, 6));
+    addPiece(separated, 'pawn', 'b', sq(1, 6));
+
+    const doubledScore = evaluateState(doubled, 'w');
+    const separatedScore = evaluateState(separated, 'w');
+    expect(separatedScore).toBeGreaterThan(doubledScore);
+  });
+
+  it('penalizes isolated pawns', () => {
+    const isolated = createEmptyState();
+    addPiece(isolated, 'king', 'w', sq(4, 0));
+    addPiece(isolated, 'king', 'b', sq(4, 7));
+    addPiece(isolated, 'pawn', 'w', sq(0, 1));
+    addPiece(isolated, 'pawn', 'w', sq(4, 1));
+    addPiece(isolated, 'pawn', 'b', sq(0, 6));
+    addPiece(isolated, 'pawn', 'b', sq(4, 6));
+
+    const connected = createEmptyState();
+    addPiece(connected, 'king', 'w', sq(4, 0));
+    addPiece(connected, 'king', 'b', sq(4, 7));
+    addPiece(connected, 'pawn', 'w', sq(0, 1));
+    addPiece(connected, 'pawn', 'w', sq(1, 1));
+    addPiece(connected, 'pawn', 'b', sq(0, 6));
+    addPiece(connected, 'pawn', 'b', sq(4, 6));
+
+    const isolatedScore = evaluateState(isolated, 'w');
+    const connectedScore = evaluateState(connected, 'w');
+    expect(connectedScore).toBeGreaterThan(isolatedScore);
+  });
+
+  it('rewards passed pawns', () => {
+    const passed = createEmptyState();
+    addPiece(passed, 'king', 'w', sq(4, 0));
+    addPiece(passed, 'king', 'b', sq(4, 7));
+    addPiece(passed, 'pawn', 'w', sq(3, 4));
+    addPiece(passed, 'pawn', 'b', sq(0, 6));
+
+    const blocked = createEmptyState();
+    addPiece(blocked, 'king', 'w', sq(4, 0));
+    addPiece(blocked, 'king', 'b', sq(4, 7));
+    addPiece(blocked, 'pawn', 'w', sq(3, 4));
+    addPiece(blocked, 'pawn', 'b', sq(4, 5));
+
+    const passedScore = evaluateState(passed, 'w');
+    const blockedScore = evaluateState(blocked, 'w');
+    expect(passedScore).toBeGreaterThan(blockedScore);
+  });
+
+  it('gives higher bonus to more advanced passed pawns', () => {
+    const rank4 = createEmptyState();
+    addPiece(rank4, 'king', 'w', sq(4, 0));
+    addPiece(rank4, 'king', 'b', sq(4, 7));
+    addPiece(rank4, 'pawn', 'w', sq(3, 4));
+    addPiece(rank4, 'pawn', 'b', sq(0, 6));
+
+    const rank6 = createEmptyState();
+    addPiece(rank6, 'king', 'w', sq(4, 0));
+    addPiece(rank6, 'king', 'b', sq(4, 7));
+    addPiece(rank6, 'pawn', 'w', sq(3, 6));
+    addPiece(rank6, 'pawn', 'b', sq(0, 6));
+
+    const rank4Score = evaluateState(rank4, 'w');
+    const rank6Score = evaluateState(rank6, 'w');
+    expect(rank6Score).toBeGreaterThan(rank4Score);
+  });
+
+  it('rewards bishop pair in max thinking', () => {
+    const pairState = createEmptyState();
+    addPiece(pairState, 'king', 'w', sq(4, 0));
+    addPiece(pairState, 'king', 'b', sq(4, 7));
+    addPiece(pairState, 'bishop', 'w', sq(2, 0));
+    addPiece(pairState, 'bishop', 'w', sq(5, 0));
+    addPiece(pairState, 'bishop', 'b', sq(2, 7));
+
+    const singleState = createEmptyState();
+    addPiece(singleState, 'king', 'w', sq(4, 0));
+    addPiece(singleState, 'king', 'b', sq(4, 7));
+    addPiece(singleState, 'bishop', 'w', sq(2, 0));
+    addPiece(singleState, 'bishop', 'b', sq(2, 7));
+
+    const pairScore = evaluateState(pairState, 'w', { maxThinking: true });
+    const singleScore = evaluateState(singleState, 'w', { maxThinking: true });
+    expect(pairScore).toBeGreaterThan(singleScore);
+  });
+
+  it('applies pawn structure to non-max evaluation', () => {
+    const doubled = createEmptyState();
+    addPiece(doubled, 'king', 'w', sq(4, 0));
+    addPiece(doubled, 'king', 'b', sq(4, 7));
+    addPiece(doubled, 'pawn', 'w', sq(4, 1));
+    addPiece(doubled, 'pawn', 'w', sq(4, 3));
+    addPiece(doubled, 'pawn', 'b', sq(0, 6));
+    addPiece(doubled, 'pawn', 'b', sq(1, 6));
+
+    const separated = createEmptyState();
+    addPiece(separated, 'king', 'w', sq(4, 0));
+    addPiece(separated, 'king', 'b', sq(4, 7));
+    addPiece(separated, 'pawn', 'w', sq(4, 1));
+    addPiece(separated, 'pawn', 'w', sq(3, 3));
+    addPiece(separated, 'pawn', 'b', sq(0, 6));
+    addPiece(separated, 'pawn', 'b', sq(1, 6));
+
+    const doubledHard = evaluateState(doubled, 'w', { maxThinking: false });
+    const separatedHard = evaluateState(separated, 'w', { maxThinking: false });
+    expect(separatedHard).toBeGreaterThan(doubledHard);
+  });
+});
