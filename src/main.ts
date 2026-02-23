@@ -11,3 +11,6 @@ if (!sceneRoot || !uiRoot) {
 const game = new GameController(sceneRoot, uiRoot);
 
 game.start();
+
+// Expose game for automation/demo (Freddy plays chess)
+(window as any).__game = game;
