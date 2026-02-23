@@ -2,10 +2,10 @@
 
 Two-player 3D chess with standard rules, a rotatable board, and a pure rules engine powered by the Scorpion Chess Engine.
 
-Live demo: https://brainit-consulting.github.io/chess/
-Shareable play link: https://brainit-consulting.github.io/chess/
+Live demo: https://chess-pi-wheat.vercel.app/
+Shareable play link: https://chess-pi-wheat.vercel.app/
 
-GitHub Pages: Settings -> Pages -> Source: GitHub Actions
+Hosting: Vercel (`https://chess-pi-wheat.vercel.app/`)
 Current UI version: v1.1.66
 
 The UI shows player names (including AI labels) and a running captured-material score.

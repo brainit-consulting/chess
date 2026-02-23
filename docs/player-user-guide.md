@@ -18,7 +18,7 @@ Welcome to **Scorpion 3D Chess**! This guide covers current modes, controls, and
 
 Share this link so others can play:
 
-https://brainit-consulting.github.io/chess/
+https://chess-pi-wheat.vercel.app/
 
 ---
 

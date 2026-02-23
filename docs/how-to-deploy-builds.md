@@ -1,98 +1,99 @@
-# How to Deploy Builds (GitHub Pages)
+# How to Deploy Builds (Vercel)
 
-This repo is a Vite + Three.js project deployed to **GitHub Pages** using **GitHub Actions**.
+This repo is a Vite + Three.js project and the current live app is deployed on **Vercel**.
 
-Live site (project pages):
-- `https://<ORG>.github.io/<REPO>/`
-- For this repo: `https://brainit-consulting.github.io/chess/`
+Live site:
+- `https://chess-pi-wheat.vercel.app/`
 
 ---
 
 ## What "deploy" means here
 
-When you push to `main`, GitHub Actions will:
+When this repo is connected to Vercel, a deploy typically means:
 
-1. Install dependencies
-2. Build the site (`vite build`) into `dist/`
-3. Upload the build as a Pages artifact
-4. Deploy that artifact to GitHub Pages
+1. Vercel pulls the latest commit from GitHub
+2. Installs dependencies
+3. Runs the build (`npm run build`)
+4. Publishes the output from `dist/`
 
-You do **not** commit `dist/` and you do **not** run `gh-pages` locally.
-
----
-
-## One-time setup checklist
-
-### 1) Make sure the workflow file exists
-
-You should have a workflow file at:
-
-- `.github/workflows/pages.yml`
-
-If you ever need to recreate it, use the standard "Vite -> GitHub Pages" pattern:
-- Build with Node
-- Upload artifact from `./dist`
-- Deploy to Pages
+You do **not** commit `dist/`.
 
 ---
 
-### 2) Set GitHub Pages source to "GitHub Actions"
+## Repo settings that matter
 
-In GitHub:
+### 1) Vite base path should stay root (`/`)
 
-1. Go to **Repo -> Settings -> Pages**
-2. Under **Build and deployment -> Source**, select **GitHub Actions**
-
-This is required. If you use "Deploy from a branch", the Actions deploy step may fail with "Not Found".
-
----
-
-### 3) Confirm Vite base path matches the repo name
-
-For GitHub Project Pages, your app is served from:
-
-- `/<REPO>/`
-
-So Vite must build with:
-
-- `base: '/<REPO>/'`
+This repo currently builds for a root-domain deployment (Vercel), not GitHub Project Pages.
 
 Check:
-
 - `vite.config.ts`
 
-Example for this repo:
+Current setting:
 
 ```ts
 export default defineConfig({
-  base: '/chess/',
-})
+  // Default: Vercel + local dev (root domain)
+  base: "/",
+});
 ```
+
+If this is changed to `/chess/`, the Vercel deployment can break (missing assets / blank page).
 
 ---
 
-### 4) Ensure runtime asset paths respect the base URL
+### 2) Runtime asset paths should avoid hardcoded absolute assumptions
 
-If you load assets manually (OBJ/PNG/etc), don't hardcode `/assets/...`.
+If you load assets manually (OBJ/PNG/etc), prefer `import.meta.env.BASE_URL` patterns for portability.
 
-Use:
-
-- `import.meta.env.BASE_URL`
-
-Example pattern:
+Example:
 
 ```ts
 const base = import.meta.env.BASE_URL;
 const url = `${base}assets/chess/scifi/scifichess-king.obj`;
 ```
 
-This ensures assets resolve correctly both locally (`/`) and on Pages (`/chess/`).
+This works locally and keeps paths stable if hosting changes again later.
+
+---
+
+## One-time Vercel setup (if reconnecting or recreating the project)
+
+### 1) Import the repo into Vercel
+
+In Vercel:
+
+1. Click **Add New -> Project**
+2. Import the GitHub repo
+3. Let Vercel detect the framework (usually **Vite**)
+
+---
+
+### 2) Confirm build settings
+
+Vercel usually auto-detects these correctly, but verify:
+
+- Framework Preset: `Vite`
+- Build Command: `npm run build`
+- Output Directory: `dist`
+
+If Vercel does not auto-detect Vite, set these manually.
+
+---
+
+### 3) Production branch
+
+Confirm the production branch is:
+
+- `main`
+
+This ensures pushes to `main` update `https://chess-pi-wheat.vercel.app/`.
 
 ---
 
 ## Normal deployment flow
 
-### Deploy (recommended)
+### Deploy to production (recommended)
 
 1. Commit and push to `main`:
 
@@ -102,97 +103,104 @@ git commit -m "Your change"
 git push origin main
 ```
 
-2. Watch the workflow:
+2. Watch the deploy in Vercel:
 
-- GitHub -> **Actions**
-- Open workflow: **Deploy Pages**
-- Wait for green check
+- Vercel Dashboard -> Project -> **Deployments**
+- Wait for the latest production deploy to finish
 
-3. Visit the site:
+3. Verify the live site:
 
-- `https://brainit-consulting.github.io/chess/`
+- `https://chess-pi-wheat.vercel.app/`
+
+---
+
+## Preview deploys (optional but useful)
+
+If the repo is connected to Vercel and preview deployments are enabled:
+
+- Pull requests / non-`main` pushes can get preview URLs
+- Use previews to sanity check UI changes before merging
+
+Preview URLs are shown in:
+- Vercel Dashboard -> Project -> **Deployments**
+- (Often) GitHub PR checks, if the integration is enabled
 
 ---
 
 ## How to redeploy without code changes
 
-Sometimes you want to force a redeploy (e.g., after changing Pages settings).
+Sometimes you want to force a redeploy after changing Vercel settings or recovering from a transient build issue.
 
-### Option A - Re-run the workflow in GitHub UI
+### Option A - Redeploy from Vercel UI
 
-1. GitHub -> **Actions**
-2. Select **Deploy Pages**
-3. Pick the most recent run
-4. Click **Re-run jobs** (or **Re-run all jobs**)
+1. Vercel Dashboard -> Project -> **Deployments**
+2. Open the most recent successful deployment
+3. Click **Redeploy**
 
-### Option B - Make a "no-op" commit
+### Option B - Make a no-op commit
 
 ```bash
-git commit --allow-empty -m "chore: trigger pages deploy"
-git push
+git commit --allow-empty -m "chore: trigger vercel deploy"
+git push origin main
 ```
 
 ---
 
-## How to verify it's actually deploying the right build
+## How to verify the right build is live
 
-### 1) Check the Pages deployment status
+### 1) Confirm deployment status in Vercel
 
-- GitHub -> Repo -> **Actions**
-- The deploy workflow run should be green
-- The deploy step should reference Pages / artifact upload
+- Latest production deployment should be marked successful
+- Commit hash / message should match what you pushed
 
-### 2) Check the "Deployments" panel
-
-- GitHub -> Repo -> **Environments** (or the "Deployments" sidebar)
-- Look for a Pages environment entry
-
-### 3) Browser checks
+### 2) Browser checks
 
 Open the live site and confirm:
 
 - No missing assets (DevTools -> Network -> filter `404`)
 - Board renders and pieces load
-- AI toggle works
+- AI controls still work
+- Share/play links point to `https://chess-pi-wheat.vercel.app/`
 
 ---
 
 ## Common issues & fixes
 
-### Issue: "HttpError: Not Found" during Deploy Pages
-**Cause:** Pages is not set to "GitHub Actions" as the source.
-
-**Fix:**
-- Repo -> Settings -> Pages -> Source -> **GitHub Actions**
-- Then re-run the Deploy Pages workflow
-
----
-
 ### Issue: App loads but assets (OBJ/PNG) 404
-**Cause:** Vite base path is wrong, or asset URLs are hardcoded.
+**Cause:** Wrong Vite base path or hardcoded asset URLs.
 
 **Fix:**
-- Ensure `vite.config.ts` has `base: '/chess/'`
-- Ensure asset loading uses `import.meta.env.BASE_URL`
+- Ensure `vite.config.ts` uses `base: "/"`
+- Ensure asset loading uses `import.meta.env.BASE_URL` patterns where needed
 
 ---
 
 ### Issue: Blank page after deploy
 Common causes:
-- `base` not set correctly
-- JS bundle path points to `/assets/...` instead of `/chess/assets/...`
+- Build failed but an older deployment is still being viewed
+- Vite base path is wrong (for example `/chess/` instead of `/`)
+- Runtime exception in the browser
 
 **Fix:**
-- Confirm built `index.html` references `/chess/assets/...`
-- Confirm Vite `base` is correct
+- Check the latest Vercel deployment logs
+- Confirm `vite.config.ts` still has `base: "/"`
+- Open DevTools Console for runtime errors
 
 ---
 
-### Issue: Workflow doesn't run on push
+### Issue: Vercel build fails on install/build step
 Check:
-- `.github/workflows/pages.yml` exists on `main`
-- The workflow triggers include `on: push: branches: [main]`
-- Actions are enabled for the repo (Settings -> Actions)
+- `package-lock.json` is committed and in sync
+- `npm run build` succeeds locally
+- Node version / project settings in Vercel are compatible
+
+---
+
+### Issue: Push to `main` does not update production
+Check:
+- Vercel project is connected to the correct GitHub repo
+- Production branch is `main`
+- The deployment was not canceled
 
 ---
 
@@ -220,16 +228,19 @@ git tag v1.2.0
 git push origin v1.2.0
 ```
 
-Tags don't deploy by themselves (unless workflow triggers on tags), but they help you track releases.
+Tags do not deploy by themselves unless your deployment setup is configured to do so.
 
 ---
 
 ## Files involved
 
-Typical files you'll touch for Pages deployments:
+Typical files you might touch for Vercel deployments:
 
-- `.github/workflows/pages.yml` (Actions workflow)
 - `vite.config.ts` (base path)
-- Any asset loader modules (use `import.meta.env.BASE_URL`)
+- Asset loader modules (prefer `import.meta.env.BASE_URL`)
 - `.gitignore` (ensure `dist/` is ignored)
-- `README.md` (include the live URL)
+- `README.md` (live URL)
+
+Optional / legacy:
+- `.github/workflows/pages.yml` (GitHub Pages workflow; not the current production deployment path)
+

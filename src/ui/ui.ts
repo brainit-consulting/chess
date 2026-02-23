@@ -10,7 +10,8 @@ import analyzerLogoUrl from '../../graphics/BrainITChessAnalyzerLogo.png';
 import engineLogoUrl from '../../graphics/ScorpionChessEngineLogo.png';
 
 const PLAYER_GUIDE_URL = `${import.meta.env.BASE_URL}player-user-guide.md`;
-const LIVE_URL = 'https://brainit-consulting.github.io/chess/';
+const LIVE_URL = 'https://chess-pi-wheat.vercel.app/';
+const LIVE_URL_LABEL = LIVE_URL.replace(/^https?:\/\//, '').replace(/\/$/, '');
 const APP_VERSION = 'v1.1.67';
 
 export type UiState = {
@@ -1475,7 +1476,7 @@ private applyAnalyzerChoice(choice: AnalyzerChoice): void {
     summaryLiveEl.append(document.createTextNode('Play online: '));
     const liveLink = document.createElement('a');
     liveLink.href = LIVE_URL;
-    liveLink.textContent = 'brainit-consulting.github.io/chess';
+    liveLink.textContent = LIVE_URL_LABEL;
     liveLink.target = '_blank';
     liveLink.rel = 'noopener';
     summaryLiveEl.append(liveLink, document.createTextNode('.'));

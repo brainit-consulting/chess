@@ -1,3 +1,4 @@
+# Legacy workflow retained for reference; current production hosting uses Vercel.
 name: Deploy Pages
 
 on:
