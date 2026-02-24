@@ -118,6 +118,20 @@ Goal: Reduce early threefolds without changing time caps.
     - Decision: accepted.
   - Remaining Phase 2 items (not yet implemented): rook 7th-rank bonus, connected passers, tapered evaluation.
 
+- Phase 2b - Rook on 7th rank + connected passed pawns (implemented, commit 52c7aba)
+  - Added: rook on 7th rank bonus (+25cp, +10cp extra if opponent king on back rank), connected passed pawn bonus (+15cp base + 5cp/rank advanced).
+  - Both terms apply to all difficulty levels.
+  - Added rookSquares tracking to EvalContext.
+  - 6 new unit tests (134 total passing).
+  - Self-play results (runId `phase2b-rook7th-connpassers`, Hard 1000ms vs Max 3000ms, 10 games, seed 9001, swap, fenSuite):
+    - W/D/L (Hard perspective): 6-4-0, score 80%.
+    - Mate rate: 60% (up from 50% in Phase 2a).
+    - Repetition rate: 20% (down from 30% in Phase 2a).
+    - Avg plies: 95.8 (shorter = faster conversion).
+    - Zero losses (improved from 1 in Phase 2a).
+    - Decision: accepted.
+  - Remaining Phase 2 items: tapered evaluation (Phase 2c).
+
 ## Phase 3 - Search and ordering improvements (moderate risk)
 
 - Change list (files)
