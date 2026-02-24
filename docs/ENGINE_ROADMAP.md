@@ -147,6 +147,15 @@ Goal: Reduce early threefolds without changing time caps.
     - Decision: accepted.
   - Phase 2 evaluation upgrades complete.
 
+- Hanging major piece penalty (attempted, REJECTED)
+  - Penalized queens/rooks attacked by cheaper pieces using existing legal move lists.
+  - v1 (scale=0.05, max=40cp): W5-D2-L3, score 60%, 3 losses (too aggressive).
+  - v2 (scale=0.03, max=25cp): W5-D5-L0, score 75%, mate rate 50%, rep rate 40% (too passive).
+  - Both variants regressed vs Phase 2c baseline (85% score, 70% mate, 0 losses).
+  - Root cause: static eval penalty without SEE (Static Exchange Evaluation) cannot distinguish hanging vs defended pieces, causing passive play.
+  - Reverted. Requires SEE infrastructure (Phase 7+ scope) to be effective.
+  - See `plans/HANGING_PIECE_PENALTY.md` for full analysis.
+
 ## Phase 3 - Search and ordering improvements (moderate risk)
 
 - Change list (files)
