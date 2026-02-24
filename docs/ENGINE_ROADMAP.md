@@ -132,6 +132,21 @@ Goal: Reduce early threefolds without changing time caps.
     - Decision: accepted.
   - Remaining Phase 2 items: tapered evaluation (Phase 2c).
 
+- Phase 2c - Tapered evaluation / material-based game phase (implemented, commit ff4050e)
+  - Replaced move-number-based phase with material-based game phase (Q=4, R=2, B/N=1, max 24).
+  - Eval weights now interpolate between opening and endgame values based on remaining material.
+  - Tapered terms: passed pawns (20→35), rank bonus (10→15), connected passers (15→25, 5→8/rank), doubled penalty (12→20), isolated penalty (15→25), rook on 7th (20→30).
+  - King safety terms remain move-number-based (phaseFactor preserved).
+  - 6 new unit tests (140 total passing).
+  - Self-play results (runId `phase2c-tapered-eval`, Hard 1000ms vs Max 3000ms, 10 games, seed 9002, swap, fenSuite):
+    - W/D/L (Hard perspective): 7-3-0, score 85%.
+    - Mate rate: 70% (up from 60% in Phase 2b, 25% pre-Phase-2).
+    - Repetition rate: 30%.
+    - Avg plies: 72.4 (much faster conversion than Phase 2b's 95.8).
+    - Zero losses.
+    - Decision: accepted.
+  - Phase 2 evaluation upgrades complete.
+
 ## Phase 3 - Search and ordering improvements (moderate risk)
 
 - Change list (files)
