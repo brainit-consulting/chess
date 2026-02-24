@@ -48,22 +48,36 @@ const KING_RING_ENDGAME_SCALE = 0.5;
 const NNUE_MIX_DEFAULT = 0;
 const NNUE_SCORE_CLAMP = 2000;
 
-// Pawn structure
-const DOUBLED_PAWN_PENALTY = 15;
-const ISOLATED_PAWN_PENALTY = 20;
-const PASSED_PAWN_BASE_BONUS = 20;
-const PASSED_PAWN_RANK_BONUS = 10;
+// Material-based game phase
+const PHASE_QUEEN = 4;
+const PHASE_ROOK = 2;
+const PHASE_BISHOP = 1;
+const PHASE_KNIGHT = 1;
+const TOTAL_PHASE = 24;
+
+// Tapered pawn structure (opening / endgame)
+const DOUBLED_PAWN_PENALTY_OPENING = 12;
+const DOUBLED_PAWN_PENALTY_ENDGAME = 20;
+const ISOLATED_PAWN_PENALTY_OPENING = 15;
+const ISOLATED_PAWN_PENALTY_ENDGAME = 25;
+const PASSED_PAWN_BASE_BONUS_OPENING = 20;
+const PASSED_PAWN_BASE_BONUS_ENDGAME = 35;
+const PASSED_PAWN_RANK_BONUS_OPENING = 10;
+const PASSED_PAWN_RANK_BONUS_ENDGAME = 15;
 
 // Bishop pair
 const BISHOP_PAIR_BONUS = 30;
 
-// Rook on 7th rank
-const ROOK_ON_7TH_BONUS = 25;
+// Tapered rook on 7th rank
+const ROOK_ON_7TH_BONUS_OPENING = 20;
+const ROOK_ON_7TH_BONUS_ENDGAME = 30;
 const ROOK_ON_7TH_KING_TRAPPED_BONUS = 10;
 
-// Connected passed pawns
-const CONNECTED_PASSED_PAWN_BONUS = 15;
-const CONNECTED_PASSED_PAWN_RANK_BONUS = 5;
+// Tapered connected passed pawns
+const CONNECTED_PASSED_PAWN_BONUS_OPENING = 15;
+const CONNECTED_PASSED_PAWN_BONUS_ENDGAME = 25;
+const CONNECTED_PASSED_PAWN_RANK_BONUS_OPENING = 5;
+const CONNECTED_PASSED_PAWN_RANK_BONUS_ENDGAME = 8;
 
 const KNIGHT_PST = [
   -50, -40, -30, -30, -30, -30, -40, -50,
@@ -101,6 +115,7 @@ type EvalContext = {
   bishopCount: Record<Color, number>;
   rookSquares: Record<Color, { file: number; rank: number }[]>;
   phaseFactor: number;
+  gamePhase: number;
 };
 
 export function evaluateState(
@@ -170,7 +185,8 @@ export function evaluateState(
     queenCount,
     bishopCount,
     rookSquares,
-    phaseFactor: getPhaseFactor(state.fullmoveNumber)
+    phaseFactor: getPhaseFactor(state.fullmoveNumber),
+    gamePhase: calculateGamePhase(state)
   };
   const kingExposure =
     kingExposureScore(state, context, 'w') - kingExposureScore(state, context, 'b');
@@ -261,6 +277,23 @@ function getPhaseFactor(fullmoveNumber: number): number {
     return 1;
   }
   return (fullmoveNumber - KING_PHASE_START) / (KING_PHASE_END - KING_PHASE_START);
+}
+
+function calculateGamePhase(state: GameState): number {
+  let phase = 0;
+  for (const piece of state.pieces.values()) {
+    switch (piece.type) {
+      case 'queen': phase += PHASE_QUEEN; break;
+      case 'rook': phase += PHASE_ROOK; break;
+      case 'bishop': phase += PHASE_BISHOP; break;
+      case 'knight': phase += PHASE_KNIGHT; break;
+    }
+  }
+  return Math.min(phase, TOTAL_PHASE);
+}
+
+function taper(opening: number, endgame: number, phase: number): number {
+  return (opening * phase + endgame * (TOTAL_PHASE - phase)) / TOTAL_PHASE;
 }
 
 function kingExposureScore(state: GameState, context: EvalContext, color: Color): number {
@@ -359,6 +392,7 @@ function filePressureScore(state: GameState, context: EvalContext): number {
 
 function pawnStructureScore(context: EvalContext, color: Color): number {
   const opp = opponentColor(color);
+  const phase = context.gamePhase;
   let score = 0;
   const passedPawns: { file: number; rank: number }[] = [];
 
@@ -370,28 +404,28 @@ function pawnStructureScore(context: EvalContext, color: Color): number {
 
     // Doubled pawns: penalty for each extra pawn on the same file
     if (count > 1) {
-      score -= (count - 1) * DOUBLED_PAWN_PENALTY;
+      score -= (count - 1) * taper(DOUBLED_PAWN_PENALTY_OPENING, DOUBLED_PAWN_PENALTY_ENDGAME, phase);
     }
 
     // Isolated pawns: no friendly pawns on adjacent files
     const hasLeftNeighbor = file > 0 && context.pawnFiles[color][file - 1] > 0;
     const hasRightNeighbor = file < 7 && context.pawnFiles[color][file + 1] > 0;
     if (!hasLeftNeighbor && !hasRightNeighbor) {
-      score -= count * ISOLATED_PAWN_PENALTY;
+      score -= count * taper(ISOLATED_PAWN_PENALTY_OPENING, ISOLATED_PAWN_PENALTY_ENDGAME, phase);
     }
 
     // Passed pawns: check each pawn on this file
     const ranks = context.pawnRanks[color][file];
     for (const rank of ranks) {
       if (isPassedPawn(context, color, file, rank, opp)) {
-        score += passedPawnBonus(color, rank);
+        score += passedPawnBonus(color, rank, phase);
         passedPawns.push({ file, rank });
       }
     }
   }
 
   // Connected passed pawns: bonus for passed pawns on adjacent files
-  score += connectedPassedPawnBonus(passedPawns, color);
+  score += connectedPassedPawnBonus(passedPawns, color, phase);
 
   return score;
 }
@@ -422,19 +456,21 @@ function isPassedPawn(
   return true;
 }
 
-function passedPawnBonus(color: Color, rank: number): number {
+function passedPawnBonus(color: Color, rank: number, phase: number): number {
   // For white: advancement from rank 1 toward rank 7. Rank 4+ gets scaling bonus.
   // For black: advancement from rank 6 toward rank 0. Rank 3- gets scaling bonus.
   const advancedRanks = color === 'w'
     ? Math.max(0, rank - 3)
     : Math.max(0, 4 - rank);
 
-  return PASSED_PAWN_BASE_BONUS + advancedRanks * PASSED_PAWN_RANK_BONUS;
+  return taper(PASSED_PAWN_BASE_BONUS_OPENING, PASSED_PAWN_BASE_BONUS_ENDGAME, phase)
+    + advancedRanks * taper(PASSED_PAWN_RANK_BONUS_OPENING, PASSED_PAWN_RANK_BONUS_ENDGAME, phase);
 }
 
 function connectedPassedPawnBonus(
   passedPawns: { file: number; rank: number }[],
-  color: Color
+  color: Color,
+  phase: number
 ): number {
   if (passedPawns.length < 2) {
     return 0;
@@ -449,7 +485,8 @@ function connectedPassedPawnBonus(
       const advancedRanks = color === 'w'
         ? Math.max(0, moreAdvanced - 3)
         : Math.max(0, 4 - moreAdvanced);
-      bonus += CONNECTED_PASSED_PAWN_BONUS + advancedRanks * CONNECTED_PASSED_PAWN_RANK_BONUS;
+      bonus += taper(CONNECTED_PASSED_PAWN_BONUS_OPENING, CONNECTED_PASSED_PAWN_BONUS_ENDGAME, phase)
+        + advancedRanks * taper(CONNECTED_PASSED_PAWN_RANK_BONUS_OPENING, CONNECTED_PASSED_PAWN_RANK_BONUS_ENDGAME, phase);
     }
   }
   return bonus;
@@ -475,7 +512,7 @@ function rookOn7thScore(state: GameState, context: EvalContext, color: Color): n
   let score = 0;
   for (const sq of context.rookSquares[color]) {
     if (sq.rank === seventhRank) {
-      score += ROOK_ON_7TH_BONUS;
+      score += taper(ROOK_ON_7TH_BONUS_OPENING, ROOK_ON_7TH_BONUS_ENDGAME, context.gamePhase);
       if (oppKingOnBackRank) {
         score += ROOK_ON_7TH_KING_TRAPPED_BONUS;
       }

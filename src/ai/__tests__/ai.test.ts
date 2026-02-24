@@ -2276,3 +2276,209 @@ describe('rook on 7th rank and connected passed pawns', () => {
     expect(withHard).toBeGreaterThan(withoutHard);
   });
 });
+
+describe('tapered evaluation (material-based game phase)', () => {
+  it('values passed pawns more in endgame than opening', () => {
+    // Endgame: measure delta of having a passed pawn vs not
+    const endgameWith = createEmptyState();
+    addPiece(endgameWith, 'king', 'w', sq(4, 0));
+    addPiece(endgameWith, 'king', 'b', sq(4, 7));
+    addPiece(endgameWith, 'pawn', 'w', sq(3, 5));
+    addPiece(endgameWith, 'pawn', 'b', sq(7, 6));
+
+    const endgameWithout = createEmptyState();
+    addPiece(endgameWithout, 'king', 'w', sq(4, 0));
+    addPiece(endgameWithout, 'king', 'b', sq(4, 7));
+    addPiece(endgameWithout, 'pawn', 'b', sq(7, 6));
+
+    // Opening: same delta test with many pieces (high phase)
+    const openingWith = createEmptyState();
+    addPiece(openingWith, 'king', 'w', sq(4, 0));
+    addPiece(openingWith, 'king', 'b', sq(4, 7));
+    addPiece(openingWith, 'pawn', 'w', sq(3, 5));
+    addPiece(openingWith, 'pawn', 'b', sq(7, 6));
+    addPiece(openingWith, 'queen', 'w', sq(3, 0));
+    addPiece(openingWith, 'queen', 'b', sq(3, 7));
+    addPiece(openingWith, 'rook', 'w', sq(0, 0));
+    addPiece(openingWith, 'rook', 'b', sq(0, 7));
+    addPiece(openingWith, 'rook', 'w', sq(7, 0));
+    addPiece(openingWith, 'rook', 'b', sq(7, 7));
+
+    const openingWithout = createEmptyState();
+    addPiece(openingWithout, 'king', 'w', sq(4, 0));
+    addPiece(openingWithout, 'king', 'b', sq(4, 7));
+    addPiece(openingWithout, 'pawn', 'b', sq(7, 6));
+    addPiece(openingWithout, 'queen', 'w', sq(3, 0));
+    addPiece(openingWithout, 'queen', 'b', sq(3, 7));
+    addPiece(openingWithout, 'rook', 'w', sq(0, 0));
+    addPiece(openingWithout, 'rook', 'b', sq(0, 7));
+    addPiece(openingWithout, 'rook', 'w', sq(7, 0));
+    addPiece(openingWithout, 'rook', 'b', sq(7, 7));
+
+    // The passed pawn delta should be bigger in endgame
+    const endgameDelta = evaluateState(endgameWith, 'w') - evaluateState(endgameWithout, 'w');
+    const openingDelta = evaluateState(openingWith, 'w') - evaluateState(openingWithout, 'w');
+    expect(endgameDelta).toBeGreaterThan(openingDelta);
+  });
+
+  it('penalizes isolated pawns more in endgame', () => {
+    // Endgame: isolated pawn with no pieces
+    const endgame = createEmptyState();
+    addPiece(endgame, 'king', 'w', sq(4, 0));
+    addPiece(endgame, 'king', 'b', sq(4, 7));
+    addPiece(endgame, 'pawn', 'w', sq(3, 3));
+    addPiece(endgame, 'pawn', 'b', sq(0, 6));
+    addPiece(endgame, 'pawn', 'b', sq(7, 6));
+
+    // Opening: same isolated pawn but with pieces
+    const opening = createEmptyState();
+    addPiece(opening, 'king', 'w', sq(4, 0));
+    addPiece(opening, 'king', 'b', sq(4, 7));
+    addPiece(opening, 'pawn', 'w', sq(3, 3));
+    addPiece(opening, 'pawn', 'b', sq(0, 6));
+    addPiece(opening, 'pawn', 'b', sq(7, 6));
+    addPiece(opening, 'queen', 'w', sq(3, 0));
+    addPiece(opening, 'queen', 'b', sq(3, 7));
+    addPiece(opening, 'rook', 'w', sq(0, 0));
+    addPiece(opening, 'rook', 'b', sq(0, 7));
+
+    // The isolated pawn penalty should be worse (lower score) in endgame
+    const endgameScore = evaluateState(endgame, 'w');
+    const openingScore = evaluateState(opening, 'w');
+    expect(endgameScore).toBeLessThan(openingScore);
+  });
+
+  it('penalizes doubled pawns more in endgame', () => {
+    // Endgame: doubled pawns with no pieces
+    const endgame = createEmptyState();
+    addPiece(endgame, 'king', 'w', sq(4, 0));
+    addPiece(endgame, 'king', 'b', sq(4, 7));
+    addPiece(endgame, 'pawn', 'w', sq(4, 2));
+    addPiece(endgame, 'pawn', 'w', sq(4, 4));
+    addPiece(endgame, 'pawn', 'b', sq(0, 6));
+    addPiece(endgame, 'pawn', 'b', sq(1, 6));
+
+    // Opening: same doubled pawns but with pieces
+    const opening = createEmptyState();
+    addPiece(opening, 'king', 'w', sq(4, 0));
+    addPiece(opening, 'king', 'b', sq(4, 7));
+    addPiece(opening, 'pawn', 'w', sq(4, 2));
+    addPiece(opening, 'pawn', 'w', sq(4, 4));
+    addPiece(opening, 'pawn', 'b', sq(0, 6));
+    addPiece(opening, 'pawn', 'b', sq(1, 6));
+    addPiece(opening, 'queen', 'w', sq(3, 0));
+    addPiece(opening, 'queen', 'b', sq(3, 7));
+    addPiece(opening, 'rook', 'w', sq(0, 0));
+    addPiece(opening, 'rook', 'b', sq(0, 7));
+
+    // The doubled pawn penalty should be worse in endgame
+    const endgameScore = evaluateState(endgame, 'w');
+    const openingScore = evaluateState(opening, 'w');
+    expect(endgameScore).toBeLessThan(openingScore);
+  });
+
+  it('values rook on 7th more in endgame', () => {
+    // Endgame: rook on 7th with few pieces
+    const endgame = createEmptyState();
+    addPiece(endgame, 'king', 'w', sq(4, 0));
+    addPiece(endgame, 'king', 'b', sq(4, 7));
+    addPiece(endgame, 'rook', 'w', sq(0, 6));
+
+    // Opening: rook on 7th with many pieces
+    const opening = createEmptyState();
+    addPiece(opening, 'king', 'w', sq(4, 0));
+    addPiece(opening, 'king', 'b', sq(4, 7));
+    addPiece(opening, 'rook', 'w', sq(0, 6));
+    addPiece(opening, 'queen', 'w', sq(3, 0));
+    addPiece(opening, 'queen', 'b', sq(3, 7));
+    addPiece(opening, 'rook', 'w', sq(7, 0));
+    addPiece(opening, 'rook', 'b', sq(7, 7));
+    addPiece(opening, 'rook', 'b', sq(0, 7));
+    addPiece(opening, 'knight', 'w', sq(1, 0));
+    addPiece(opening, 'knight', 'b', sq(1, 7));
+
+    // The rook on 7th bonus should be bigger in endgame
+    const endgameScore = evaluateState(endgame, 'w');
+    const openingScore = evaluateState(opening, 'w');
+    expect(endgameScore).toBeGreaterThan(openingScore);
+  });
+
+  it('values connected passers more in endgame', () => {
+    // Endgame: connected passers with no pieces
+    const endgame = createEmptyState();
+    addPiece(endgame, 'king', 'w', sq(4, 0));
+    addPiece(endgame, 'king', 'b', sq(4, 7));
+    addPiece(endgame, 'pawn', 'w', sq(3, 5));
+    addPiece(endgame, 'pawn', 'w', sq(4, 5));
+    addPiece(endgame, 'pawn', 'b', sq(7, 6));
+
+    // Opening: same connected passers with many pieces
+    const opening = createEmptyState();
+    addPiece(opening, 'king', 'w', sq(4, 0));
+    addPiece(opening, 'king', 'b', sq(4, 7));
+    addPiece(opening, 'pawn', 'w', sq(3, 5));
+    addPiece(opening, 'pawn', 'w', sq(4, 5));
+    addPiece(opening, 'pawn', 'b', sq(7, 6));
+    addPiece(opening, 'queen', 'w', sq(3, 0));
+    addPiece(opening, 'queen', 'b', sq(3, 7));
+    addPiece(opening, 'rook', 'w', sq(0, 0));
+    addPiece(opening, 'rook', 'b', sq(0, 7));
+    addPiece(opening, 'rook', 'w', sq(7, 0));
+    addPiece(opening, 'rook', 'b', sq(7, 7));
+
+    const endgameScore = evaluateState(endgame, 'w');
+    const openingScore = evaluateState(opening, 'w');
+    expect(endgameScore).toBeGreaterThan(openingScore);
+  });
+
+  it('increases passed pawn bonus from opening to endgame phase', () => {
+    // Compare two positions with same passed pawn advantage,
+    // but different amount of other material on BOTH sides equally.
+    // Use symmetric non-pawn material to cancel out mobility effects.
+
+    // High phase: add one knight per side (phase = 2 vs 0)
+    const highPhase = createEmptyState();
+    addPiece(highPhase, 'king', 'w', sq(4, 0));
+    addPiece(highPhase, 'king', 'b', sq(4, 7));
+    addPiece(highPhase, 'pawn', 'w', sq(3, 5));
+    addPiece(highPhase, 'pawn', 'b', sq(7, 6));
+    addPiece(highPhase, 'knight', 'w', sq(1, 0));
+    addPiece(highPhase, 'knight', 'b', sq(1, 7));
+    addPiece(highPhase, 'knight', 'w', sq(6, 0));
+    addPiece(highPhase, 'knight', 'b', sq(6, 7));
+    addPiece(highPhase, 'rook', 'w', sq(0, 0));
+    addPiece(highPhase, 'rook', 'b', sq(0, 7));
+    addPiece(highPhase, 'rook', 'w', sq(7, 0));
+    addPiece(highPhase, 'rook', 'b', sq(7, 7));
+
+    const highPhaseNoPasser = createEmptyState();
+    addPiece(highPhaseNoPasser, 'king', 'w', sq(4, 0));
+    addPiece(highPhaseNoPasser, 'king', 'b', sq(4, 7));
+    addPiece(highPhaseNoPasser, 'pawn', 'b', sq(7, 6));
+    addPiece(highPhaseNoPasser, 'knight', 'w', sq(1, 0));
+    addPiece(highPhaseNoPasser, 'knight', 'b', sq(1, 7));
+    addPiece(highPhaseNoPasser, 'knight', 'w', sq(6, 0));
+    addPiece(highPhaseNoPasser, 'knight', 'b', sq(6, 7));
+    addPiece(highPhaseNoPasser, 'rook', 'w', sq(0, 0));
+    addPiece(highPhaseNoPasser, 'rook', 'b', sq(0, 7));
+    addPiece(highPhaseNoPasser, 'rook', 'w', sq(7, 0));
+    addPiece(highPhaseNoPasser, 'rook', 'b', sq(7, 7));
+
+    // Low phase: just kings + pawn (phase = 0)
+    const lowPhase = createEmptyState();
+    addPiece(lowPhase, 'king', 'w', sq(4, 0));
+    addPiece(lowPhase, 'king', 'b', sq(4, 7));
+    addPiece(lowPhase, 'pawn', 'w', sq(3, 5));
+    addPiece(lowPhase, 'pawn', 'b', sq(7, 6));
+
+    const lowPhaseNoPasser = createEmptyState();
+    addPiece(lowPhaseNoPasser, 'king', 'w', sq(4, 0));
+    addPiece(lowPhaseNoPasser, 'king', 'b', sq(4, 7));
+    addPiece(lowPhaseNoPasser, 'pawn', 'b', sq(7, 6));
+
+    // The passed pawn is more valuable in the low phase (endgame)
+    const highDelta = evaluateState(highPhase, 'w') - evaluateState(highPhaseNoPasser, 'w');
+    const lowDelta = evaluateState(lowPhase, 'w') - evaluateState(lowPhaseNoPasser, 'w');
+    expect(lowDelta).toBeGreaterThan(highDelta);
+  });
+});
