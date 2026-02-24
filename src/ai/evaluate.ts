@@ -57,6 +57,14 @@ const PASSED_PAWN_RANK_BONUS = 10;
 // Bishop pair
 const BISHOP_PAIR_BONUS = 30;
 
+// Rook on 7th rank
+const ROOK_ON_7TH_BONUS = 25;
+const ROOK_ON_7TH_KING_TRAPPED_BONUS = 10;
+
+// Connected passed pawns
+const CONNECTED_PASSED_PAWN_BONUS = 15;
+const CONNECTED_PASSED_PAWN_RANK_BONUS = 5;
+
 const KNIGHT_PST = [
   -50, -40, -30, -30, -30, -30, -40, -50,
   -40, -20, 0, 0, 0, 0, -20, -40,
@@ -91,6 +99,7 @@ type EvalContext = {
   rookQueenFiles: Record<Color, boolean[]>;
   queenCount: number;
   bishopCount: Record<Color, number>;
+  rookSquares: Record<Color, { file: number; rank: number }[]>;
   phaseFactor: number;
 };
 
@@ -114,6 +123,7 @@ export function evaluateState(
   };
   let queenCount = 0;
   const bishopCount: Record<Color, number> = { w: 0, b: 0 };
+  const rookSquares: Record<Color, { file: number; rank: number }[]> = { w: [], b: [] };
   let material = 0;
   for (const piece of state.pieces.values()) {
     const value = PIECE_VALUES[piece.type];
@@ -134,6 +144,9 @@ export function evaluateState(
     }
     if (piece.type === 'rook' || piece.type === 'queen') {
       rookQueenFiles[piece.color][square.file] = true;
+    }
+    if (piece.type === 'rook') {
+      rookSquares[piece.color].push(square);
     }
   }
 
@@ -156,6 +169,7 @@ export function evaluateState(
     rookQueenFiles,
     queenCount,
     bishopCount,
+    rookSquares,
     phaseFactor: getPhaseFactor(state.fullmoveNumber)
   };
   const kingExposure =
@@ -171,6 +185,8 @@ export function evaluateState(
         CORE_EARLY_QUEEN_PENALTY_SCALE;
   const pawnStructure =
     pawnStructureScore(context, 'w') - pawnStructureScore(context, 'b');
+  const rookSeventh =
+    rookOn7thScore(state, context, 'w') - rookOn7thScore(state, context, 'b');
   const maxScore = options.maxThinking ? evaluateMaxThinking(state, context) : 0;
   const classicalScore =
     material +
@@ -181,6 +197,7 @@ export function evaluateState(
     filePressure +
     coreEarlyQueen +
     pawnStructure +
+    rookSeventh +
     maxScore;
 
   const nnueMix = options.maxThinking
@@ -343,6 +360,7 @@ function filePressureScore(state: GameState, context: EvalContext): number {
 function pawnStructureScore(context: EvalContext, color: Color): number {
   const opp = opponentColor(color);
   let score = 0;
+  const passedPawns: { file: number; rank: number }[] = [];
 
   for (let file = 0; file < 8; file += 1) {
     const count = context.pawnFiles[color][file];
@@ -367,9 +385,13 @@ function pawnStructureScore(context: EvalContext, color: Color): number {
     for (const rank of ranks) {
       if (isPassedPawn(context, color, file, rank, opp)) {
         score += passedPawnBonus(color, rank);
+        passedPawns.push({ file, rank });
       }
     }
   }
+
+  // Connected passed pawns: bonus for passed pawns on adjacent files
+  score += connectedPassedPawnBonus(passedPawns, color);
 
   return score;
 }
@@ -410,6 +432,29 @@ function passedPawnBonus(color: Color, rank: number): number {
   return PASSED_PAWN_BASE_BONUS + advancedRanks * PASSED_PAWN_RANK_BONUS;
 }
 
+function connectedPassedPawnBonus(
+  passedPawns: { file: number; rank: number }[],
+  color: Color
+): number {
+  if (passedPawns.length < 2) {
+    return 0;
+  }
+  let bonus = 0;
+  const sorted = passedPawns.slice().sort((a, b) => a.file - b.file);
+  for (let i = 0; i < sorted.length - 1; i += 1) {
+    if (sorted[i + 1].file - sorted[i].file === 1) {
+      const moreAdvanced = color === 'w'
+        ? Math.max(sorted[i].rank, sorted[i + 1].rank)
+        : Math.min(sorted[i].rank, sorted[i + 1].rank);
+      const advancedRanks = color === 'w'
+        ? Math.max(0, moreAdvanced - 3)
+        : Math.max(0, 4 - moreAdvanced);
+      bonus += CONNECTED_PASSED_PAWN_BONUS + advancedRanks * CONNECTED_PASSED_PAWN_RANK_BONUS;
+    }
+  }
+  return bonus;
+}
+
 function bishopPairScore(context: EvalContext, color: Color): number {
   if (context.bishopCount[color] >= 2) {
     const opp = opponentColor(color);
@@ -418,6 +463,25 @@ function bishopPairScore(context: EvalContext, color: Color): number {
     }
   }
   return 0;
+}
+
+function rookOn7thScore(state: GameState, context: EvalContext, color: Color): number {
+  const seventhRank = color === 'w' ? 6 : 1;
+  const eighthRank = color === 'w' ? 7 : 0;
+  const opp = opponentColor(color);
+  const oppKingSquare = findKingSquare(state, opp);
+  const oppKingOnBackRank = oppKingSquare !== null && oppKingSquare.rank === eighthRank;
+
+  let score = 0;
+  for (const sq of context.rookSquares[color]) {
+    if (sq.rank === seventhRank) {
+      score += ROOK_ON_7TH_BONUS;
+      if (oppKingOnBackRank) {
+        score += ROOK_ON_7TH_KING_TRAPPED_BONUS;
+      }
+    }
+  }
+  return score;
 }
 
 function kingRingPenaltyScore(

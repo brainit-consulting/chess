@@ -2164,3 +2164,115 @@ describe('pawn structure evaluation', () => {
     expect(separatedHard).toBeGreaterThan(doubledHard);
   });
 });
+
+describe('rook on 7th rank and connected passed pawns', () => {
+  it('awards a bonus for a white rook on the 7th rank', () => {
+    const on7th = createEmptyState();
+    addPiece(on7th, 'king', 'w', sq(4, 0));
+    addPiece(on7th, 'king', 'b', sq(4, 7));
+    addPiece(on7th, 'rook', 'w', sq(0, 6));
+
+    const notOn7th = createEmptyState();
+    addPiece(notOn7th, 'king', 'w', sq(4, 0));
+    addPiece(notOn7th, 'king', 'b', sq(4, 7));
+    addPiece(notOn7th, 'rook', 'w', sq(0, 3));
+
+    const score7th = evaluateState(on7th, 'w');
+    const scoreOther = evaluateState(notOn7th, 'w');
+    expect(score7th).toBeGreaterThan(scoreOther);
+  });
+
+  it('awards a bonus for a black rook on the 2nd rank', () => {
+    const on2nd = createEmptyState();
+    addPiece(on2nd, 'king', 'w', sq(4, 0));
+    addPiece(on2nd, 'king', 'b', sq(4, 7));
+    addPiece(on2nd, 'rook', 'b', sq(0, 1));
+
+    const notOn2nd = createEmptyState();
+    addPiece(notOn2nd, 'king', 'w', sq(4, 0));
+    addPiece(notOn2nd, 'king', 'b', sq(4, 7));
+    addPiece(notOn2nd, 'rook', 'b', sq(0, 4));
+
+    const score2nd = evaluateState(on2nd, 'b');
+    const scoreOther = evaluateState(notOn2nd, 'b');
+    expect(score2nd).toBeGreaterThan(scoreOther);
+  });
+
+  it('gives extra bonus when opponent king is on the back rank', () => {
+    const kingBack = createEmptyState();
+    addPiece(kingBack, 'king', 'w', sq(4, 0));
+    addPiece(kingBack, 'king', 'b', sq(4, 7));
+    addPiece(kingBack, 'rook', 'w', sq(0, 6));
+
+    const kingNotBack = createEmptyState();
+    addPiece(kingNotBack, 'king', 'w', sq(4, 0));
+    addPiece(kingNotBack, 'king', 'b', sq(4, 5));
+    addPiece(kingNotBack, 'rook', 'w', sq(0, 6));
+
+    const scoreKingBack = evaluateState(kingBack, 'w');
+    const scoreKingNotBack = evaluateState(kingNotBack, 'w');
+    expect(scoreKingBack).toBeGreaterThan(scoreKingNotBack);
+  });
+
+  it('rewards connected passed pawns', () => {
+    const connected = createEmptyState();
+    addPiece(connected, 'king', 'w', sq(4, 0));
+    addPiece(connected, 'king', 'b', sq(4, 7));
+    addPiece(connected, 'pawn', 'w', sq(3, 4));
+    addPiece(connected, 'pawn', 'w', sq(4, 4));
+    addPiece(connected, 'pawn', 'b', sq(7, 6));
+
+    const separated = createEmptyState();
+    addPiece(separated, 'king', 'w', sq(4, 0));
+    addPiece(separated, 'king', 'b', sq(4, 7));
+    addPiece(separated, 'pawn', 'w', sq(1, 4));
+    addPiece(separated, 'pawn', 'w', sq(4, 4));
+    addPiece(separated, 'pawn', 'b', sq(7, 6));
+
+    const connectedScore = evaluateState(connected, 'w');
+    const separatedScore = evaluateState(separated, 'w');
+    expect(connectedScore).toBeGreaterThan(separatedScore);
+  });
+
+  it('gives higher connected passer bonus for more advanced pawns', () => {
+    const advanced = createEmptyState();
+    addPiece(advanced, 'king', 'w', sq(4, 0));
+    addPiece(advanced, 'king', 'b', sq(4, 7));
+    addPiece(advanced, 'pawn', 'w', sq(3, 5));
+    addPiece(advanced, 'pawn', 'w', sq(4, 5));
+    addPiece(advanced, 'pawn', 'b', sq(7, 6));
+
+    const lessAdvanced = createEmptyState();
+    addPiece(lessAdvanced, 'king', 'w', sq(4, 0));
+    addPiece(lessAdvanced, 'king', 'b', sq(4, 7));
+    addPiece(lessAdvanced, 'pawn', 'w', sq(3, 3));
+    addPiece(lessAdvanced, 'pawn', 'w', sq(4, 3));
+    addPiece(lessAdvanced, 'pawn', 'b', sq(7, 6));
+
+    const advancedScore = evaluateState(advanced, 'w');
+    const lessAdvancedScore = evaluateState(lessAdvanced, 'w');
+    expect(advancedScore).toBeGreaterThan(lessAdvancedScore);
+  });
+
+  it('applies rook on 7th and connected passers at all difficulty levels', () => {
+    const withBonuses = createEmptyState();
+    addPiece(withBonuses, 'king', 'w', sq(4, 0));
+    addPiece(withBonuses, 'king', 'b', sq(4, 7));
+    addPiece(withBonuses, 'rook', 'w', sq(0, 6));
+    addPiece(withBonuses, 'pawn', 'w', sq(3, 4));
+    addPiece(withBonuses, 'pawn', 'w', sq(4, 4));
+    addPiece(withBonuses, 'pawn', 'b', sq(7, 6));
+
+    const without = createEmptyState();
+    addPiece(without, 'king', 'w', sq(4, 0));
+    addPiece(without, 'king', 'b', sq(4, 7));
+    addPiece(without, 'rook', 'w', sq(0, 3));
+    addPiece(without, 'pawn', 'w', sq(1, 4));
+    addPiece(without, 'pawn', 'w', sq(4, 4));
+    addPiece(without, 'pawn', 'b', sq(7, 6));
+
+    const withHard = evaluateState(withBonuses, 'w', { maxThinking: false });
+    const withoutHard = evaluateState(without, 'w', { maxThinking: false });
+    expect(withHard).toBeGreaterThan(withoutHard);
+  });
+});
