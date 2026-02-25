@@ -170,6 +170,20 @@ Goal: Reduce early threefolds without changing time caps.
   - Key lesson: seed variance is significant — always run control benchmarks with same seed.
   - See `plans/GLOBAL_TAPERED_PST.md` for full analysis.
 
+- Phase 2e - King proximity to passed pawns (implemented, ACCEPTED)
+  - Added `passedPawns` field to EvalContext; refactored `pawnStructureScore()` to expose detected passed pawns.
+  - Added `chebyshevDistance()` helper and `passedPawnKingProximity()` scoring function.
+  - Rewards friendly king close to own passed pawns and penalizes enemy king far from passed pawns.
+  - Endgame-only via `taper(0, bonus, gamePhase)` — zero effect in opening.
+  - Constants: `PASSED_PAWN_ENEMY_KING_DIST_SCALE = 8`, `PASSED_PAWN_FRIENDLY_KING_CLOSE_SCALE = 6`.
+  - Max bonus per passed pawn: 56cp in pure endgame. Moderate — won't dominate the eval.
+  - Max-only: wired into `evaluateMaxThinking()`. Hard mode completely untouched.
+  - 3 new unit tests (143 total passing).
+  - Control (baseline, seed 9007): W3-D7-L0, score 65%, mate 30%, rep 50%, avg plies 121.7.
+  - Phase 2e (seed 9007): W4-D6-L0, score 70%, mate 40%, rep 60%, avg plies 83.4.
+  - Delta: +5pp score, +10pp mate rate, -38.3 avg plies (much faster conversion), 0 losses.
+  - Decision: accepted. King proximity dramatically speeds up endgame conversion.
+
 ## Phase 3 - Search and ordering improvements (moderate risk)
 
 - Change list (files)

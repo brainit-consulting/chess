@@ -79,6 +79,10 @@ const CONNECTED_PASSED_PAWN_BONUS_ENDGAME = 25;
 const CONNECTED_PASSED_PAWN_RANK_BONUS_OPENING = 5;
 const CONNECTED_PASSED_PAWN_RANK_BONUS_ENDGAME = 8;
 
+// King proximity to passed pawns (Max-only, endgame-tapered)
+const PASSED_PAWN_ENEMY_KING_DIST_SCALE = 8;
+const PASSED_PAWN_FRIENDLY_KING_CLOSE_SCALE = 6;
+
 const KNIGHT_PST_OPENING = [
   -50, -40, -30, -30, -30, -30, -40, -50,
   -40, -20, 0, 0, 0, 0, -20, -40,
@@ -136,6 +140,7 @@ type EvalContext = {
   queenCount: number;
   bishopCount: Record<Color, number>;
   rookSquares: Record<Color, { file: number; rank: number }[]>;
+  passedPawns: Record<Color, { file: number; rank: number }[]>;
   phaseFactor: number;
   gamePhase: number;
 };
@@ -207,6 +212,7 @@ export function evaluateState(
     queenCount,
     bishopCount,
     rookSquares,
+    passedPawns: { w: [], b: [] },
     phaseFactor: getPhaseFactor(state.fullmoveNumber),
     gamePhase: calculateGamePhase(state)
   };
@@ -287,7 +293,9 @@ function evaluateMaxThinking(state: GameState, context: EvalContext): number {
     pieceSquareScore(state, context, 'w') -
     pieceSquareScore(state, context, 'b') +
     bishopPairScore(context, 'w') -
-    bishopPairScore(context, 'b')
+    bishopPairScore(context, 'b') +
+    passedPawnKingProximity(state, context, 'w') -
+    passedPawnKingProximity(state, context, 'b')
   );
 }
 
@@ -416,7 +424,6 @@ function pawnStructureScore(context: EvalContext, color: Color): number {
   const opp = opponentColor(color);
   const phase = context.gamePhase;
   let score = 0;
-  const passedPawns: { file: number; rank: number }[] = [];
 
   for (let file = 0; file < 8; file += 1) {
     const count = context.pawnFiles[color][file];
@@ -441,13 +448,13 @@ function pawnStructureScore(context: EvalContext, color: Color): number {
     for (const rank of ranks) {
       if (isPassedPawn(context, color, file, rank, opp)) {
         score += passedPawnBonus(color, rank, phase);
-        passedPawns.push({ file, rank });
+        context.passedPawns[color].push({ file, rank });
       }
     }
   }
 
   // Connected passed pawns: bonus for passed pawns on adjacent files
-  score += connectedPassedPawnBonus(passedPawns, color, phase);
+  score += connectedPassedPawnBonus(context.passedPawns[color], color, phase);
 
   return score;
 }
@@ -512,6 +519,50 @@ function connectedPassedPawnBonus(
     }
   }
   return bonus;
+}
+
+function chebyshevDistance(
+  f1: number, r1: number,
+  f2: number, r2: number
+): number {
+  return Math.max(Math.abs(f1 - f2), Math.abs(r1 - r2));
+}
+
+function passedPawnKingProximity(
+  state: GameState,
+  context: EvalContext,
+  color: Color
+): number {
+  const pawns = context.passedPawns[color];
+  if (pawns.length === 0) return 0;
+
+  const opp = opponentColor(color);
+  const friendlyKing = findKingSquare(state, color);
+  const enemyKing = findKingSquare(state, opp);
+  if (!friendlyKing || !enemyKing) return 0;
+
+  let score = 0;
+  for (const pawn of pawns) {
+    const friendlyDist = chebyshevDistance(
+      friendlyKing.file, friendlyKing.rank,
+      pawn.file, pawn.rank
+    );
+    const enemyDist = chebyshevDistance(
+      enemyKing.file, enemyKing.rank,
+      pawn.file, pawn.rank
+    );
+
+    // Bonus when enemy king is far from our passed pawn (can't block)
+    const enemyFarBonus = Math.min(Math.max(enemyDist - 2, 0), 4)
+      * PASSED_PAWN_ENEMY_KING_DIST_SCALE;
+
+    // Bonus when friendly king is close to our passed pawn (supporting)
+    const friendlyCloseBonus = Math.min(Math.max(4 - friendlyDist, 0), 4)
+      * PASSED_PAWN_FRIENDLY_KING_CLOSE_SCALE;
+
+    score += taper(0, enemyFarBonus + friendlyCloseBonus, context.gamePhase);
+  }
+  return score;
 }
 
 function bishopPairScore(context: EvalContext, color: Color): number {

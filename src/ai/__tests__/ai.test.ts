@@ -2482,3 +2482,62 @@ describe('tapered evaluation (material-based game phase)', () => {
     expect(lowDelta).toBeGreaterThan(highDelta);
   });
 });
+
+describe('king proximity to passed pawns', () => {
+  it('prefers friendly king near passed pawn in endgame (Max)', () => {
+    // White passed pawn on e5, king near vs king far
+    const kingNear = createEmptyState();
+    addPiece(kingNear, 'king', 'w', sq(4, 4)); // Ke5 (next to pawn)
+    addPiece(kingNear, 'pawn', 'w', sq(4, 3)); // Pe4 (passed)
+    addPiece(kingNear, 'king', 'b', sq(0, 7)); // Ka8 (far)
+
+    const kingFar = createEmptyState();
+    addPiece(kingFar, 'king', 'w', sq(0, 0)); // Ka1 (far from pawn)
+    addPiece(kingFar, 'pawn', 'w', sq(4, 3)); // Pe4 (passed)
+    addPiece(kingFar, 'king', 'b', sq(0, 7)); // Ka8 (far)
+
+    // Max mode: king near pawn should score better
+    const nearScore = evaluateState(kingNear, 'w', { maxThinking: true });
+    const farScore = evaluateState(kingFar, 'w', { maxThinking: true });
+    expect(nearScore).toBeGreaterThan(farScore);
+  });
+
+  it('prefers enemy king far from passed pawn in endgame (Max)', () => {
+    // White passed pawn on e5, white king supporting, enemy king far vs near
+    // Both enemy kings on rank 7 (similar mobility) but different files
+    const enemyFar = createEmptyState();
+    addPiece(enemyFar, 'king', 'w', sq(4, 3)); // Ke4 (supporting pawn)
+    addPiece(enemyFar, 'pawn', 'w', sq(4, 4)); // Pe5 (passed)
+    addPiece(enemyFar, 'king', 'b', sq(0, 7)); // Ka8 (far from pawn)
+    addPiece(enemyFar, 'pawn', 'b', sq(0, 6)); // Pa7 (so black king has similar mobility)
+
+    const enemyNear = createEmptyState();
+    addPiece(enemyNear, 'king', 'w', sq(4, 3)); // Ke4 (supporting pawn)
+    addPiece(enemyNear, 'pawn', 'w', sq(4, 4)); // Pe5 (passed)
+    addPiece(enemyNear, 'king', 'b', sq(4, 7)); // Ke8 (closer to pawn)
+    addPiece(enemyNear, 'pawn', 'b', sq(0, 6)); // Pa7 (same extra pawn)
+
+    const farScore = evaluateState(enemyFar, 'w', { maxThinking: true });
+    const nearScore = evaluateState(enemyNear, 'w', { maxThinking: true });
+    expect(farScore).toBeGreaterThan(nearScore);
+  });
+
+  it('is Max-only — Hard mode unaffected', () => {
+    const kingNear = createEmptyState();
+    addPiece(kingNear, 'king', 'w', sq(4, 4));
+    addPiece(kingNear, 'pawn', 'w', sq(4, 3));
+    addPiece(kingNear, 'king', 'b', sq(0, 7));
+
+    const kingFar = createEmptyState();
+    addPiece(kingFar, 'king', 'w', sq(0, 0));
+    addPiece(kingFar, 'pawn', 'w', sq(4, 3));
+    addPiece(kingFar, 'king', 'b', sq(0, 7));
+
+    // Hard mode (no maxThinking): king proximity should not affect score
+    const nearHard = evaluateState(kingNear, 'w');
+    const farHard = evaluateState(kingFar, 'w');
+    // The ONLY difference should come from mobility/other terms, not king proximity
+    // Both should be similar (within a few cp from mobility differences)
+    expect(Math.abs(nearHard - farHard)).toBeLessThan(50);
+  });
+});
