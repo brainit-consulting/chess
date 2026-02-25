@@ -79,7 +79,7 @@ const CONNECTED_PASSED_PAWN_BONUS_ENDGAME = 25;
 const CONNECTED_PASSED_PAWN_RANK_BONUS_OPENING = 5;
 const CONNECTED_PASSED_PAWN_RANK_BONUS_ENDGAME = 8;
 
-const KNIGHT_PST = [
+const KNIGHT_PST_OPENING = [
   -50, -40, -30, -30, -30, -30, -40, -50,
   -40, -20, 0, 0, 0, 0, -20, -40,
   -30, 0, 10, 15, 15, 10, 0, -30,
@@ -90,7 +90,18 @@ const KNIGHT_PST = [
   -50, -40, -30, -30, -30, -30, -40, -50
 ];
 
-const BISHOP_PST = [
+const KNIGHT_PST_ENDGAME = [
+  -40, -30, -20, -20, -20, -20, -30, -40,
+  -30, -10,   5,   5,   5,   5, -10, -30,
+  -20,   5,  15,  20,  20,  15,   5, -20,
+  -20,   5,  20,  25,  25,  20,   5, -20,
+  -20,   5,  20,  25,  25,  20,   5, -20,
+  -20,   5,  15,  20,  20,  15,   5, -20,
+  -30, -10,   5,   5,   5,   5, -10, -30,
+  -40, -30, -20, -20, -20, -20, -30, -40
+];
+
+const BISHOP_PST_OPENING = [
   -20, -10, -10, -10, -10, -10, -10, -20,
   -10, 0, 0, 0, 0, 0, 0, -10,
   -10, 0, 5, 10, 10, 5, 0, -10,
@@ -99,6 +110,17 @@ const BISHOP_PST = [
   -10, 10, 10, 10, 10, 10, 10, -10,
   -10, 5, 0, 0, 0, 0, 5, -10,
   -20, -10, -10, -10, -10, -10, -10, -20
+];
+
+const BISHOP_PST_ENDGAME = [
+  -15, -10, -10, -10, -10, -10, -10, -15,
+  -10,   0,   0,   5,   5,   0,   0, -10,
+  -10,   0,  10,  10,  10,  10,   0, -10,
+  -10,   5,  10,  15,  15,  10,   5, -10,
+  -10,   5,  10,  15,  15,  10,   5, -10,
+  -10,   0,  10,  10,  10,  10,   0, -10,
+  -10,   0,   0,   5,   5,   0,   0, -10,
+  -15, -10, -10, -10, -10, -10, -10, -15
 ];
 
 type EvalOptions = {
@@ -262,8 +284,8 @@ function evaluateMaxThinking(state: GameState, context: EvalContext): number {
     maxKingShieldScore(state, context, 'b') +
     earlyQueenScore(state, squares, 'w') -
     earlyQueenScore(state, squares, 'b') +
-    pieceSquareScore(state, squares, 'w') -
-    pieceSquareScore(state, squares, 'b') +
+    pieceSquareScore(state, context, 'w') -
+    pieceSquareScore(state, context, 'b') +
     bishopPairScore(context, 'w') -
     bishopPairScore(context, 'b')
   );
@@ -825,27 +847,24 @@ function earlyQueenScore(
 
 function pieceSquareScore(
   state: GameState,
-  squares: Map<number, { file: number; rank: number }>,
+  context: EvalContext,
   color: Color
 ): number {
   let score = 0;
   for (const piece of state.pieces.values()) {
-    if (piece.color !== color) {
-      continue;
-    }
-    if (piece.type !== 'knight' && piece.type !== 'bishop') {
-      continue;
-    }
-    const square = squares.get(piece.id);
-    if (!square) {
-      continue;
-    }
+    if (piece.color !== color) continue;
+    if (piece.type !== 'knight' && piece.type !== 'bishop') continue;
+    const square = context.squares.get(piece.id);
+    if (!square) continue;
     const index =
       color === 'w'
         ? square.rank * 8 + square.file
         : (7 - square.rank) * 8 + square.file;
-    const table = piece.type === 'knight' ? KNIGHT_PST : BISHOP_PST;
-    score += table[index];
+    if (piece.type === 'knight') {
+      score += taper(KNIGHT_PST_OPENING[index], KNIGHT_PST_ENDGAME[index], context.gamePhase);
+    } else {
+      score += taper(BISHOP_PST_OPENING[index], BISHOP_PST_ENDGAME[index], context.gamePhase);
+    }
   }
   return score;
 }

@@ -156,6 +156,20 @@ Goal: Reduce early threefolds without changing time caps.
   - Reverted. Requires SEE infrastructure (Phase 7+ scope) to be effective.
   - See `plans/HANGING_PIECE_PENALTY.md` for full analysis.
 
+- Phase 2d - Max-only tapered piece-square tables (implemented, ACCEPTED)
+  - Added endgame PST variants for knight and bishop (Max-only `pieceSquareScore()`).
+  - Renamed `KNIGHT_PST` → `KNIGHT_PST_OPENING`, `BISHOP_PST` → `BISHOP_PST_OPENING`.
+  - Added `KNIGHT_PST_ENDGAME` (max 25cp center) and `BISHOP_PST_ENDGAME` (max 15cp center).
+  - Uses `taper()` to blend opening/endgame values based on material game phase.
+  - Hard mode completely untouched — change only affects Max difficulty.
+  - v1 (all PSTs global, seed 9004): REJECTED — score dropped to 70%, closed Hard-Max gap.
+  - v2 (king centralization all levels + Max PSTs, seed 9005): REJECTED — score 60%, mate 20%.
+  - v3 (Max-only tapered PSTs, seed 9006): ACCEPTED.
+  - Control experiment (baseline code, seed 9006): score 60%, W3-D6-L1, confirmed seed variance.
+  - v3 vs control: score 70% vs 60% (+10pp), losses 0 vs 1, rep rate 50% vs 60%.
+  - Key lesson: seed variance is significant — always run control benchmarks with same seed.
+  - See `plans/GLOBAL_TAPERED_PST.md` for full analysis.
+
 ## Phase 3 - Search and ordering improvements (moderate risk)
 
 - Change list (files)
