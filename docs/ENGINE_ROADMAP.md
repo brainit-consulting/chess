@@ -184,6 +184,18 @@ Goal: Reduce early threefolds without changing time caps.
   - Delta: +5pp score, +10pp mate rate, -38.3 avg plies (much faster conversion), 0 losses.
   - Decision: accepted. King proximity dramatically speeds up endgame conversion.
 
+- Phase 2f - Max-only king endgame centralization PST (implemented, ACCEPTED)
+  - Added `KING_PST_ENDGAME` table (64 values, max 25cp center, -20cp corners).
+  - Added `kingEndgamePst()` function using `taper(0, endgame_value, gamePhase)` — zero opening effect.
+  - Max-only: wired into `evaluateMaxThinking()`. Hard mode completely untouched.
+  - Addresses perpetual check draws: winning side's king centralizes in endgame, harder to perpetual-check.
+  - Phase 2d-v2 tried king centralization globally and was REJECTED; Max-only version succeeds.
+  - 3 new unit tests (146 total passing).
+  - Control (baseline, seed 9008): W2-D7-L1, score 55%, mate 30%, rep 60%, avg plies 107.9.
+  - Phase 2f (seed 9008): W4-D6-L0, score 70%, mate 40%, rep 30%, avg plies 119.4.
+  - Delta: +15pp score, +10pp mate rate, -30pp rep rate, 0 losses vs 1, games +11.5 plies.
+  - Decision: accepted. Strongest single improvement so far — halved repetition rate and eliminated losses.
+
 ## Phase 3 - Search and ordering improvements (moderate risk)
 
 - Change list (files)

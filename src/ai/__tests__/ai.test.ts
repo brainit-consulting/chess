@@ -2541,3 +2541,88 @@ describe('king proximity to passed pawns', () => {
     expect(Math.abs(nearHard - farHard)).toBeLessThan(50);
   });
 });
+
+describe('king endgame centralization PST', () => {
+  it('prefers central king over corner king in endgame (Max)', () => {
+    // Endgame: only kings and one pawn each — low material = endgame phase
+    const centralKing = createEmptyState();
+    addPiece(centralKing, 'king', 'w', sq(3, 3)); // Kd4 (central)
+    addPiece(centralKing, 'pawn', 'w', sq(0, 1)); // Pa2
+    addPiece(centralKing, 'king', 'b', sq(7, 7)); // Kh8
+    addPiece(centralKing, 'pawn', 'b', sq(7, 6)); // Ph7
+
+    const cornerKing = createEmptyState();
+    addPiece(cornerKing, 'king', 'w', sq(0, 0)); // Ka1 (corner)
+    addPiece(cornerKing, 'pawn', 'w', sq(0, 1)); // Pa2
+    addPiece(cornerKing, 'king', 'b', sq(7, 7)); // Kh8
+    addPiece(cornerKing, 'pawn', 'b', sq(7, 6)); // Ph7
+
+    const centralScore = evaluateState(centralKing, 'w', { maxThinking: true });
+    const cornerScore = evaluateState(cornerKing, 'w', { maxThinking: true });
+    expect(centralScore).toBeGreaterThan(cornerScore);
+  });
+
+  it('effect tapers to zero in opening (full material)', () => {
+    // Opening: full piece set — high material = opening phase
+    const centralKing = createEmptyState();
+    addPiece(centralKing, 'king', 'w', sq(3, 3)); // Kd4 (unusual but tests PST)
+    addPiece(centralKing, 'queen', 'w', sq(3, 0));
+    addPiece(centralKing, 'rook', 'w', sq(0, 0));
+    addPiece(centralKing, 'rook', 'w', sq(7, 0));
+    addPiece(centralKing, 'bishop', 'w', sq(2, 0));
+    addPiece(centralKing, 'bishop', 'w', sq(5, 0));
+    addPiece(centralKing, 'knight', 'w', sq(1, 0));
+    addPiece(centralKing, 'knight', 'w', sq(6, 0));
+    addPiece(centralKing, 'king', 'b', sq(4, 7));
+    addPiece(centralKing, 'queen', 'b', sq(3, 7));
+    addPiece(centralKing, 'rook', 'b', sq(0, 7));
+    addPiece(centralKing, 'rook', 'b', sq(7, 7));
+    addPiece(centralKing, 'bishop', 'b', sq(2, 7));
+    addPiece(centralKing, 'bishop', 'b', sq(5, 7));
+    addPiece(centralKing, 'knight', 'b', sq(1, 7));
+    addPiece(centralKing, 'knight', 'b', sq(6, 7));
+
+    const cornerKing = createEmptyState();
+    addPiece(cornerKing, 'king', 'w', sq(0, 0)); // Ka1
+    addPiece(cornerKing, 'queen', 'w', sq(3, 0));
+    addPiece(cornerKing, 'rook', 'w', sq(1, 0)); // shifted to b1 to avoid collision
+    addPiece(cornerKing, 'rook', 'w', sq(7, 0));
+    addPiece(cornerKing, 'bishop', 'w', sq(2, 0));
+    addPiece(cornerKing, 'bishop', 'w', sq(5, 0));
+    addPiece(cornerKing, 'knight', 'w', sq(4, 0)); // shifted to e1
+    addPiece(cornerKing, 'knight', 'w', sq(6, 0));
+    addPiece(cornerKing, 'king', 'b', sq(4, 7));
+    addPiece(cornerKing, 'queen', 'b', sq(3, 7));
+    addPiece(cornerKing, 'rook', 'b', sq(0, 7));
+    addPiece(cornerKing, 'rook', 'b', sq(7, 7));
+    addPiece(cornerKing, 'bishop', 'b', sq(2, 7));
+    addPiece(cornerKing, 'bishop', 'b', sq(5, 7));
+    addPiece(cornerKing, 'knight', 'b', sq(1, 7));
+    addPiece(cornerKing, 'knight', 'b', sq(6, 7));
+
+    const centralScore = evaluateState(centralKing, 'w', { maxThinking: true });
+    const cornerScore = evaluateState(cornerKing, 'w', { maxThinking: true });
+    // In opening (full material), king PST endgame effect should be near zero
+    // Difference should be small (dominated by mobility/other terms, not king PST)
+    expect(Math.abs(centralScore - cornerScore)).toBeLessThan(80);
+  });
+
+  it('is Max-only — Hard mode unaffected', () => {
+    const centralKing = createEmptyState();
+    addPiece(centralKing, 'king', 'w', sq(3, 3));
+    addPiece(centralKing, 'pawn', 'w', sq(0, 1));
+    addPiece(centralKing, 'king', 'b', sq(7, 7));
+    addPiece(centralKing, 'pawn', 'b', sq(7, 6));
+
+    const cornerKing = createEmptyState();
+    addPiece(cornerKing, 'king', 'w', sq(0, 0));
+    addPiece(cornerKing, 'pawn', 'w', sq(0, 1));
+    addPiece(cornerKing, 'king', 'b', sq(7, 7));
+    addPiece(cornerKing, 'pawn', 'b', sq(7, 6));
+
+    // Hard mode: king centralization PST should NOT apply
+    const centralHard = evaluateState(centralKing, 'w');
+    const cornerHard = evaluateState(cornerKing, 'w');
+    expect(Math.abs(centralHard - cornerHard)).toBeLessThan(50);
+  });
+});

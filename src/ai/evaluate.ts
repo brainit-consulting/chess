@@ -127,6 +127,17 @@ const BISHOP_PST_ENDGAME = [
   -15, -10, -10, -10, -10, -10, -10, -15
 ];
 
+const KING_PST_ENDGAME = [
+  -20, -10,  -5,   0,   0,  -5, -10, -20,
+  -10,   0,   5,  10,  10,   5,   0, -10,
+   -5,   5,  15,  20,  20,  15,   5,  -5,
+    0,  10,  20,  25,  25,  20,  10,   0,
+    0,  10,  20,  25,  25,  20,  10,   0,
+   -5,   5,  15,  20,  20,  15,   5,  -5,
+  -10,   0,   5,  10,  10,   5,   0, -10,
+  -20, -10,  -5,   0,   0,  -5, -10, -20
+];
+
 type EvalOptions = {
   maxThinking?: boolean;
   nnueMix?: number;
@@ -295,7 +306,9 @@ function evaluateMaxThinking(state: GameState, context: EvalContext): number {
     bishopPairScore(context, 'w') -
     bishopPairScore(context, 'b') +
     passedPawnKingProximity(state, context, 'w') -
-    passedPawnKingProximity(state, context, 'b')
+    passedPawnKingProximity(state, context, 'b') +
+    kingEndgamePst(state, context, 'w') -
+    kingEndgamePst(state, context, 'b')
   );
 }
 
@@ -918,6 +931,20 @@ function pieceSquareScore(
     }
   }
   return score;
+}
+
+function kingEndgamePst(
+  state: GameState,
+  context: EvalContext,
+  color: Color
+): number {
+  const kingSquare = findKingSquare(state, color);
+  if (!kingSquare) return 0;
+  const index =
+    color === 'w'
+      ? kingSquare.rank * 8 + kingSquare.file
+      : (7 - kingSquare.rank) * 8 + kingSquare.file;
+  return taper(0, KING_PST_ENDGAME[index], context.gamePhase);
 }
 
 function countDevelopedMinors(
