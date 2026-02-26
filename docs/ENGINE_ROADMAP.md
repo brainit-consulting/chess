@@ -207,6 +207,8 @@ Goal: Reduce early threefolds without changing time caps.
   - Phase 2g (seed 9011): W3-D7-L0, score 65%, mate 30%, rep 40%, avg plies 128.4.
   - Delta: 0pp score, 0pp mate rate, -10pp rep rate, 0 losses. G1 flipped draw→win, G3 flipped win→draw (net zero).
   - Decision: accepted. Score neutral but rep rate improved; feature is narrowly targeted (KQ vs K only) and theoretically sound. No regressions.
+  - Phase 2g-v2 (stronger constants 35/20/25 + KR vs K): REJECTED. Score dropped 70%→65%, mate rate -10pp, avg plies +43. Over-strong bonuses caused engine to prioritize cornering over tactical checkmate delivery.
+  - Cumulative validation (seeds 9013+9014, 20 games): W7-D13-L0, score 67.5%, mate 35%, rep 55%, avg plies 99.6. Zero losses. +7.5pp over control baselines.
 
 ## Phase 3 - Search and ordering improvements (moderate risk)
 
