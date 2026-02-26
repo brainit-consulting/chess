@@ -2626,3 +2626,76 @@ describe('king endgame centralization PST', () => {
     expect(Math.abs(centralHard - cornerHard)).toBeLessThan(50);
   });
 });
+
+describe('lone king mating knowledge', () => {
+  it('prefers enemy king on edge over center in KQ vs K (Max)', () => {
+    // KQ vs K: enemy king on edge
+    const edgeKing = createEmptyState();
+    addPiece(edgeKing, 'king', 'w', sq(3, 3)); // Kd4
+    addPiece(edgeKing, 'queen', 'w', sq(4, 1)); // Qe2
+    addPiece(edgeKing, 'king', 'b', sq(3, 7)); // Kd8 (edge)
+
+    // KQ vs K: enemy king in center
+    const centerKing = createEmptyState();
+    addPiece(centerKing, 'king', 'w', sq(3, 3)); // Kd4
+    addPiece(centerKing, 'queen', 'w', sq(4, 1)); // Qe2
+    addPiece(centerKing, 'king', 'b', sq(3, 4)); // Kd5 (center)
+
+    const edgeScore = evaluateState(edgeKing, 'w', { maxThinking: true });
+    const centerScore = evaluateState(centerKing, 'w', { maxThinking: true });
+    expect(edgeScore).toBeGreaterThan(centerScore);
+  });
+
+  it('prefers enemy king in corner over edge in KQ vs K (Max)', () => {
+    // KQ vs K: enemy king in corner
+    const cornerKing = createEmptyState();
+    addPiece(cornerKing, 'king', 'w', sq(2, 2)); // Kc3
+    addPiece(cornerKing, 'queen', 'w', sq(4, 1)); // Qe2
+    addPiece(cornerKing, 'king', 'b', sq(0, 7)); // Ka8 (corner)
+
+    // KQ vs K: enemy king on edge but not corner
+    const edgeKing = createEmptyState();
+    addPiece(edgeKing, 'king', 'w', sq(2, 2)); // Kc3
+    addPiece(edgeKing, 'queen', 'w', sq(4, 1)); // Qe2
+    addPiece(edgeKing, 'king', 'b', sq(3, 7)); // Kd8 (edge, not corner)
+
+    const cornerScore = evaluateState(cornerKing, 'w', { maxThinking: true });
+    const edgeScore = evaluateState(edgeKing, 'w', { maxThinking: true });
+    expect(cornerScore).toBeGreaterThan(edgeScore);
+  });
+
+  it('prefers friendly king close to enemy king (Max)', () => {
+    // KQ vs K: friendly king close (both on b-file for similar mobility)
+    const kingClose = createEmptyState();
+    addPiece(kingClose, 'king', 'w', sq(1, 5)); // Kb6 (close to enemy at a8)
+    addPiece(kingClose, 'queen', 'w', sq(4, 3)); // Qe4
+    addPiece(kingClose, 'king', 'b', sq(0, 7)); // Ka8
+
+    // KQ vs K: friendly king far
+    const kingFar = createEmptyState();
+    addPiece(kingFar, 'king', 'w', sq(1, 1)); // Kb2 (far from enemy at a8)
+    addPiece(kingFar, 'queen', 'w', sq(4, 3)); // Qe4
+    addPiece(kingFar, 'king', 'b', sq(0, 7)); // Ka8
+
+    const closeScore = evaluateState(kingClose, 'w', { maxThinking: true });
+    const farScore = evaluateState(kingFar, 'w', { maxThinking: true });
+    expect(closeScore).toBeGreaterThan(farScore);
+  });
+
+  it('is Max-only — Hard mode unaffected', () => {
+    const edgeKing = createEmptyState();
+    addPiece(edgeKing, 'king', 'w', sq(3, 3));
+    addPiece(edgeKing, 'queen', 'w', sq(4, 1));
+    addPiece(edgeKing, 'king', 'b', sq(3, 7));
+
+    const centerKing = createEmptyState();
+    addPiece(centerKing, 'king', 'w', sq(3, 3));
+    addPiece(centerKing, 'queen', 'w', sq(4, 1));
+    addPiece(centerKing, 'king', 'b', sq(3, 4));
+
+    // Hard mode: lone king mating should NOT apply
+    const edgeHard = evaluateState(edgeKing, 'w');
+    const centerHard = evaluateState(centerKing, 'w');
+    expect(Math.abs(edgeHard - centerHard)).toBeLessThan(50);
+  });
+});

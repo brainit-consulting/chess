@@ -83,6 +83,11 @@ const CONNECTED_PASSED_PAWN_RANK_BONUS_ENDGAME = 8;
 const PASSED_PAWN_ENEMY_KING_DIST_SCALE = 8;
 const PASSED_PAWN_FRIENDLY_KING_CLOSE_SCALE = 6;
 
+// Lone king mating knowledge (Max-only)
+const LONE_KING_EDGE_BONUS = 15;
+const LONE_KING_CORNER_BONUS = 10;
+const LONE_KING_CLOSE_KING_BONUS = 12;
+
 const KNIGHT_PST_OPENING = [
   -50, -40, -30, -30, -30, -30, -40, -50,
   -40, -20, 0, 0, 0, 0, -20, -40,
@@ -308,7 +313,9 @@ function evaluateMaxThinking(state: GameState, context: EvalContext): number {
     passedPawnKingProximity(state, context, 'w') -
     passedPawnKingProximity(state, context, 'b') +
     kingEndgamePst(state, context, 'w') -
-    kingEndgamePst(state, context, 'b')
+    kingEndgamePst(state, context, 'b') +
+    loneKingMatingScore(state, context, 'w') -
+    loneKingMatingScore(state, context, 'b')
   );
 }
 
@@ -945,6 +952,56 @@ function kingEndgamePst(
       ? kingSquare.rank * 8 + kingSquare.file
       : (7 - kingSquare.rank) * 8 + kingSquare.file;
   return taper(0, KING_PST_ENDGAME[index], context.gamePhase);
+}
+
+function loneKingMatingScore(
+  state: GameState,
+  context: EvalContext,
+  winnerColor: Color
+): number {
+  const loserColor = opponentColor(winnerColor);
+
+  // Check if opponent has only a king
+  let loserHasOtherPieces = false;
+  let winnerHasQueen = false;
+  for (const piece of state.pieces.values()) {
+    if (piece.color === loserColor && piece.type !== 'king') {
+      loserHasOtherPieces = true;
+      break;
+    }
+    if (piece.color === winnerColor && piece.type === 'queen') {
+      winnerHasQueen = true;
+    }
+  }
+  if (loserHasOtherPieces || !winnerHasQueen) return 0;
+
+  const enemyKing = findKingSquare(state, loserColor);
+  const friendlyKing = findKingSquare(state, winnerColor);
+  if (!enemyKing || !friendlyKing) return 0;
+
+  // Edge distance: reward enemy king on edge/corner
+  const edgeDist = Math.min(
+    enemyKing.file, 7 - enemyKing.file,
+    enemyKing.rank, 7 - enemyKing.rank
+  );
+  const edgeBonus = (3 - edgeDist) * LONE_KING_EDGE_BONUS;
+
+  // Corner proximity: extra reward near nearest corner
+  const cornerFile = enemyKing.file <= 3 ? 0 : 7;
+  const cornerRank = enemyKing.rank <= 3 ? 0 : 7;
+  const cornerDist = chebyshevDistance(
+    enemyKing.file, enemyKing.rank, cornerFile, cornerRank
+  );
+  const cornerBonus = Math.max(0, 3 - cornerDist) * LONE_KING_CORNER_BONUS;
+
+  // King proximity: reward friendly king close to enemy king
+  const kingDist = chebyshevDistance(
+    friendlyKing.file, friendlyKing.rank,
+    enemyKing.file, enemyKing.rank
+  );
+  const closeBonus = Math.max(0, 7 - kingDist) * LONE_KING_CLOSE_KING_BONUS;
+
+  return edgeBonus + cornerBonus + closeBonus;
 }
 
 function countDevelopedMinors(

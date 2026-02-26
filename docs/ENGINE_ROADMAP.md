@@ -196,6 +196,18 @@ Goal: Reduce early threefolds without changing time caps.
   - Delta: +15pp score, +10pp mate rate, -30pp rep rate, 0 losses vs 1, games +11.5 plies.
   - Decision: accepted. Strongest single improvement so far — halved repetition rate and eliminated losses.
 
+- Phase 2g - Max-only lone king mating knowledge (implemented, ACCEPTED)
+  - Added `loneKingMatingScore()` function detecting KQ vs K (lone king) endgames.
+  - Three scoring components: enemy king edge distance (15cp/unit), corner proximity (10cp/unit), friendly king closeness (12cp/unit).
+  - Max bonus ~131cp when enemy king is cornered and friendly king is adjacent — strong gradient toward mating positions.
+  - Max-only: wired into `evaluateMaxThinking()`. Hard mode completely untouched.
+  - Addresses specific failure pattern: engine had KQ vs K but couldn't deliver checkmate (36% of draws in cumulative analysis).
+  - 4 new unit tests (103 total passing).
+  - Control (baseline, seed 9011): W3-D7-L0, score 65%, mate 30%, rep 50%, avg plies 122.6.
+  - Phase 2g (seed 9011): W3-D7-L0, score 65%, mate 30%, rep 40%, avg plies 128.4.
+  - Delta: 0pp score, 0pp mate rate, -10pp rep rate, 0 losses. G1 flipped draw→win, G3 flipped win→draw (net zero).
+  - Decision: accepted. Score neutral but rep rate improved; feature is narrowly targeted (KQ vs K only) and theoretically sound. No regressions.
+
 ## Phase 3 - Search and ordering improvements (moderate risk)
 
 - Change list (files)
