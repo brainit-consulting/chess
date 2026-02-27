@@ -216,6 +216,16 @@ Goal: Reduce early threefolds without changing time caps.
   - Phase 2h (seed 9015): W3-D6-L1, 55%, 16 Max timeouts.
   - Regression: score -15pp, 1 loss, massive timeout increase. Reverted.
 
+- Phase 2i - Max-only knight outpost bonus (implemented, ACCEPTED)
+  - Added `knightOutpostScore()` — 20cp bonus for knights on ranks 4-6 (white) or 2-4 (black), supported by a friendly pawn, and no enemy pawns on adjacent files that could attack.
+  - Uses existing `pawnRanks` infrastructure for efficient pawn lookups.
+  - Max-only: wired into `evaluateMaxThinking()`. Hard mode completely untouched.
+  - 3 new unit tests (106 total passing).
+  - Control (baseline, seed 9015): W4-D6-L0, score 70%, mate 40%, rep 60%, avg plies 94.9.
+  - Phase 2i (seed 9015): W6-D4-L0, score 80%, mate 60%, rep 40%, avg plies 72.7.
+  - Delta: +10pp score, +20pp mate rate, -20pp rep rate, -22 avg plies. Zero losses.
+  - Decision: accepted. Strong improvement across all metrics — best single result since Phase 2c.
+
 ## Phase 3 - Search and ordering improvements (moderate risk)
 
 - Change list (files)

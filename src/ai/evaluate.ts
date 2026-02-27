@@ -83,6 +83,9 @@ const CONNECTED_PASSED_PAWN_RANK_BONUS_ENDGAME = 8;
 const PASSED_PAWN_ENEMY_KING_DIST_SCALE = 8;
 const PASSED_PAWN_FRIENDLY_KING_CLOSE_SCALE = 6;
 
+// Knight outpost bonus (Max-only)
+const KNIGHT_OUTPOST_BONUS = 20;
+
 // Lone king mating knowledge (Max-only)
 const LONE_KING_EDGE_BONUS = 15;
 const LONE_KING_CORNER_BONUS = 10;
@@ -315,7 +318,9 @@ function evaluateMaxThinking(state: GameState, context: EvalContext): number {
     kingEndgamePst(state, context, 'w') -
     kingEndgamePst(state, context, 'b') +
     loneKingMatingScore(state, context, 'w') -
-    loneKingMatingScore(state, context, 'b')
+    loneKingMatingScore(state, context, 'b') +
+    knightOutpostScore(state, context, 'w') -
+    knightOutpostScore(state, context, 'b')
   );
 }
 
@@ -952,6 +957,48 @@ function kingEndgamePst(
       ? kingSquare.rank * 8 + kingSquare.file
       : (7 - kingSquare.rank) * 8 + kingSquare.file;
   return taper(0, KING_PST_ENDGAME[index], context.gamePhase);
+}
+
+function knightOutpostScore(
+  state: GameState,
+  context: EvalContext,
+  color: Color
+): number {
+  const opp = opponentColor(color);
+  const outpostMinRank = color === 'w' ? 3 : 2;
+  const outpostMaxRank = color === 'w' ? 5 : 4;
+  const supportRankDir = color === 'w' ? -1 : 1;
+  let score = 0;
+  for (const piece of state.pieces.values()) {
+    if (piece.type !== 'knight' || piece.color !== color) continue;
+    const sq = context.squares.get(piece.id);
+    if (!sq || sq.rank < outpostMinRank || sq.rank > outpostMaxRank) continue;
+
+    // Supported by friendly pawn on diagonal behind?
+    const supportRank = sq.rank + supportRankDir;
+    const leftFile = sq.file - 1;
+    const rightFile = sq.file + 1;
+    const leftSupport = leftFile >= 0 && context.pawnRanks[color][leftFile].includes(supportRank);
+    const rightSupport = rightFile <= 7 && context.pawnRanks[color][rightFile].includes(supportRank);
+    if (!leftSupport && !rightSupport) continue;
+
+    // No enemy pawns on adjacent files that could attack (ahead of the knight)
+    let canBeAttacked = false;
+    for (const adjFile of [leftFile, rightFile]) {
+      if (adjFile < 0 || adjFile > 7) continue;
+      for (const r of context.pawnRanks[opp][adjFile]) {
+        if (color === 'w' ? r > sq.rank : r < sq.rank) {
+          canBeAttacked = true;
+          break;
+        }
+      }
+      if (canBeAttacked) break;
+    }
+    if (!canBeAttacked) {
+      score += KNIGHT_OUTPOST_BONUS;
+    }
+  }
+  return score;
 }
 
 function loneKingMatingScore(

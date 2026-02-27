@@ -2699,3 +2699,74 @@ describe('lone king mating knowledge', () => {
     expect(Math.abs(edgeHard - centerHard)).toBeLessThan(50);
   });
 });
+
+describe('knight outpost bonus', () => {
+  it('rewards knight on outpost square (Max)', () => {
+    // White knight on e5, supported by d4 pawn, no black pawns on d/f files ahead
+    const outpost = createEmptyState();
+    addPiece(outpost, 'king', 'w', sq(4, 0)); // Ke1
+    addPiece(outpost, 'knight', 'w', sq(4, 4)); // Ne5 (outpost)
+    addPiece(outpost, 'pawn', 'w', sq(3, 3)); // d4 (supports)
+    addPiece(outpost, 'pawn', 'w', sq(0, 1)); // a2
+    addPiece(outpost, 'king', 'b', sq(4, 7)); // Ke8
+    addPiece(outpost, 'pawn', 'b', sq(0, 6)); // a7
+
+    // Same but knight not on outpost (on e2 instead)
+    const noOutpost = createEmptyState();
+    addPiece(noOutpost, 'king', 'w', sq(4, 0)); // Ke1
+    addPiece(noOutpost, 'knight', 'w', sq(4, 1)); // Ne2 (not outpost rank)
+    addPiece(noOutpost, 'pawn', 'w', sq(3, 3)); // d4
+    addPiece(noOutpost, 'pawn', 'w', sq(0, 1)); // a2
+    addPiece(noOutpost, 'king', 'b', sq(4, 7)); // Ke8
+    addPiece(noOutpost, 'pawn', 'b', sq(0, 6)); // a7
+
+    const outpostScore = evaluateState(outpost, 'w', { maxThinking: true });
+    const noOutpostScore = evaluateState(noOutpost, 'w', { maxThinking: true });
+    expect(outpostScore).toBeGreaterThan(noOutpostScore);
+  });
+
+  it('does not reward unsupported knight (Max)', () => {
+    // Knight on e5 but NO pawn supporting it
+    const unsupported = createEmptyState();
+    addPiece(unsupported, 'king', 'w', sq(4, 0));
+    addPiece(unsupported, 'knight', 'w', sq(4, 4)); // Ne5
+    addPiece(unsupported, 'pawn', 'w', sq(0, 1)); // a2 (not supporting)
+    addPiece(unsupported, 'king', 'b', sq(4, 7));
+    addPiece(unsupported, 'pawn', 'b', sq(0, 6));
+
+    // Supported knight on e5 with d4 pawn
+    const supported = createEmptyState();
+    addPiece(supported, 'king', 'w', sq(4, 0));
+    addPiece(supported, 'knight', 'w', sq(4, 4)); // Ne5
+    addPiece(supported, 'pawn', 'w', sq(3, 3)); // d4 (supports!)
+    addPiece(supported, 'king', 'b', sq(4, 7));
+    addPiece(supported, 'pawn', 'b', sq(0, 6));
+
+    const supportedScore = evaluateState(supported, 'w', { maxThinking: true });
+    const unsupportedScore = evaluateState(unsupported, 'w', { maxThinking: true });
+    expect(supportedScore).toBeGreaterThan(unsupportedScore);
+  });
+
+  it('is Max-only — Hard mode unaffected', () => {
+    const outpost = createEmptyState();
+    addPiece(outpost, 'king', 'w', sq(4, 0));
+    addPiece(outpost, 'knight', 'w', sq(4, 4));
+    addPiece(outpost, 'pawn', 'w', sq(3, 3));
+    addPiece(outpost, 'pawn', 'w', sq(0, 1));
+    addPiece(outpost, 'king', 'b', sq(4, 7));
+    addPiece(outpost, 'pawn', 'b', sq(0, 6));
+
+    const noOutpost = createEmptyState();
+    addPiece(noOutpost, 'king', 'w', sq(4, 0));
+    addPiece(noOutpost, 'knight', 'w', sq(4, 1));
+    addPiece(noOutpost, 'pawn', 'w', sq(3, 3));
+    addPiece(noOutpost, 'pawn', 'w', sq(0, 1));
+    addPiece(noOutpost, 'king', 'b', sq(4, 7));
+    addPiece(noOutpost, 'pawn', 'b', sq(0, 6));
+
+    const hardDelta = evaluateState(outpost, 'w') - evaluateState(noOutpost, 'w');
+    const maxDelta = evaluateState(outpost, 'w', { maxThinking: true }) -
+                     evaluateState(noOutpost, 'w', { maxThinking: true });
+    expect(maxDelta).toBeGreaterThan(hardDelta);
+  });
+});
