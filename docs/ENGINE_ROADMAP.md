@@ -210,6 +210,12 @@ Goal: Reduce early threefolds without changing time caps.
   - Phase 2g-v2 (stronger constants 35/20/25 + KR vs K): REJECTED. Score dropped 70%→65%, mate rate -10pp, avg plies +43. Over-strong bonuses caused engine to prioritize cornering over tactical checkmate delivery.
   - Cumulative validation (seeds 9013+9014, 20 games): W7-D13-L0, score 67.5%, mate 35%, rep 55%, avg plies 99.6. Zero losses. +7.5pp over control baselines.
 
+- Phase 2h - Max-only rook on open/semi-open file bonus (attempted, REJECTED)
+  - Added `rookOpenFileScore()` — 20cp open file, 10cp semi-open file, Max-only.
+  - Control (seed 9015): W4-D6-L0, 70%, 0 timeouts.
+  - Phase 2h (seed 9015): W3-D6-L1, 55%, 16 Max timeouts.
+  - Regression: score -15pp, 1 loss, massive timeout increase. Reverted.
+
 ## Phase 3 - Search and ordering improvements (moderate risk)
 
 - Change list (files)
