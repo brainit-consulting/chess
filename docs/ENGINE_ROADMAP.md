@@ -226,6 +226,23 @@ Goal: Reduce early threefolds without changing time caps.
   - Delta: +10pp score, +20pp mate rate, -20pp rep rate, -22 avg plies. Zero losses.
   - Decision: accepted. Strong improvement across all metrics — best single result since Phase 2c.
 
+- Phase 2j - Max-only pawn piece-square tables (attempted, REJECTED)
+  - Added `PAWN_PST_OPENING` and `PAWN_PST_ENDGAME` tables (center pawns favored in opening, advancement in endgame).
+  - Extended `pieceSquareScore()` to include pawns alongside knight/bishop.
+  - Control (seed 9016): W3-D7-L0, 65%, 0 timeouts, avg plies 124.6, rep rate 60%.
+  - Phase 2j (seed 9016): W2-D8-L0, 60%, 3 timeouts, avg plies 90.8, rep rate 80%.
+  - Regression: score -5pp, rep rate +20pp, repetitions happen 40 plies earlier (avg rep ply 96.75 vs 137). Reverted.
+
+- Phase 2k - Extend lone king mating to KR vs K (implemented, ACCEPTED)
+  - Extended `loneKingMatingScore()` to detect rook (not just queen) as the major piece.
+  - Changed `winnerHasQueen` to `winnerHasMajor` checking for queen OR rook.
+  - Same v1 constants (15/10/12) — Phase 2g-v2 tried KR vs K with boosted constants and was REJECTED; this keeps them unchanged.
+  - 1 new unit test (107 total passing).
+  - Control (baseline, seed 9017): W1-D9-L0, score 55%, mate 10%, rep 60%, avg plies 126, 5 Max timeouts.
+  - Phase 2k (seed 9017): W5-D5-L0, score 75%, mate 50%, rep 50%, avg plies 97.3, 0 Max timeouts.
+  - Delta: +20pp score, +40pp mate rate, -10pp rep rate, -28.7 avg plies, -5 timeouts. Zero losses.
+  - Decision: accepted. Strongest single improvement — directly converts KR vs K endgames that previously drew.
+
 ## Phase 3 - Search and ordering improvements (moderate risk)
 
 - Change list (files)

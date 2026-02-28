@@ -2698,6 +2698,23 @@ describe('lone king mating knowledge', () => {
     const centerHard = evaluateState(centerKing, 'w');
     expect(Math.abs(edgeHard - centerHard)).toBeLessThan(50);
   });
+
+  it('also activates for KR vs K (Max)', () => {
+    // KR vs K: enemy king on edge scores better than center
+    const edgeKing = createEmptyState();
+    addPiece(edgeKing, 'king', 'w', sq(3, 3)); // Kd4
+    addPiece(edgeKing, 'rook', 'w', sq(4, 1)); // Re2
+    addPiece(edgeKing, 'king', 'b', sq(3, 7)); // Kd8 (edge)
+
+    const centerKing = createEmptyState();
+    addPiece(centerKing, 'king', 'w', sq(3, 3)); // Kd4
+    addPiece(centerKing, 'rook', 'w', sq(4, 1)); // Re2
+    addPiece(centerKing, 'king', 'b', sq(3, 4)); // Kd5 (center)
+
+    const edgeScore = evaluateState(edgeKing, 'w', { maxThinking: true });
+    const centerScore = evaluateState(centerKing, 'w', { maxThinking: true });
+    expect(edgeScore).toBeGreaterThan(centerScore);
+  });
 });
 
 describe('knight outpost bonus', () => {

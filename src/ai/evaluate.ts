@@ -1010,17 +1010,17 @@ function loneKingMatingScore(
 
   // Check if opponent has only a king
   let loserHasOtherPieces = false;
-  let winnerHasQueen = false;
+  let winnerHasMajor = false;
   for (const piece of state.pieces.values()) {
     if (piece.color === loserColor && piece.type !== 'king') {
       loserHasOtherPieces = true;
       break;
     }
-    if (piece.color === winnerColor && piece.type === 'queen') {
-      winnerHasQueen = true;
+    if (piece.color === winnerColor && (piece.type === 'queen' || piece.type === 'rook')) {
+      winnerHasMajor = true;
     }
   }
-  if (loserHasOtherPieces || !winnerHasQueen) return 0;
+  if (loserHasOtherPieces || !winnerHasMajor) return 0;
 
   const enemyKing = findKingSquare(state, loserColor);
   const friendlyKing = findKingSquare(state, winnerColor);
