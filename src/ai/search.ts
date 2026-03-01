@@ -93,6 +93,7 @@ const HARD_TT_SIZE = 4096;
 const HARD_MICRO_QUIESCENCE_MAX_DEPTH = 2;
 const FORCING_EXTENSION_MAX_DEPTH = 2;
 const FORCING_EXTENSION_MAX_PLY = 6;
+const MAX_CHECK_EXTENSION_PLY_LIMIT = 30;
 const DEFAULT_TOP_MOVE_WINDOW = 10;
 const DEFAULT_FAIRNESS_WINDOW = 25;
 const DEFAULT_ASPIRATION_WINDOW = 35;
@@ -2239,7 +2240,7 @@ function alphaBeta(
       const reduction = maxThinking
         ? getLmrReduction(depth, index, inCheck, isQuietForLmr(state, move, currentColor))
         : 0;
-      const extension = getForcingExtension(state, next, move, currentColor, depth, ply);
+      const extension = getForcingExtension(state, next, move, currentColor, depth, ply, maxThinking);
       const reducedDepth = Math.max(0, depth - 1 - reduction + extension);
       const canPvs = pvsEnabled && index > 0 && Number.isFinite(alpha) && Number.isFinite(beta);
       let nextScore: number;
@@ -2378,7 +2379,7 @@ function alphaBeta(
     const reduction = maxThinking
       ? getLmrReduction(depth, index, inCheck, isQuietForLmr(state, move, currentColor))
       : 0;
-    const extension = getForcingExtension(state, next, move, currentColor, depth, ply);
+    const extension = getForcingExtension(state, next, move, currentColor, depth, ply, maxThinking);
     const reducedDepth = Math.max(0, depth - 1 - reduction + extension);
     const canPvs = pvsEnabled && index > 0 && Number.isFinite(alpha) && Number.isFinite(beta);
     let nextScore: number;
@@ -2901,15 +2902,20 @@ function getForcingExtension(
   move: Move,
   currentColor: Color,
   depth: number,
-  ply: number
+  ply: number,
+  maxThinking?: boolean
 ): number {
   if (depth <= 0) {
     return 0;
   }
+  // Max-only: broad check extension at any depth (with ply safety limit)
+  if (maxThinking && isInCheck(state, currentColor) && ply < MAX_CHECK_EXTENSION_PLY_LIMIT) {
+    return 1;
+  }
   if (depth > FORCING_EXTENSION_MAX_DEPTH || ply >= FORCING_EXTENSION_MAX_PLY) {
     return 0;
   }
-  if (depth >= 2 && isInCheck(state, currentColor)) {
+  if (!maxThinking && depth >= 2 && isInCheck(state, currentColor)) {
     return 1;
   }
   if (move.promotion) {

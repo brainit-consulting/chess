@@ -242,6 +242,26 @@ Goal: Reduce early threefolds without changing time caps.
   - Phase 2k (seed 9017): W5-D5-L0, score 75%, mate 50%, rep 50%, avg plies 97.3, 0 Max timeouts.
   - Delta: +20pp score, +40pp mate rate, -10pp rep rate, -28.7 avg plies, -5 timeouts. Zero losses.
   - Decision: accepted. Strongest single improvement — directly converts KR vs K endgames that previously drew.
+  - Cumulative validation (seeds 9018+9019, 20 games): W7-D13-L0, score 67.5%, mate 35%, rep 60%. Zero losses.
+
+- Phase 2l - Max-only rook behind passed pawn bonus (attempted, REJECTED)
+  - Added `rookBehindPassedPawn()` — 20cp endgame-tapered bonus when own rook is behind own passed pawn.
+  - Control (seed 9020): W4-D5-L1, 65%, mate 50%, rep 40%.
+  - Phase 2l (seed 9020): W2-D8-L0, 60%, mate 20%, rep 80%.
+  - Regression: score -5pp, mate rate -30pp, rep rate +40pp. Reverted.
+
+- Phase 3a - Max-only futility pruning (attempted, REJECTED)
+  - Added futility pruning at depth 1-2 (margins 250/500cp), skipping quiet moves when static eval + margin can't improve alpha/beta.
+  - Control (seed 9021): W5-D5-L0, 75%, mate 50%, rep 30%.
+  - Phase 3a (seed 9021): W3-D6-L1, 60%, mate 40%, rep 60%.
+  - Regression: score -15pp, gained 1 loss, rep rate +30pp. Margins too aggressive. Reverted.
+
+- Phase 3b - Max-only broad check extensions (ACCEPTED)
+  - Broadened check extensions for Max: extend search by 1 ply when side to move is in check, at any depth (ply < 30 safety limit). Hard mode unchanged (restricted to depth 2, ply < 6).
+  - Seed 9022: Control W5-D5-L0 (75%), Phase 3b W5-D5-L0 (75%). Neutral score but rep rate -10pp, avg rep ply +43.
+  - Seed 9023: Control W2-D8-L0 (60%), Phase 3b W5-D5-L0 (75%). +15pp score, +30pp mate rate.
+  - Aggregate (20 games): Control W7-D13-L0 (67.5%), Phase 3b W10-D10-L0 (75%). +7.5pp score, +15pp mate rate, -15pp rep rate. Zero losses.
+  - Decision: accepted. Broad check extensions let Max see through check sequences at any depth, converting more games decisively.
 
 ## Phase 3 - Search and ordering improvements (moderate risk)
 
