@@ -263,6 +263,21 @@ Goal: Reduce early threefolds without changing time caps.
   - Aggregate (20 games): Control W7-D13-L0 (67.5%), Phase 3b W10-D10-L0 (75%). +7.5pp score, +15pp mate rate, -15pp rep rate. Zero losses.
   - Decision: accepted. Broad check extensions let Max see through check sequences at any depth, converting more games decisively.
 
+- Phase 3c - Max-only log-based LMR (attempted, REJECTED)
+  - Replaced flat R=1 LMR with log formula `floor(ln(depth)*ln(moveIndex)*0.6)`, capped at R=2.
+  - Control (seed 9024): W5-D5-L0 (75%). Phase 3c: W3-D7-L0 (65%). -10pp, -20pp mate. Reverted.
+
+- Phase 3d - Max-only broad promotion/giving-check extensions (attempted, REJECTED)
+  - Broadening all forcing extensions caused search explosion (giving check + in-check extension loop).
+  - Promotion-only variant: W5-D4-L1 vs control W5-D5-L0. Gained 1 loss, +5 Max timeouts. Reverted.
+
+- Phase 3e - Dynamic repeat ban window scaling (attempted, REJECTED)
+  - Widened repeat avoidance window when winning big: `effectiveWindow = 100 + max(0, bestScore-300)*0.33`, capped 500.
+  - Seed 9024: +5pp. Seed 9025: -5pp. Aggregate neutral (80% = 80%). Reverted.
+
+- Cumulative validation (post-Phase 3b, seeds 9026+9027): W5-D15-L0, 62.5%. Zero losses.
+- Grand cumulative (seeds 9018-9019, 9022-9023, 9026-9027, 60 games): W22-D38-L0, 68.3%. Zero losses.
+
 ## Phase 3 - Search and ordering improvements (moderate risk)
 
 - Change list (files)
