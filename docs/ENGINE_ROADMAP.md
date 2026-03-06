@@ -278,6 +278,12 @@ Goal: Reduce early threefolds without changing time caps.
 - Cumulative validation (post-Phase 3b, seeds 9026+9027): W5-D15-L0, 62.5%. Zero losses.
 - Grand cumulative (seeds 9018-9019, 9022-9023, 9026-9027, 60 games): W22-D38-L0, 68.3%. Zero losses.
 
+- Bugfix: non-finite score in repeat ban window (ACCEPTED)
+  - Fixed: when best repeat move had non-finite baseScore (Infinity/-Infinity from forced move / time cutoff), `bestScore - avoidWindow` produced NaN, silently breaking the ban window — no non-repeat could ever qualify as a candidate.
+  - Fix: fall back to `REPETITION_CLEAR_DISADVANTAGE` threshold when baseScore is non-finite.
+  - Seed 9026: W1-D9-L0 (55%) → W5-D5-L0 (75%), +20pp. Seed 9027: W4-D6-L0 (70%) = W4-D6-L0 (70%), neutral.
+  - Aggregate (20 games): +10pp score, zero losses.
+
 ## Phase 3 - Search and ordering improvements (moderate risk)
 
 - Change list (files)

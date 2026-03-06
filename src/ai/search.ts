@@ -610,11 +610,16 @@ function enforceRootRepetitionAvoidance(
   if (!bestEntry.isRepeat || bestEntry.baseScore < drawHoldThreshold) {
     return windowed;
   }
+  // When best entry's baseScore is non-finite (e.g., forced move / time cutoff),
+  // fall back to accepting any non-repeat above the clear disadvantage threshold
+  const banThreshold = Number.isFinite(bestEntry.baseScore)
+    ? bestEntry.baseScore - avoidWindow
+    : REPETITION_CLEAR_DISADVANTAGE;
   const candidates = adjustedScores
     .filter(
       (entry) =>
         !entry.isRepeat &&
-        entry.baseScore >= bestEntry.baseScore - avoidWindow &&
+        entry.baseScore >= banThreshold &&
         entry.baseScore > REPETITION_CLEAR_DISADVANTAGE
     )
     .sort((a, b) => b.baseScore - a.baseScore || b.score - a.score);
