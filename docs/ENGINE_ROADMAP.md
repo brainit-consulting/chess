@@ -284,6 +284,13 @@ Goal: Reduce early threefolds without changing time caps.
   - Seed 9026: W1-D9-L0 (55%) → W5-D5-L0 (75%), +20pp. Seed 9027: W4-D6-L0 (70%) = W4-D6-L0 (70%), neutral.
   - Aggregate (20 games): +10pp score, zero losses.
 
+- Phase 4a - Singular extensions for Max (ACCEPTED)
+  - When TT best move is clearly superior (all alternatives fail low in a verification search at depth/2), extend the TT move's search by 1 ply.
+  - Constants: SE_MIN_DEPTH=5, SE_TT_DEPTH_MARGIN=3, SE_MARGIN_PER_DEPTH=3cp.
+  - Handles maximizing/minimizing asymmetry: maximizing checks alternatives fail low, minimizing checks alternatives fail high.
+  - Seed 9028: W4-D6-L0 (70%) → W6-D3-L1 (75%), +5pp. Seed 9029: W4-D5-L1 (65%) → W4-D6-L0 (70%), +5pp.
+  - Aggregate (20 games): W8-D11-L1 (67.5%) → W10-D9-L1 (72.5%), +5pp. Losses neutral (1 each).
+
 ## Phase 3 - Search and ordering improvements (moderate risk)
 
 - Change list (files)

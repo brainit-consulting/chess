@@ -126,6 +126,9 @@ const QUIESCENCE_MAX_DEPTH = 4;
 const DEADLINE_BUFFER_MIN_MS = 60;
 const DEADLINE_BUFFER_MAX_MS = 250;
 const DEADLINE_BUFFER_RATIO = 0.06;
+const SE_MIN_DEPTH = 5;
+const SE_TT_DEPTH_MARGIN = 3;
+const SE_MARGIN_PER_DEPTH = 3;
 
 type TTFlag = 'exact' | 'alpha' | 'beta';
 
@@ -2082,7 +2085,8 @@ function alphaBeta(
   stopChecker?: () => boolean,
   nnueMix?: number,
   microQuiescenceDepth?: number,
-  instrumentation?: SearchInstrumentation
+  instrumentation?: SearchInstrumentation,
+  excludedMove?: Move
 ): number {
   if (instrumentation) {
     instrumentation.nodes += 1;
@@ -2112,11 +2116,12 @@ function alphaBeta(
   const betaOrig = beta;
   let key: string | null = null;
   let ttBestMove: Move | undefined;
+  let cached: TTEntry | undefined;
 
   if (tt) {
     key = getPositionKey(state);
-    const cached = tt.get(key);
-    if (cached && cached.depth >= depth) {
+    cached = tt.get(key);
+    if (cached && cached.depth >= depth && !excludedMove) {
       if (cached.flag === 'exact') {
         return cached.score;
       }
@@ -2222,6 +2227,49 @@ function alphaBeta(
     }
   }
 
+  let singularExtension = 0;
+  let singularMove: Move | undefined;
+  if (
+    maxThinking &&
+    !inCheck &&
+    ply > 0 &&
+    !excludedMove &&
+    depth >= SE_MIN_DEPTH &&
+    ttBestMove &&
+    cached &&
+    cached.depth >= depth - SE_TT_DEPTH_MARGIN &&
+    (cached.flag === 'exact' ||
+      (maximizing && cached.flag === 'beta') ||
+      (!maximizing && cached.flag === 'alpha'))
+  ) {
+    const seMargin = SE_MARGIN_PER_DEPTH * depth;
+    const seDepth = Math.max(1, Math.floor(depth / 2));
+    let isSingular = false;
+    if (maximizing) {
+      const seBeta = cached.score - seMargin;
+      const seScore = alphaBeta(
+        state, seDepth, seBeta - 1, seBeta,
+        currentColor, maximizingColor, rng, maxThinking, false,
+        ply, tt, ordering, stopChecker, nnueMix, microQuiescenceDepth,
+        instrumentation, ttBestMove
+      );
+      isSingular = seScore < seBeta;
+    } else {
+      const seAlpha = cached.score + seMargin;
+      const seScore = alphaBeta(
+        state, seDepth, seAlpha, seAlpha + 1,
+        currentColor, maximizingColor, rng, maxThinking, false,
+        ply, tt, ordering, stopChecker, nnueMix, microQuiescenceDepth,
+        instrumentation, ttBestMove
+      );
+      isSingular = seScore > seAlpha;
+    }
+    if (isSingular) {
+      singularExtension = 1;
+      singularMove = ttBestMove;
+    }
+  }
+
   const ordered = orderMoves(state, legalMoves, currentColor, rng, {
     preferred: ttBestMove,
     maxThinking,
@@ -2239,13 +2287,18 @@ function alphaBeta(
         return value;
       }
       const move = ordered[index];
+      if (excludedMove && sameMove(move, excludedMove)) {
+        continue;
+      }
       const next = cloneState(state);
       next.activeColor = currentColor;
       applyMoveWithNnue(next, move);
       const reduction = maxThinking
         ? getLmrReduction(depth, index, inCheck, isQuietForLmr(state, move, currentColor))
         : 0;
-      const extension = getForcingExtension(state, next, move, currentColor, depth, ply, maxThinking);
+      const forcingExt = getForcingExtension(state, next, move, currentColor, depth, ply, maxThinking);
+      const seExt = (singularMove && sameMove(move, singularMove)) ? singularExtension : 0;
+      const extension = Math.max(forcingExt, seExt);
       const reducedDepth = Math.max(0, depth - 1 - reduction + extension);
       const canPvs = pvsEnabled && index > 0 && Number.isFinite(alpha) && Number.isFinite(beta);
       let nextScore: number;
@@ -2311,7 +2364,7 @@ function alphaBeta(
       if (reduction > 0 && reducedDepth < depth - 1 && nextScore > alpha) {
         nextScore = alphaBeta(
           next,
-          depth - 1,
+          depth - 1 + extension,
           alpha,
           beta,
           opponentColor(currentColor),
@@ -2378,13 +2431,18 @@ function alphaBeta(
       return value;
     }
     const move = ordered[index];
+    if (excludedMove && sameMove(move, excludedMove)) {
+      continue;
+    }
     const next = cloneState(state);
     next.activeColor = currentColor;
     applyMoveWithNnue(next, move);
     const reduction = maxThinking
       ? getLmrReduction(depth, index, inCheck, isQuietForLmr(state, move, currentColor))
       : 0;
-    const extension = getForcingExtension(state, next, move, currentColor, depth, ply, maxThinking);
+    const forcingExt = getForcingExtension(state, next, move, currentColor, depth, ply, maxThinking);
+    const seExt = (singularMove && sameMove(move, singularMove)) ? singularExtension : 0;
+    const extension = Math.max(forcingExt, seExt);
     const reducedDepth = Math.max(0, depth - 1 - reduction + extension);
     const canPvs = pvsEnabled && index > 0 && Number.isFinite(alpha) && Number.isFinite(beta);
     let nextScore: number;
@@ -2450,7 +2508,7 @@ function alphaBeta(
     if (reduction > 0 && reducedDepth < depth - 1 && nextScore < beta) {
       nextScore = alphaBeta(
         next,
-        depth - 1,
+        depth - 1 + extension,
         alpha,
         beta,
         opponentColor(currentColor),

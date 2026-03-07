@@ -3,40 +3,40 @@
 Latest run summary is always inside the markers below.
 
 <!-- REPORT:START -->
-Last updated: 2026-02-26T18:13:15.543Z (UTC) | 2026-02-26 13:13:15 ET
+Last updated: 2026-03-07T14:36:08.735Z (UTC) | 2026-03-07 09:36:08 ET
 Config: hardMs=1000, maxMs=3000, batch=5, swap=true, fenSuite=true
-Commit: 2802ca235ad2c8107c300c8c00640c6b37d015fb
-Base seed: 9011
-Output: H:\chess\benchmarks\selfplay\run-phase2g-lone-king-mating
-Cumulative: 3-7-0 (10 games)
-Avg plies per game: 128.4
-End reasons: mate=3, stalemate=0, repetition=4, 50-move=0, other=3
-Repetition rate: 40.0% | Mate rate: 30.0%
-Decisiveness: avg captures=20.5, avg pawn moves=15.4
-Early repetition count (<30 ply): 0
-Avg repetition ply: 125.5
-Timing (Hard): avg=913.5ms, max=1099.2ms, timeouts=1
-Timing (Max): avg=2849.6ms, max=3098.5ms, timeouts=1
-
-Hard as White vs Max: 2-3-0 (5 games)
-Avg plies: 109.4
-End reasons: mate=2, stalemate=0, repetition=2, 50-move=0, other=1
+Commit: 8988a2d0157addbacf05325c3d2e90752cb5a7ee
+Base seed: 9029
+Output: H:\chess\benchmarks\selfplay\run-se-seed9029
+Cumulative: 4-6-0 (10 games)
+Avg plies per game: 105.6
+End reasons: mate=4, stalemate=0, repetition=4, 50-move=0, other=2
 Repetition rate: 40.0% | Mate rate: 40.0%
-Decisiveness: avg captures=16.0, avg pawn moves=13.2
+Decisiveness: avg captures=17.6, avg pawn moves=11.5
 Early repetition count (<30 ply): 0
-Avg repetition ply: 128.5
-Timing (Hard): avg=919.8ms, max=1099.2ms, timeouts=1
-Timing (Max): avg=2854.2ms, max=3080.1ms, timeouts=0
+Avg repetition ply: 119.0
+Timing (Hard): avg=931.8ms, max=1101.8ms, timeouts=1
+Timing (Max): avg=2858.3ms, max=3113.6ms, timeouts=1
 
-Max as White vs Hard: 1-4-0 (5 games)
-Avg plies: 147.4
-End reasons: mate=1, stalemate=0, repetition=2, 50-move=0, other=2
-Repetition rate: 40.0% | Mate rate: 20.0%
-Decisiveness: avg captures=25.0, avg pawn moves=17.6
+Hard as White vs Max: 4-1-0 (5 games)
+Avg plies: 76.0
+End reasons: mate=4, stalemate=0, repetition=0, 50-move=0, other=1
+Repetition rate: 0.0% | Mate rate: 80.0%
+Decisiveness: avg captures=13.4, avg pawn moves=7.0
 Early repetition count (<30 ply): 0
-Avg repetition ply: 122.5
-Timing (Hard): avg=908.7ms, max=956.1ms, timeouts=0
-Timing (Max): avg=2846.1ms, max=3098.5ms, timeouts=1
+Avg repetition ply: 0.0
+Timing (Hard): avg=940.5ms, max=1101.8ms, timeouts=1
+Timing (Max): avg=2877.6ms, max=3113.6ms, timeouts=1
+
+Max as White vs Hard: 0-5-0 (5 games)
+Avg plies: 135.2
+End reasons: mate=0, stalemate=0, repetition=4, 50-move=0, other=1
+Repetition rate: 80.0% | Mate rate: 0.0%
+Decisiveness: avg captures=21.8, avg pawn moves=16.0
+Early repetition count (<30 ply): 0
+Avg repetition ply: 119.0
+Timing (Hard): avg=927.0ms, max=964.9ms, timeouts=0
+Timing (Max): avg=2847.6ms, max=3088.3ms, timeouts=0
 
 Notes:
 - Deterministic base seed used; move-level seeds derived from a fixed RNG.
