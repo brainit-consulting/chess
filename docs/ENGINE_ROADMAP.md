@@ -291,6 +291,17 @@ Goal: Reduce early threefolds without changing time caps.
   - Seed 9028: W4-D6-L0 (70%) → W6-D3-L1 (75%), +5pp. Seed 9029: W4-D5-L1 (65%) → W4-D6-L0 (70%), +5pp.
   - Aggregate (20 games): W8-D11-L1 (67.5%) → W10-D9-L1 (72.5%), +5pp. Losses neutral (1 each).
 
+- Phase 4b - Internal Iterative Deepening for Max (ACCEPTED)
+  - When no TT best move exists at depth >= 4, do a shallow search (depth - 2) to find a good move for ordering.
+  - Constants: IID_MIN_DEPTH=4, IID_REDUCTION=2.
+  - Only triggers at positions without TT entries — overhead is bounded.
+  - Seed 9032: W1-D9-L0 (55%) → W5-D5-L0 (75%), +20pp. Seed 9033: W4-D6-L0 (70%) → W6-D4-L0 (80%), +10pp.
+  - Aggregate (20 games): W5-D15-L0 (62.5%) → W11-D9-L0 (77.5%), +15pp. Zero losses.
+
+- History-aware LMR (REJECTED)
+  - Exempting high-history quiet moves from LMR (thresholds 300 and 1500 tested).
+  - Caused search expansion → +3-11 Max timeouts, +1 loss. Can't reduce fewer moves at our time budget.
+
 ## Phase 3 - Search and ordering improvements (moderate risk)
 
 - Change list (files)

@@ -129,6 +129,8 @@ const DEADLINE_BUFFER_RATIO = 0.06;
 const SE_MIN_DEPTH = 5;
 const SE_TT_DEPTH_MARGIN = 3;
 const SE_MARGIN_PER_DEPTH = 3;
+const IID_MIN_DEPTH = 4;
+const IID_REDUCTION = 2;
 
 type TTFlag = 'exact' | 'alpha' | 'beta';
 
@@ -2267,6 +2269,28 @@ function alphaBeta(
     if (isSingular) {
       singularExtension = 1;
       singularMove = ttBestMove;
+    }
+  }
+
+  if (
+    maxThinking &&
+    !ttBestMove &&
+    !excludedMove &&
+    depth >= IID_MIN_DEPTH &&
+    tt
+  ) {
+    const iidDepth = Math.max(1, depth - IID_REDUCTION);
+    alphaBeta(
+      state, iidDepth, alpha, beta,
+      currentColor, maximizingColor, rng, maxThinking, false,
+      ply, tt, ordering, stopChecker, nnueMix, microQuiescenceDepth,
+      instrumentation
+    );
+    if (key) {
+      const iidEntry = tt.get(key);
+      if (iidEntry?.bestMove) {
+        ttBestMove = iidEntry.bestMove;
+      }
     }
   }
 
