@@ -121,6 +121,8 @@ const LMR_START_MOVE = 3;
 const LMR_REDUCTION = 1;
 const NULL_MOVE_MIN_DEPTH = 3;
 const NULL_MOVE_REDUCTION = 2;
+const NULL_MOVE_ADAPTIVE_DEPTH = 6;
+const NULL_MOVE_ADAPTIVE_REDUCTION = 3;
 const NULL_MOVE_MIN_MATERIAL = 1200;
 const QUIESCENCE_MAX_DEPTH = 4;
 const DEADLINE_BUFFER_MIN_MS = 60;
@@ -724,7 +726,7 @@ function orderRootMovesForRepeatAvoidance(
     if (!quietCandidate) {
       return { move, index, deprioritize: false };
     }
-    const next = cloneState(state);
+    const next = cloneStateForMove(state);
     next.activeColor = color;
     applyMoveWithNnue(next, move);
     const givesCheck = isInCheck(next, opponentColor(color));
@@ -767,7 +769,7 @@ function filterRootMovesForQuietMajorHang(
       hasSafe = true;
       continue;
     }
-    const next = cloneState(state);
+    const next = cloneStateForMove(state);
     next.activeColor = color;
     applyMoveWithNnue(next, move);
     const givesCheck = isInCheck(next, opponentColor(color));
@@ -1046,7 +1048,7 @@ function computeTwoPlyPenalty(
   maxThinking: boolean,
   nnueMix?: number
 ): number {
-  const next = cloneState(state);
+  const next = cloneStateForMove(state);
   next.activeColor = color;
   applyMoveWithNnue(next, entry.move);
   const opponent = opponentColor(color);
@@ -1057,7 +1059,7 @@ function computeTwoPlyPenalty(
   let worstScore = Infinity;
   let repeatKey: string | null = null;
   for (const reply of replies) {
-    const follow = cloneState(next);
+    const follow = cloneStateForMove(next);
     follow.activeColor = opponent;
     applyMoveWithNnue(follow, reply);
     const key = getPositionKey(follow);
@@ -1245,7 +1247,7 @@ export function findBestMove(state: GameState, color: Color, options: SearchOpti
       finalizeInstrumentation();
       return bestSoFar ?? move;
     }
-    const next = cloneState(state);
+    const next = cloneStateForMove(state);
     next.activeColor = color;
     applyMoveWithNnue(next, move);
 
@@ -1917,7 +1919,7 @@ function scoreRootMoves(
     if (shouldStop && shouldStop()) {
       break;
     }
-    const next = cloneState(state);
+    const next = cloneStateForMove(state);
     next.activeColor = color;
     applyMoveWithNnue(next, move);
 
@@ -2195,7 +2197,8 @@ function alphaBeta(
     const next = cloneState(state);
     next.activeColor = opponentColor(currentColor);
     next.enPassantTarget = null;
-    const reductionDepth = Math.max(0, depth - 1 - NULL_MOVE_REDUCTION);
+    const nmR = depth >= NULL_MOVE_ADAPTIVE_DEPTH ? NULL_MOVE_ADAPTIVE_REDUCTION : NULL_MOVE_REDUCTION;
+    const reductionDepth = Math.max(0, depth - 1 - nmR);
     const nullScore = alphaBeta(
       next,
       reductionDepth,
@@ -2314,7 +2317,7 @@ function alphaBeta(
       if (excludedMove && sameMove(move, excludedMove)) {
         continue;
       }
-      const next = cloneState(state);
+      const next = cloneStateForMove(state);
       next.activeColor = currentColor;
       applyMoveWithNnue(next, move);
       const reduction = maxThinking
@@ -2458,7 +2461,7 @@ function alphaBeta(
     if (excludedMove && sameMove(move, excludedMove)) {
       continue;
     }
-    const next = cloneState(state);
+    const next = cloneStateForMove(state);
     next.activeColor = currentColor;
     applyMoveWithNnue(next, move);
     const reduction = maxThinking
@@ -2628,7 +2631,7 @@ function orderMoves(
 }
 
 function scoreCheckEvasion(state: GameState, move: Move, color: Color): number {
-  const next = cloneState(state);
+  const next = cloneStateForMove(state);
   next.activeColor = color;
   applyMoveWithNnue(next, move);
   if (isInCheck(next, color)) {
@@ -2701,7 +2704,7 @@ function scoreMoveHeuristic(
   const capturedValue = getCaptureValue(state, move);
   score += capturedValue;
 
-  const next = cloneState(state);
+  const next = cloneStateForMove(state);
   next.activeColor = color;
   applyMoveWithNnue(next, move);
 
@@ -2905,7 +2908,7 @@ function microQuiescence(
       if (stopChecker && stopChecker()) {
         return value;
       }
-      const next = cloneState(state);
+      const next = cloneStateForMove(state);
       next.activeColor = currentColor;
       applyMoveWithNnue(next, move);
       value = Math.max(
@@ -2940,7 +2943,7 @@ function microQuiescence(
     if (stopChecker && stopChecker()) {
       return value;
     }
-    const next = cloneState(state);
+    const next = cloneStateForMove(state);
     next.activeColor = currentColor;
     applyMoveWithNnue(next, move);
     value = Math.min(
@@ -3117,7 +3120,7 @@ function quiescence(
       if (shouldStopLoop()) {
         return value;
       }
-      const next = cloneState(state);
+      const next = cloneStateForMove(state);
       next.activeColor = currentColor;
       applyMoveWithNnue(next, move);
       value = Math.max(
@@ -3155,7 +3158,7 @@ function quiescence(
     if (shouldStopLoop()) {
       return value;
     }
-    const next = cloneState(state);
+    const next = cloneStateForMove(state);
     next.activeColor = currentColor;
     applyMoveWithNnue(next, move);
     value = Math.min(
@@ -3261,7 +3264,7 @@ function isQuietForLmr(state: GameState, move: Move, color: Color): boolean {
 }
 
 function givesCheck(state: GameState, move: Move, color: Color): boolean {
-  const next = cloneState(state);
+  const next = cloneStateForMove(state);
   next.activeColor = color;
   applyMoveWithNnue(next, move);
   return isInCheck(next, opponentColor(color));
@@ -3285,7 +3288,7 @@ function seeLiteNet(state: GameState, move: Move, color: Color): number {
     return 0;
   }
   const attackerValue = PIECE_VALUES[movingPiece.type];
-  const next = cloneState(state);
+  const next = cloneStateForMove(state);
   next.activeColor = color;
   applyMoveWithNnue(next, move);
 
@@ -3455,6 +3458,27 @@ function cloneState(state: GameState): GameState {
           accumulator: new Float32Array(state.nnue.accumulator)
         }
       : undefined
+  };
+}
+
+// Fast clone that skips NNUE accumulator copy. Use when applyMoveWithNnue
+// will be called immediately after (it replaces the accumulator anyway).
+function cloneStateForMove(state: GameState): GameState {
+  const board = state.board.map((row) => row.slice());
+  const clonedPieces = new Map<number, Piece>();
+  for (const [id, piece] of state.pieces) {
+    clonedPieces.set(id, { ...piece });
+  }
+  return {
+    board,
+    pieces: clonedPieces,
+    activeColor: state.activeColor,
+    castlingRights: { ...state.castlingRights },
+    enPassantTarget: state.enPassantTarget ? { ...state.enPassantTarget } : null,
+    halfmoveClock: state.halfmoveClock,
+    fullmoveNumber: state.fullmoveNumber,
+    lastMove: state.lastMove ? cloneMove(state.lastMove) : null,
+    nnue: state.nnue
   };
 }
 
