@@ -613,7 +613,7 @@ function isMoveLegal(state: GameState, move: Move, movingColor: Color): boolean 
   return !isInCheck(clone, movingColor);
 }
 
-function isSquareAttacked(state: GameState, square: Square, byColor: Color): boolean {
+export function isSquareAttacked(state: GameState, square: Square, byColor: Color): boolean {
   const dir = byColor === 'w' ? 1 : -1;
   const pawnRank = square.rank - dir;
   for (const fileDelta of [-1, 1]) {

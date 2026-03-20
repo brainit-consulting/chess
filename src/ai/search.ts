@@ -7,6 +7,8 @@ import {
   getPieceAt,
   getPositionKey,
   isInCheck,
+  isSquareAttacked,
+  findKingSquare,
   applyMove
 } from '../rules';
 import { PIECE_VALUES, evaluateState } from './evaluate';
@@ -2703,6 +2705,37 @@ function scoreMoveHeuristic(
 
   const capturedValue = getCaptureValue(state, move);
   score += capturedValue;
+
+  const isQuiet = capturedValue === 0 && !move.promotion;
+
+  // Max-only: fast check detection for quiet moves via temporary board swap.
+  // Avoids expensive cloneStateForMove + applyMove + getAllLegalMoves.
+  if (maxThinking && isQuiet) {
+    const opColor = opponentColor(color);
+    const kingSquare = findKingSquare(state, opColor);
+    if (kingSquare) {
+      const fromId = state.board[move.from.rank][move.from.file];
+      state.board[move.from.rank][move.from.file] = null;
+      state.board[move.to.rank][move.to.file] = fromId;
+
+      const givesCheck = isSquareAttacked(state, kingSquare, color);
+
+      state.board[move.from.rank][move.from.file] = fromId;
+      state.board[move.to.rank][move.to.file] = null;
+
+      if (givesCheck) {
+        score += 100;
+      }
+    }
+
+    if (movingPiece && (movingPiece.type === 'knight' || movingPiece.type === 'bishop')) {
+      const startRank = color === 'w' ? 0 : 7;
+      if (state.fullmoveNumber <= 4 && move.from.rank === startRank && move.to.rank !== startRank) {
+        score += 15;
+      }
+    }
+    return score;
+  }
 
   const next = cloneStateForMove(state);
   next.activeColor = color;
