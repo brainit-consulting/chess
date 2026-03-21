@@ -1,4 +1,5 @@
 import { Color, GameState, Move, getAllLegalMoves } from '../rules';
+import { lookupBookMove } from './openingBook';
 import {
   createHardTt,
   createOrderingState,
@@ -186,6 +187,10 @@ export function chooseMove(state: GameState, options: AiOptions = {}): Move | nu
   } = context;
 
   if (difficulty === 'max') {
+    const bookMove = lookupBookMove(state, rng);
+    if (bookMove) {
+      return bookMove;
+    }
     const maxTimeMs = options.maxTimeMs ?? MAX_THINKING_CAP_MS;
     const maxDepth = options.maxDepth ?? MAX_THINKING_DEPTH_CAP;
     const ordering = createOrderingState(maxDepth + 4);
@@ -294,6 +299,10 @@ export function chooseMoveWithDiagnostics(
   } = context;
 
   if (difficulty === 'max') {
+    const bookMove = lookupBookMove(state, rng);
+    if (bookMove) {
+      return { move: bookMove, diagnostics: null };
+    }
     const maxTimeMs = options.maxTimeMs ?? MAX_THINKING_CAP_MS;
     const maxDepth = options.maxDepth ?? MAX_THINKING_DEPTH_CAP;
     const ordering = createOrderingState(maxDepth + 4);
@@ -406,6 +415,10 @@ export function chooseMoveWithMetrics(
   const metrics = createSearchMetrics();
 
   if (difficulty === 'max') {
+    const bookMove = lookupBookMove(state, rng);
+    if (bookMove) {
+      return { move: bookMove, diagnostics: null, metrics };
+    }
     const maxTimeMs = options.maxTimeMs ?? MAX_THINKING_CAP_MS;
     const maxDepth = options.maxDepth ?? MAX_THINKING_DEPTH_CAP;
     const ordering = createOrderingState(maxDepth + 4);
