@@ -90,6 +90,7 @@ const KNIGHT_OUTPOST_BONUS = 20;
 const LONE_KING_EDGE_BONUS = 15;
 const LONE_KING_CORNER_BONUS = 10;
 const LONE_KING_CLOSE_KING_BONUS = 12;
+const LONE_KING_CLOSE_QUEEN_BONUS = 8;
 
 const KNIGHT_PST_OPENING = [
   -50, -40, -30, -30, -30, -30, -40, -50,
@@ -1048,7 +1049,18 @@ function loneKingMatingScore(
   );
   const closeBonus = Math.max(0, 7 - kingDist) * LONE_KING_CLOSE_KING_BONUS;
 
-  return edgeBonus + cornerBonus + closeBonus;
+  // Queen proximity: reward winner's queen close to enemy king (discourages distant checks)
+  let minQueenDist = 7;
+  for (const piece of state.pieces.values()) {
+    if (piece.color !== winnerColor || piece.type !== 'queen') continue;
+    const qSq = context.squares.get(piece.id);
+    if (!qSq) continue;
+    const qdist = chebyshevDistance(qSq.file, qSq.rank, enemyKing.file, enemyKing.rank);
+    if (qdist < minQueenDist) minQueenDist = qdist;
+  }
+  const queenBonus = Math.max(0, 6 - minQueenDist) * LONE_KING_CLOSE_QUEEN_BONUS;
+
+  return edgeBonus + cornerBonus + closeBonus + queenBonus;
 }
 
 function countDevelopedMinors(
