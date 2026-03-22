@@ -3128,9 +3128,22 @@ function quiescence(
     return standPat;
   }
 
-  const noisyMoves = legalMoves.filter(
-    (move) => isCaptureMove(state, move) || givesCheck(state, move, currentColor)
-  );
+  // Fast check detection for quiet moves: board-swap (same pattern as Phase 5b).
+  // Handles direct + discovered checks. Promotions always included (material change).
+  const opKingSquareQs = findKingSquare(state, opponentColor(currentColor));
+  const noisyMoves = legalMoves.filter((move) => {
+    if (isCaptureMove(state, move)) return true;
+    if (move.promotion) return true;
+    if (!opKingSquareQs) return false;
+    const fromId = state.board[move.from.rank][move.from.file];
+    const toId = state.board[move.to.rank][move.to.file];
+    state.board[move.from.rank][move.from.file] = null;
+    state.board[move.to.rank][move.to.file] = fromId;
+    const gives = isSquareAttacked(state, opKingSquareQs, currentColor);
+    state.board[move.from.rank][move.from.file] = fromId;
+    state.board[move.to.rank][move.to.file] = toId;
+    return gives;
+  });
   if (noisyMoves.length === 0) {
     return standPat;
   }
