@@ -16,7 +16,7 @@ MAGIC = b"SNN1"
 VERSION = 1
 FLAGS = 0
 INPUT_SIZE = 768
-HIDDEN_SIZE = 64
+HIDDEN_SIZE = 256
 RELU_CAP = 127.0
 
 PIECE_TYPE_INDEX = {"p": 0, "n": 1, "b": 2, "r": 3, "q": 4, "k": 5}
@@ -34,6 +34,7 @@ def parse_args():
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--maxSamples", type=int, default=None)
     parser.add_argument("--valSplit", type=float, default=0.1)
+    parser.add_argument("--hiddenSize", type=int, default=HIDDEN_SIZE)
     return parser.parse_args()
 
 
@@ -195,7 +196,9 @@ def main():
     print(f"Train: {len(train)}, Val: {len(val)}")
 
     # Train
-    model = NnueModel(INPUT_SIZE, HIDDEN_SIZE, args.seed)
+    hidden_size = args.hiddenSize
+    print(f"Architecture: {INPUT_SIZE}->{hidden_size}->1 ({INPUT_SIZE * hidden_size + hidden_size + hidden_size + 1} params)")
+    model = NnueModel(INPUT_SIZE, hidden_size, args.seed)
     best_val = math.inf
     best_epoch = 0
     best_snap = None

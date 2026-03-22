@@ -1,36 +1,36 @@
 {
-  "runId": "se-seed9029",
-  "startedAt": "2026-03-07T14:02:49.734Z",
-  "finishedAt": "2026-03-07T14:36:08.735Z",
-  "commitSha": "8988a2d0157addbacf05325c3d2e90752cb5a7ee",
+  "runId": "phase2m-queen-prox-seed9044",
+  "startedAt": "2026-03-22T12:42:12.574Z",
+  "finishedAt": "2026-03-22T13:31:31.972Z",
+  "commitSha": "2340f373348475e6821598b05b23e70f597bc971",
   "config": {
     "batchSize": 5,
     "hardMs": 1000,
-    "maxMs": 3000,
+    "maxMs": 5000,
     "maxPlies": 200,
     "swap": true,
     "fenSuite": true,
-    "baseSeed": 9029,
-    "outDir": "H:\\chess\\benchmarks\\selfplay\\run-se-seed9029"
+    "baseSeed": 9044,
+    "outDir": "H:\\chess\\benchmarks\\selfplay\\run-phase2m-queen-prox-seed9044"
   },
   "totals": {
     "games": 10,
-    "wins": 4,
-    "draws": 6,
+    "wins": 5,
+    "draws": 5,
     "losses": 0,
-    "avgPlies": 105.6,
+    "avgPlies": 103.2,
     "repetitionRate": 40,
-    "mateRate": 40,
-    "avgCapturesPerGame": 17.6,
-    "avgPawnMovesPerGame": 11.5,
+    "mateRate": 50,
+    "avgCapturesPerGame": 18.9,
+    "avgPawnMovesPerGame": 14.8,
     "earlyRepetitionCount": 0,
-    "avgRepetitionPly": 119,
+    "avgRepetitionPly": 144,
     "endReasons": {
-      "mate": 4,
+      "mate": 5,
       "stalemate": 0,
       "repetition": 4,
       "fiftyMove": 0,
-      "other": 2
+      "other": 1
     }
   },
   "segments": {
@@ -39,82 +39,82 @@
       "wins": 4,
       "draws": 1,
       "losses": 0,
-      "avgPlies": 76,
-      "repetitionRate": 0,
+      "avgPlies": 71.8,
+      "repetitionRate": 20,
       "mateRate": 80,
-      "avgCapturesPerGame": 13.4,
-      "avgPawnMovesPerGame": 7,
+      "avgCapturesPerGame": 16,
+      "avgPawnMovesPerGame": 8.4,
       "earlyRepetitionCount": 0,
-      "avgRepetitionPly": 0,
+      "avgRepetitionPly": 181,
       "endReasons": {
         "mate": 4,
         "stalemate": 0,
-        "repetition": 0,
+        "repetition": 1,
         "fiftyMove": 0,
-        "other": 1
+        "other": 0
       },
       "timing": {
         "hard": {
-          "avgMs": 940.4533833333329,
-          "maxMs": 1101.7823999999673,
-          "timeouts": 1,
-          "moveCount": 192
+          "avgMs": 950.6817593406553,
+          "maxMs": 1190.5999000000302,
+          "timeouts": 5,
+          "moveCount": 182
         },
         "max": {
-          "avgMs": 2877.5656095744703,
-          "maxMs": 3113.57699999999,
+          "avgMs": 4800.776223163834,
+          "maxMs": 5099.6258999999845,
           "timeouts": 1,
-          "moveCount": 188
+          "moveCount": 177
         }
       }
     },
     "hardAsBlack": {
       "games": 5,
-      "wins": 0,
-      "draws": 5,
+      "wins": 1,
+      "draws": 4,
       "losses": 0,
-      "avgPlies": 135.2,
-      "repetitionRate": 80,
-      "mateRate": 0,
+      "avgPlies": 134.6,
+      "repetitionRate": 60,
+      "mateRate": 20,
       "avgCapturesPerGame": 21.8,
-      "avgPawnMovesPerGame": 16,
+      "avgPawnMovesPerGame": 21.2,
       "earlyRepetitionCount": 0,
-      "avgRepetitionPly": 119,
+      "avgRepetitionPly": 131.66666666666666,
       "endReasons": {
-        "mate": 0,
+        "mate": 1,
         "stalemate": 0,
-        "repetition": 4,
+        "repetition": 3,
         "fiftyMove": 0,
         "other": 1
       },
       "timing": {
         "hard": {
-          "avgMs": 926.9509884615421,
-          "maxMs": 964.8937000001315,
+          "avgMs": 940.3575675595348,
+          "maxMs": 984.778399999952,
           "timeouts": 0,
-          "moveCount": 338
+          "moveCount": 336
         },
         "max": {
-          "avgMs": 2847.6373778106504,
-          "maxMs": 3088.277600000147,
-          "timeouts": 0,
-          "moveCount": 338
+          "avgMs": 4799.37152077152,
+          "maxMs": 5233.1703999999445,
+          "timeouts": 7,
+          "moveCount": 337
         }
       }
     }
   },
   "timing": {
     "hard": {
-      "avgMs": 931.8424220754739,
-      "maxMs": 1101.7823999999673,
-      "timeouts": 1,
-      "moveCount": 530
+      "avgMs": 943.984986293442,
+      "maxMs": 1190.5999000000302,
+      "timeouts": 5,
+      "moveCount": 518
     },
     "max": {
-      "avgMs": 2858.3341602661603,
-      "maxMs": 3113.57699999999,
-      "timeouts": 1,
-      "moveCount": 526
+      "avgMs": 4799.855241245139,
+      "maxMs": 5233.1703999999445,
+      "timeouts": 8,
+      "moveCount": 514
     }
   }
 }
