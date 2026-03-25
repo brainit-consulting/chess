@@ -2062,6 +2062,9 @@ function scoreRootMoves(
 }
 
 function getMateInfo(score: number): { mateInPly: number; mateInMoves: number } | null {
+  if (!Number.isFinite(score)) {
+    return null;
+  }
   const abs = Math.abs(score);
   if (abs < MATE_SCORE - 100) {
     return null;
@@ -2073,6 +2076,23 @@ function getMateInfo(score: number): { mateInPly: number; mateInMoves: number } 
 
 function defaultNow(): number {
   return typeof performance !== 'undefined' ? performance.now() : Date.now();
+}
+
+function getUnevaluatedNodeFallback(
+  state: GameState,
+  currentColor: Color,
+  maximizingColor: Color,
+  maxThinking: boolean,
+  nnueMix: number | undefined,
+  ply: number,
+  excludedAllMoves: boolean
+): number {
+  if (excludedAllMoves) {
+    // Singular-extension verification excludes a move artificially. If that removes
+    // every legal reply, treat the side to move as losing rather than leaking infinities.
+    return mateScore(currentColor, maximizingColor, ply);
+  }
+  return evaluateState(state, maximizingColor, { maxThinking, nnueMix });
 }
 
 function alphaBeta(
@@ -2306,19 +2326,34 @@ function alphaBeta(
     ply,
     prevMove: state.lastMove
   });
+  const excludedAllMoves = Boolean(
+    excludedMove && ordered.every((move) => sameMove(move, excludedMove))
+  );
 
   if (maximizing) {
     let value = -Infinity;
     let bestMove: Move | undefined;
     let historyRecorded = false;
+    let evaluatedAnyMove = false;
     for (let index = 0; index < ordered.length; index += 1) {
       if (shouldStopLoop()) {
-        return value;
+        return evaluatedAnyMove
+          ? value
+          : getUnevaluatedNodeFallback(
+              state,
+              currentColor,
+              maximizingColor,
+              maxThinking,
+              nnueMix,
+              ply,
+              excludedAllMoves
+            );
       }
       const move = ordered[index];
       if (excludedMove && sameMove(move, excludedMove)) {
         continue;
       }
+      evaluatedAnyMove = true;
       const next = cloneStateForMove(state);
       next.activeColor = currentColor;
       applyMoveWithNnue(next, move);
@@ -2433,6 +2468,17 @@ function alphaBeta(
         break;
       }
     }
+    if (!evaluatedAnyMove) {
+      return getUnevaluatedNodeFallback(
+        state,
+        currentColor,
+        maximizingColor,
+        maxThinking,
+        nnueMix,
+        ply,
+        excludedAllMoves
+      );
+    }
     if (
       ordering &&
       !historyRecorded &&
@@ -2455,14 +2501,26 @@ function alphaBeta(
   let value = Infinity;
   let bestMove: Move | undefined;
   let historyRecorded = false;
+  let evaluatedAnyMove = false;
   for (let index = 0; index < ordered.length; index += 1) {
     if (shouldStopLoop()) {
-      return value;
+      return evaluatedAnyMove
+        ? value
+        : getUnevaluatedNodeFallback(
+            state,
+            currentColor,
+            maximizingColor,
+            maxThinking,
+            nnueMix,
+            ply,
+            excludedAllMoves
+          );
     }
     const move = ordered[index];
     if (excludedMove && sameMove(move, excludedMove)) {
       continue;
     }
+    evaluatedAnyMove = true;
     const next = cloneStateForMove(state);
     next.activeColor = currentColor;
     applyMoveWithNnue(next, move);
@@ -2576,6 +2634,17 @@ function alphaBeta(
       }
       break;
     }
+  }
+  if (!evaluatedAnyMove) {
+    return getUnevaluatedNodeFallback(
+      state,
+      currentColor,
+      maximizingColor,
+      maxThinking,
+      nnueMix,
+      ply,
+      excludedAllMoves
+    );
   }
   if (
     ordering &&
@@ -3403,6 +3472,43 @@ export function mateScoreForTest(
   ply: number
 ): number {
   return mateScore(currentColor, maximizingColor, ply);
+}
+
+// Test-only: exercise the excluded-move alpha-beta path used by singular extensions.
+export function alphaBetaWithExcludedMoveForTest(
+  state: GameState,
+  options: {
+    depth: number;
+    currentColor: Color;
+    maximizingColor: Color;
+    rng: () => number;
+    excludedMove: Move;
+    alpha?: number;
+    beta?: number;
+    maxThinking?: boolean;
+    usePvs?: boolean;
+    ply?: number;
+  }
+): number {
+  return alphaBeta(
+    state,
+    options.depth,
+    options.alpha ?? -Infinity,
+    options.beta ?? Infinity,
+    options.currentColor,
+    options.maximizingColor,
+    options.rng,
+    options.maxThinking ?? true,
+    options.usePvs ?? false,
+    options.ply ?? 0,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    options.excludedMove
+  );
 }
 
 // Test-only helpers for SEE-lite assertions.

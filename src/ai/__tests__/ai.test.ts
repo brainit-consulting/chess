@@ -1080,6 +1080,29 @@ describe('AI move selection', () => {
     expect(slowLoss).toBeGreaterThan(fastLoss);
   });
 
+  it('returns a finite fallback when the excluded move is the only legal reply', () => {
+    const state = createEmptyState();
+    addPiece(state, 'king', 'b', sq(7, 7));
+    addPiece(state, 'king', 'w', sq(5, 6));
+    addPiece(state, 'rook', 'w', sq(6, 5));
+    state.activeColor = 'b';
+
+    const legalMoves = getAllLegalMoves(state, 'b');
+    expect(legalMoves).toHaveLength(1);
+    const forcedReply = legalMoves[0];
+
+    const score = search.alphaBetaWithExcludedMoveForTest(state, {
+      depth: 2,
+      currentColor: 'b',
+      maximizingColor: 'w',
+      rng: () => 0,
+      excludedMove: forcedReply
+    });
+
+    expect(Number.isFinite(score)).toBe(true);
+    expect(score).toBe(search.mateScoreForTest('b', 'w', 0));
+  });
+
   it('respects the max thinking time budget', () => {
     const state = createInitialState();
     const legalMoves = getAllLegalMoves(state, 'w');

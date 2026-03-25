@@ -138,8 +138,14 @@ describe('mate probe helper', () => {
   it('detects a forced mate in a simple position', () => {
     const report = runMateProbe(MATE_SINGLE_FEN, 'w', { maxDepth: 5, now: () => 0 });
     expect(report.move).not.toBeNull();
+    expect(Number.isFinite(report.score ?? NaN)).toBe(true);
     expect(report.mateInMoves).toBe(1);
-  });
+    expect(
+      report.scoredMoves.every(
+        (entry) => Number.isFinite(entry.score) && Number.isFinite(entry.baseScore)
+      )
+    ).toBe(true);
+  }, 15000);
 
   it('prefers the shortest mate when multiple mates exist', () => {
     const report = runMateProbe(MATE_MULTI_FEN, 'w', { maxDepth: 5, now: () => 0 });
@@ -147,7 +153,7 @@ describe('mate probe helper', () => {
     expect(mateMoves.length).toBeGreaterThan(1);
     const minMate = Math.min(...mateMoves.map((entry) => entry.mateInMoves ?? 99));
     expect(report.mateInMoves).toBe(minMate);
-  });
+  }, 15000);
 });
 
 if (process.env.MATE_FEN) {

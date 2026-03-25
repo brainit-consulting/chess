@@ -20,6 +20,16 @@ You do **not** commit `dist/`.
 
 ---
 
+## Cron jobs status
+
+The current `chess` deployment does **not** use Vercel cron jobs.
+
+- There is no `vercel.json` cron config in this repo
+- The app currently deploys as a static Vite site, not a Vercel Function endpoint
+- On the Hobby plan, any future Vercel cron setup would need a deployed function route and is limited to a daily schedule with hourly precision
+
+---
+
 ## Repo settings that matter
 
 ### 1) Vite base path should stay root (`/`)
@@ -243,4 +253,3 @@ Typical files you might touch for Vercel deployments:
 
 Optional / legacy:
 - `.github/workflows/pages.yml` (GitHub Pages workflow; not the current production deployment path)
-
