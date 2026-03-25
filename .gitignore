@@ -19,3 +19,7 @@ NNUE-Logo.jpg
 screenshotsPlay/
 *.blend
 AuditReports/
+.claude/commands/
+.claude/skills/
+skills-lock.json
+src/ai/nnue/weights/*.report.json
