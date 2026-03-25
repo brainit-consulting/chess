@@ -924,6 +924,7 @@ export class GameUI {
     this.panelViewSelect.innerHTML = `
       <option value="essentials">Essentials</option>
       <option value="advanced">Advanced</option>
+      <option value="both">Both</option>
     `;
     this.panelViewSelect.value = this.panelView;
     this.panelViewSelect.addEventListener('change', () => {
@@ -2055,11 +2056,13 @@ private applyAnalyzerChoice(choice: AnalyzerChoice): void {
     const panelCollapsed = this.panel.classList.contains('ui-collapsed');
     if (rootCollapsed !== collapsed || panelCollapsed !== collapsed) {
       this.collapseMismatchLogged = true;
-      console.warn('[UI] Collapse state mismatch', {
-        state: collapsed,
-        rootCollapsed,
-        panelCollapsed
-      });
+      if (import.meta.env.DEV) {
+        console.warn('[UI] Collapse state mismatch', {
+          state: collapsed,
+          rootCollapsed,
+          panelCollapsed
+        });
+      }
     }
   }
 

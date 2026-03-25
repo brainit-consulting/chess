@@ -837,22 +837,23 @@ function isInside(file: number, rank: number): boolean {
 }
 
 export function getPositionKey(state: GameState): string {
-  let boardKey = '';
+  const chars: string[] = [];
   for (let rank = 0; rank < BOARD_SIZE; rank += 1) {
     for (let file = 0; file < BOARD_SIZE; file += 1) {
       const id = state.board[rank][file];
       if (!id) {
-        boardKey += '.';
+        chars.push('.');
         continue;
       }
       const piece = state.pieces.get(id);
       if (!piece) {
-        boardKey += '.';
+        chars.push('.');
         continue;
       }
-      boardKey += pieceToChar(piece);
+      chars.push(pieceToChar(piece));
     }
   }
+  const boardKey = chars.join('');
 
   const castling = serializeCastling(state.castlingRights);
   const enPassant = state.enPassantTarget

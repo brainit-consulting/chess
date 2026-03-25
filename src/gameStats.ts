@@ -31,7 +31,7 @@ export class GameStats {
       }
     }
 
-    if (missing.length > 1) {
+    if (import.meta.env.DEV && missing.length > 1) {
       console.warn('Unexpected multiple pieces captured in one move.', missing);
     }
 

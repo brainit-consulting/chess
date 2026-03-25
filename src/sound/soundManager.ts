@@ -45,6 +45,7 @@ export class SoundManager {
       }
       return stored === 'true';
     } catch {
+      // ignore storage errors — default to enabled
       return true;
     }
   }

@@ -2615,21 +2615,30 @@ function orderMoves(
   const ply = options?.ply ?? 0;
   const prevMove = options?.prevMove ?? null;
   const inCheck = isInCheck(state, color);
-  const scored = moves.map((move, index) => ({
-    move,
-    score:
-      buildOrderScore(state, move, color, maxThinking, {
+  const len = moves.length;
+  const scores = new Array<number>(len);
+  const ties = new Array<number>(len);
+  const indices = new Array<number>(len);
+  for (let i = 0; i < len; i++) {
+    scores[i] =
+      buildOrderScore(state, moves[i], color, maxThinking, {
         preferred,
         ordering,
         ply,
         prevMove
       }) +
-      (inCheck ? scoreCheckEvasion(state, move, color) : 0),
-    tie: maxThinking ? index : rng()
-  }));
+      (inCheck ? scoreCheckEvasion(state, moves[i], color) : 0);
+    ties[i] = maxThinking ? i : rng();
+    indices[i] = i;
+  }
 
-  scored.sort((a, b) => b.score - a.score || a.tie - b.tie);
-  return scored.map((entry) => entry.move);
+  indices.sort((a, b) => scores[b] - scores[a] || ties[a] - ties[b]);
+
+  const result = new Array<Move>(len);
+  for (let i = 0; i < len; i++) {
+    result[i] = moves[indices[i]];
+  }
+  return result;
 }
 
 function scoreCheckEvasion(state: GameState, move: Move, color: Color): number {
@@ -3131,8 +3140,10 @@ function quiescence(
   // Fast check detection for quiet moves: board-swap (same pattern as Phase 5b).
   // Handles direct + discovered checks. Promotions always included (material change).
   const opKingSquareQs = findKingSquare(state, opponentColor(currentColor));
-  const noisyMoves = legalMoves.filter((move) => {
-    if (isCaptureMove(state, move)) return true;
+  const filtered = legalMoves.filter((move) => {
+    if (isCaptureMove(state, move)) {
+      return !shouldPruneCapture(state, move, currentColor);
+    }
     if (move.promotion) return true;
     if (!opKingSquareQs) return false;
     const fromId = state.board[move.from.rank][move.from.file];
@@ -3144,13 +3155,6 @@ function quiescence(
     state.board[move.to.rank][move.to.file] = toId;
     return gives;
   });
-  if (noisyMoves.length === 0) {
-    return standPat;
-  }
-
-  const filtered = noisyMoves.filter(
-    (move) => !shouldPruneCapture(state, move, currentColor)
-  );
   if (filtered.length === 0) {
     return standPat;
   }

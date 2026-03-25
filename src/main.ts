@@ -13,4 +13,6 @@ const game = new GameController(sceneRoot, uiRoot);
 game.start();
 
 // Expose game for automation/demo (Freddy plays chess)
-(window as any).__game = game;
+if (import.meta.env.DEV) {
+  (window as any).__game = game;
+}

@@ -963,7 +963,10 @@ export class GameController {
         { kind: 'nnue-weights', requestId, weights: buffer },
         [buffer]
       );
-    } catch {
+    } catch (transferError) {
+      if (import.meta.env.DEV) {
+        console.warn('NNUE Transferable postMessage failed, retrying without transfer:', transferError);
+      }
       try {
         this.aiWorker.postMessage({ kind: 'nnue-weights', requestId, weights: buffer });
       } catch (error) {
@@ -1293,11 +1296,21 @@ export class GameController {
     this.aiWorker.onmessage = (event: MessageEvent<AiWorkerResponse>) => {
       this.handleAiWorkerMessage(event.data);
     };
+    this.aiWorker.onerror = (event) => {
+      if (import.meta.env.DEV) {
+        console.error('[AI Worker] Error:', event.message);
+      }
+    };
     this.explainWorker = new Worker(new URL('./ai/aiWorker.ts', import.meta.url), {
       type: 'module'
     });
     this.explainWorker.onmessage = (event: MessageEvent<AiWorkerResponse>) => {
       this.handleAiWorkerMessage(event.data);
+    };
+    this.explainWorker.onerror = (event) => {
+      if (import.meta.env.DEV) {
+        console.error('[Explain Worker] Error:', event.message);
+      }
     };
   }
 

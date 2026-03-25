@@ -165,27 +165,44 @@ type EvalContext = {
   gamePhase: number;
 };
 
+// Pre-allocated eval buffers — reused across calls (single-threaded search context)
+const _pawnFiles = { w: new Array<number>(8), b: new Array<number>(8) };
+const _pawnRanks: Record<Color, number[][]> = {
+  w: Array.from({ length: 8 }, () => []),
+  b: Array.from({ length: 8 }, () => [])
+};
+const _rookQueenFiles = { w: new Array<boolean>(8), b: new Array<boolean>(8) };
+const _rookSquares: Record<Color, { file: number; rank: number }[]> = { w: [], b: [] };
+const _passedPawns: Record<Color, { file: number; rank: number }[]> = { w: [], b: [] };
+
+function resetEvalBuffers(): void {
+  for (let i = 0; i < 8; i++) {
+    _pawnFiles.w[i] = 0;
+    _pawnFiles.b[i] = 0;
+    _pawnRanks.w[i].length = 0;
+    _pawnRanks.b[i].length = 0;
+    _rookQueenFiles.w[i] = false;
+    _rookQueenFiles.b[i] = false;
+  }
+  _rookSquares.w.length = 0;
+  _rookSquares.b.length = 0;
+  _passedPawns.w.length = 0;
+  _passedPawns.b.length = 0;
+}
+
 export function evaluateState(
   state: GameState,
   perspective: Color,
   options: EvalOptions = {}
 ): number {
+  resetEvalBuffers();
   const squares = getPieceSquares(state);
-  const pawnFiles: Record<Color, number[]> = {
-    w: new Array(8).fill(0),
-    b: new Array(8).fill(0)
-  };
-  const pawnRanks: Record<Color, number[][]> = {
-    w: [[], [], [], [], [], [], [], []],
-    b: [[], [], [], [], [], [], [], []]
-  };
-  const rookQueenFiles: Record<Color, boolean[]> = {
-    w: new Array(8).fill(false),
-    b: new Array(8).fill(false)
-  };
+  const pawnFiles = _pawnFiles;
+  const pawnRanks = _pawnRanks;
+  const rookQueenFiles = _rookQueenFiles;
   let queenCount = 0;
   const bishopCount: Record<Color, number> = { w: 0, b: 0 };
-  const rookSquares: Record<Color, { file: number; rank: number }[]> = { w: [], b: [] };
+  const rookSquares = _rookSquares;
   let material = 0;
   for (const piece of state.pieces.values()) {
     const value = PIECE_VALUES[piece.type];
@@ -232,7 +249,7 @@ export function evaluateState(
     queenCount,
     bishopCount,
     rookSquares,
-    passedPawns: { w: [], b: [] },
+    passedPawns: _passedPawns,
     phaseFactor: getPhaseFactor(state.fullmoveNumber),
     gamePhase: calculateGamePhase(state)
   };

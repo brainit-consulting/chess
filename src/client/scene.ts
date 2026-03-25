@@ -7,6 +7,15 @@ import { createStandardPieceInstance, preloadStandardModels } from './models/sta
 import { createCoordinateGroup, setCoordinateOrientation } from './coordinates';
 import { isDarkSquare, squareToWorld as mapSquareToWorld } from './boardMapping';
 
+const cachedMarkerGeometry = {
+  capture: new THREE.RingGeometry(0.22, 0.3, 24),
+  quiet: new THREE.CircleGeometry(0.15, 18)
+};
+const cachedMarkerMaterial = {
+  capture: new THREE.MeshBasicMaterial({ color: '#e06d6d', transparent: true, opacity: 0.85 }),
+  quiet: new THREE.MeshBasicMaterial({ color: '#86c48a', transparent: true, opacity: 0.85 })
+};
+
 export type PickResult = {
   type: 'square' | 'piece';
   square: Square;
@@ -70,6 +79,11 @@ export class SceneView {
   private coordinateGroup: THREE.Group;
   private coordinateMode: CoordinateMode = 'fixed-white';
   private mappingValidated = false;
+  private boundHandleResize: () => void;
+  private boundHandleKeyDown: (event: KeyboardEvent) => void;
+  private boundHandlePointerDown: (event: PointerEvent) => void;
+  private boundHandlePointerUp: (event: PointerEvent) => void;
+  private boundHandleContextMenu: (event: Event) => void;
   private debugOverlay: THREE.Group | null = null;
   private debugEnabled = false;
 
@@ -107,33 +121,33 @@ export class SceneView {
       this.setCoordinateDebugOverlay(true);
     }
 
-    window.addEventListener('resize', () => this.handleResize(container));
-    window.addEventListener('keydown', (event) => this.cameraController.handleKey(event.key));
-
-    this.renderer.domElement.addEventListener('pointerdown', (event) => {
+    this.boundHandleResize = () => this.handleResize(container);
+    this.boundHandleKeyDown = (event: KeyboardEvent) => this.cameraController.handleKey(event.key);
+    this.boundHandlePointerDown = (event: PointerEvent) => {
       this.pointerDown = { x: event.clientX, y: event.clientY, button: event.button };
-    });
-
-    this.renderer.domElement.addEventListener('pointerup', (event) => {
+    };
+    this.boundHandlePointerUp = (event: PointerEvent) => {
       if (!this.pointerDown || event.button !== 0) {
         return;
       }
-
       const dx = Math.abs(event.clientX - this.pointerDown.x);
       const dy = Math.abs(event.clientY - this.pointerDown.y);
       this.pointerDown = null;
-
       if (dx + dy > 6) {
         return;
       }
-
       this.handlePick(event);
-    });
-
-    this.renderer.domElement.addEventListener('contextmenu', (event) => {
+    };
+    this.boundHandleContextMenu = (event: Event) => {
       event.preventDefault();
       this.handlers.onCancel();
-    });
+    };
+
+    window.addEventListener('resize', this.boundHandleResize);
+    window.addEventListener('keydown', this.boundHandleKeyDown);
+    this.renderer.domElement.addEventListener('pointerdown', this.boundHandlePointerDown);
+    this.renderer.domElement.addEventListener('pointerup', this.boundHandlePointerUp);
+    this.renderer.domElement.addEventListener('contextmenu', this.boundHandleContextMenu);
 
     this.animate();
   }
@@ -496,14 +510,8 @@ export class SceneView {
   }
 
   private createMarker(square: Square, isCapture: boolean): THREE.Mesh {
-    const geometry = isCapture
-      ? new THREE.RingGeometry(0.22, 0.3, 24)
-      : new THREE.CircleGeometry(0.15, 18);
-    const material = new THREE.MeshBasicMaterial({
-      color: isCapture ? '#e06d6d' : '#86c48a',
-      transparent: true,
-      opacity: 0.85
-    });
+    const geometry = isCapture ? cachedMarkerGeometry.capture : cachedMarkerGeometry.quiet;
+    const material = isCapture ? cachedMarkerMaterial.capture : cachedMarkerMaterial.quiet;
     const mesh = new THREE.Mesh(geometry, material);
     mesh.rotation.x = -Math.PI / 2;
     mesh.position.copy(this.squareToWorld(square));
@@ -639,7 +647,9 @@ export class SceneView {
     );
 
     if (errors.length) {
-      console.warn('[BoardMapping] Invariant check failed:', errors);
+      if (import.meta.env.DEV) {
+        console.warn('[BoardMapping] Invariant check failed:', errors);
+      }
       return;
     }
 
@@ -748,5 +758,37 @@ export class SceneView {
     } catch {
       return false;
     }
+  }
+
+  destroy(): void {
+    window.removeEventListener('resize', this.boundHandleResize);
+    window.removeEventListener('keydown', this.boundHandleKeyDown);
+    this.renderer.domElement.removeEventListener('pointerdown', this.boundHandlePointerDown);
+    this.renderer.domElement.removeEventListener('pointerup', this.boundHandlePointerUp);
+    this.renderer.domElement.removeEventListener('contextmenu', this.boundHandleContextMenu);
+
+    this.pieceMeshes.forEach((mesh) => {
+      mesh.traverse((child) => {
+        const m = child as THREE.Mesh;
+        if (m.isMesh) {
+          m.geometry?.dispose();
+          if (Array.isArray(m.material)) {
+            m.material.forEach((mat) => mat.dispose());
+          } else {
+            m.material?.dispose();
+          }
+        }
+      });
+    });
+
+    for (const row of this.squareMeshes) {
+      for (const mesh of row) {
+        mesh.geometry.dispose();
+        (mesh.material as THREE.Material).dispose();
+      }
+    }
+
+    this.renderer.dispose();
+    this.renderer.domElement.remove();
   }
 }
