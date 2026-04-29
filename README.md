@@ -99,3 +99,7 @@ npm run test:run
 - `src/ai`: AI move selection (heuristics + minimax)
 
 Learn more: [Dreaming About Becoming a Grand Master Chess Engine Invitation](docs/Dreaming_About_Becoming_a_Grand_Master_Chess_Engine_Invitation.html)
+
+## Support
+
+If this project helps you, you can support DreamForge Academy here: [Buy Me a Coffee](https://buymeacoffee.com/dreamforgeacademy).
