@@ -69,9 +69,17 @@ export class SoundManager {
     if (this.unlocked) {
       return;
     }
-    this.context = new AudioContext();
+    const AudioContextClass = window.AudioContext ||
+      (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextClass) return;
+    try {
+      this.context = new AudioContextClass();
+    } catch {
+      // Sound is optional; unavailable audio must not interrupt a move.
+      return;
+    }
     this.preloadBuffers(this.context);
-    void this.context.resume();
+    void this.context.resume().catch(() => {});
     this.unlocked = true;
   }
 

@@ -12,7 +12,7 @@ import engineLogoUrl from '../../graphics/ScorpionChessEngineLogo.png';
 const PLAYER_GUIDE_URL = `${import.meta.env.BASE_URL}player-user-guide.md`;
 const LIVE_URL = 'https://chess-pi-wheat.vercel.app/';
 const LIVE_URL_LABEL = LIVE_URL.replace(/^https?:\/\//, '').replace(/\/$/, '');
-const APP_VERSION = 'v1.1.67';
+const APP_VERSION = 'v1.1.68';
 
 export type UiState = {
   visible: boolean;

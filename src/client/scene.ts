@@ -86,6 +86,7 @@ export class SceneView {
   private boundHandleContextMenu: (event: Event) => void;
   private debugOverlay: THREE.Group | null = null;
   private debugEnabled = false;
+  private resizeObserver: ResizeObserver;
 
   constructor(container: HTMLElement, handlers: SceneHandlers, pieceSet: PieceSet = 'scifi') {
     this.handlers = handlers;
@@ -96,7 +97,7 @@ export class SceneView {
     this.camera.position.set(0, 6.5, 10.5);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
-    this.renderer.setPixelRatio(window.devicePixelRatio);
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.setSize(container.clientWidth, container.clientHeight);
     this.renderer.domElement.style.touchAction = 'none';
     container.appendChild(this.renderer.domElement);
@@ -143,6 +144,9 @@ export class SceneView {
       this.handlers.onCancel();
     };
 
+    this.resizeObserver = new ResizeObserver(this.boundHandleResize);
+    this.resizeObserver.observe(container);
+    this.handleResize(container);
     window.addEventListener('resize', this.boundHandleResize);
     window.addEventListener('keydown', this.boundHandleKeyDown);
     this.renderer.domElement.addEventListener('pointerdown', this.boundHandlePointerDown);
@@ -299,6 +303,7 @@ export class SceneView {
   private handleResize(container: HTMLElement): void {
     const width = container.clientWidth;
     const height = container.clientHeight;
+    if (width <= 0 || height <= 0) return;
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height);
@@ -761,6 +766,7 @@ export class SceneView {
   }
 
   destroy(): void {
+    this.resizeObserver.disconnect();
     window.removeEventListener('resize', this.boundHandleResize);
     window.removeEventListener('keydown', this.boundHandleKeyDown);
     this.renderer.domElement.removeEventListener('pointerdown', this.boundHandlePointerDown);

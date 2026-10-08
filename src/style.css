@@ -856,3 +856,36 @@ button:active {
   color: var(--muted);
   opacity: 0.85;
 }
+
+/* Keep the board separate from controls on tablets, including iPad Pro.
+   A dedicated scroll area lets every control remain reachable in either orientation. */
+@media (max-width: 1100px), (pointer: coarse) {
+  #app { height: 100vh; height: 100dvh; }
+  #scene { bottom: 40%; }
+  #scene canvas { display: block; }
+  #hud {
+    top: 60%;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px;
+    overflow: auto;
+    pointer-events: auto;
+    background: var(--bg-bottom);
+  }
+  .hud-stack { position: relative; inset: auto; flex: 1; min-width: 0; }
+  .history-panel { position: relative; inset: auto; width: 220px; flex: 0 0 220px; max-height: none; }
+  .panel { min-width: 0; }
+  .panel-header { grid-template-columns: auto 1fr; gap: 8px; }
+  .panel-actions { grid-column: 1 / -1; justify-self: start; }
+  .ui-logo-engine { width: 44px; height: 44px; }
+  .history-hidden .history-panel, .ui-hidden .hud-stack { display: none; }
+  .ui-show-button, .history-show-button { position: fixed; top: auto; bottom: 12px; }
+  .modal { position: fixed; z-index: 20; }
+  .advanced-content { max-height: none; }
+  select { color-scheme: dark; }
+}
+@media (max-width: 700px) {
+  #hud { flex-direction: column; }
+  .hud-stack, .history-panel { width: 100%; flex: none; }
+}
