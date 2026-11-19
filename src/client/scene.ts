@@ -1,10 +1,12 @@
 import * as THREE from 'three';
 import { CameraController } from './camera';
 import { Color, GameState, Move, PieceType, Square, getPieceSquares } from '../rules';
-import { CoordinateMode, PieceSet, SnapView } from '../types';
+import { CoordinateMode, PieceSet, SnapView, ViewMode } from '../types';
 import { createSciFiPieceInstance, preloadSciFiModels } from './models/scifiChessModels';
 import { createStandardPieceInstance, preloadStandardModels } from './models/standardChessModels';
 import { createCoordinateGroup, setCoordinateOrientation } from './coordinates';
+import { DEFAULT_VIEW_MODE } from './viewMode';
+import { createFlatPiece, isFlatPiece } from './flatPieces';
 import { isDarkSquare, squareToWorld as mapSquareToWorld } from './boardMapping';
 
 const cachedMarkerGeometry = {
@@ -88,7 +90,12 @@ export class SceneView {
   private debugEnabled = false;
   private resizeObserver: ResizeObserver;
 
-  constructor(container: HTMLElement, handlers: SceneHandlers, pieceSet: PieceSet = 'scifi') {
+  constructor(
+    container: HTMLElement,
+    handlers: SceneHandlers,
+    pieceSet: PieceSet = 'scifi',
+    viewMode: ViewMode = DEFAULT_VIEW_MODE
+  ) {
     this.handlers = handlers;
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color('#0b0d12');
@@ -103,6 +110,7 @@ export class SceneView {
     container.appendChild(this.renderer.domElement);
 
     this.cameraController = new CameraController(this.camera, this.renderer.domElement);
+    this.cameraController.setViewMode(viewMode);
 
     this.scene.add(this.boardGroup);
     this.scene.add(this.piecesGroup);
@@ -214,12 +222,17 @@ export class SceneView {
 
       let object = this.pieceMeshes.get(id);
       if (!object) {
-        object = this.pieceProvider.createPieceInstance(piece.type, piece.color, id);
+        // Holder keeps the flat 2D glyph clear of the model's own scale/rotation.
+        object = new THREE.Group();
+        object.userData.type = piece.type;
+        object.add(this.pieceProvider.createPieceInstance(piece.type, piece.color, id));
+        object.add(createFlatPiece(piece.type, piece.color, id));
         this.piecesGroup.add(object);
         this.pieceMeshes.set(id, object);
       }
       object.position.copy(this.squareToWorld(square));
       this.setPieceSquare(object, square);
+      this.applyPieceVisibility(object);
       seen.add(id);
     }
 
@@ -269,7 +282,31 @@ export class SceneView {
 
   snapView(view: SnapView): void {
     this.cameraController.snap(view);
+    for (const object of this.pieceMeshes.values()) {
+      this.applyPieceVisibility(object);
+    }
     this.applyCoordinateOrientation();
+  }
+
+  setViewMode(mode: ViewMode): void {
+    this.cameraController.setViewMode(mode);
+    for (const object of this.pieceMeshes.values()) {
+      this.applyPieceVisibility(object);
+    }
+  }
+
+  /** 2D shows the flat glyph; 3D shows the model. Same object, same square, same id. */
+  private applyPieceVisibility(object: THREE.Object3D): void {
+    const is2d = this.cameraController.getViewMode() === '2d';
+    // Keep letters upright for whichever side is at the bottom of the screen.
+    const flatSpin = this.cameraController.getTwoDOrientation() === 'white' ? Math.PI : 0;
+    for (const child of object.children) {
+      const flat = isFlatPiece(child);
+      child.visible = flat ? is2d : !is2d;
+      if (flat) {
+        child.rotation.z = flatSpin;
+      }
+    }
   }
 
   setUiState(state: { visible: boolean; collapsed: boolean; historyVisible: boolean }): void {
@@ -304,8 +341,7 @@ export class SceneView {
     const width = container.clientWidth;
     const height = container.clientHeight;
     if (width <= 0 || height <= 0) return;
-    this.camera.aspect = width / height;
-    this.camera.updateProjectionMatrix();
+    this.cameraController.setAspect(width / height);
     this.renderer.setSize(width, height);
   }
 
@@ -313,7 +349,7 @@ export class SceneView {
     const rect = this.renderer.domElement.getBoundingClientRect();
     this.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     this.pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-    this.raycaster.setFromCamera(this.pointer, this.camera);
+    this.raycaster.setFromCamera(this.pointer, this.cameraController.getActiveCamera());
 
     const intersects = this.raycaster.intersectObjects(
       [this.piecesGroup, this.boardGroup],
@@ -544,7 +580,7 @@ export class SceneView {
         this.hintTo.scale.set(pulse, pulse, pulse);
       }
     }
-    this.renderer.render(this.scene, this.camera);
+    this.renderer.render(this.scene, this.cameraController.getActiveCamera());
   }
 
   private applyCoordinateOrientation(): void {
