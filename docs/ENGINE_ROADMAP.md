@@ -712,8 +712,9 @@ Controls / invariants (checklist)
 - Suite:
   - Keep using existing SF500 quick bench rungs + seeds.
 
-## Phase 7a: Bound the Max depth-1 fallback (issue #7) — pending self-play measurement
-- Finding: the stop poll (`& 1023`) is not the cause of Max overruns. Every node entry already polls the clock. Overruns came from the unbounded depth-1 `findBestMove` fallback in `findBestMoveTimed`, used when the deadline hits before depth 1 completes (0.7–3.3 s over budget, always with `fallbackUsed=true`).
+## Phase 7a: Bound the Max depth-1 fallback (issue #7) — pending maintainer self-play
+- Finding: the stop poll (`& 1023`) is not the cause of Max overruns. Every node entry already calls stopChecker, which reads the clock. Probe at maxTimeMs 1000 on seeded 24-ply positions: longest gap between clock reads was 85 ms. Overruns (0.7-3.3 s) came from the unbounded depth-1 `findBestMove` fallback in `findBestMoveTimed`, used when the deadline hits before depth 1 completes. Every overrun had `fallbackUsed=true`; every run without the fallback ended at ~942 ms.
+- Poll mask intentionally left at 1023: the data shows no gap a tighter mask would close, and it was not measured on self-play. `stopTicker` does reset per call (read from code), so the non-instrumented loop check is effectively dead; a test shows clock reads >= nodes searched either way, so behaviour was not changed.
 - Change (Max-only): the fallback now stops at the full `maxTimeMs` and returns its best ordered root move.
-- Tests: `src/ai/__tests__/maxTimeoutFallback.test.ts` (failed 7/8 before, passes after); full suite 164 passed.
-- Not yet run: baseline-vs-variant `bench:selfplay` (needs a fresh seed, 9052+). Summary.json W/D/L is Hard's record. Accept/reject on that evidence is for the maintainer.
+- Tests: `src/ai/__tests__/maxTimeoutFallback.test.ts`. The timing tests fail on the old search.ts and pass on the fix. Legality, one-legal-move, mate/stalemate and poll-cadence tests were added.
+- Self-play (seeds 9052+) not run by the agent; the maintainer runs those. summary.json W/D/L is Hard's record.
