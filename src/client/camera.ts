@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { SnapView } from '../types';
+import { SnapView, ViewMode } from '../types';
+import { DEFAULT_VIEW_MODE, computeOrthoFrustum, twoDPose } from './viewMode';
 
 export class CameraController {
   private controls: OrbitControls;
@@ -21,6 +22,10 @@ export class CameraController {
   private nudgeOffset = new THREE.Vector3();
   private settleStart: number | null = null;
   private settleDuration = 420;
+  private orthoCamera = new THREE.OrthographicCamera(-5, 5, 5, -5, 0.1, 100);
+  private viewMode: ViewMode = DEFAULT_VIEW_MODE;
+  private twoDOrientation: 'white' | 'black' = 'white';
+  private aspect = 1;
 
   constructor(camera: THREE.PerspectiveCamera, domElement: HTMLElement) {
     this.camera = camera;
@@ -42,9 +47,64 @@ export class CameraController {
     this.baseFov = camera.fov;
     this.zoomFrom = camera.fov;
     this.zoomTo = camera.fov;
+    this.applyViewMode();
+  }
+
+  /** The camera the scene should render and raycast with. */
+  getActiveCamera(): THREE.Camera {
+    return this.viewMode === '2d' ? this.orthoCamera : this.camera;
+  }
+
+  getViewMode(): ViewMode {
+    return this.viewMode;
+  }
+
+  setViewMode(mode: ViewMode): void {
+    if (mode === this.viewMode) {
+      return;
+    }
+    this.viewMode = mode;
+    this.applyViewMode();
+  }
+
+  getTwoDOrientation(): 'white' | 'black' {
+    return this.twoDOrientation;
+  }
+
+  setAspect(aspect: number): void {
+    this.aspect = aspect;
+    const frustum = computeOrthoFrustum(aspect);
+    this.orthoCamera.left = frustum.left;
+    this.orthoCamera.right = frustum.right;
+    this.orthoCamera.top = frustum.top;
+    this.orthoCamera.bottom = frustum.bottom;
+    this.orthoCamera.updateProjectionMatrix();
+    this.camera.aspect = aspect;
+    this.camera.updateProjectionMatrix();
+  }
+
+  private applyViewMode(): void {
+    const is2d = this.viewMode === '2d';
+    // Orbit/tilt only makes sense for the perspective camera.
+    this.controls.enabled = !is2d;
+    if (is2d) {
+      this.applyTwoDPose();
+    }
+  }
+
+  private applyTwoDPose(): void {
+    const pose = twoDPose(this.twoDOrientation);
+    this.orthoCamera.position.set(...pose.position);
+    this.orthoCamera.up.set(...pose.up);
+    this.orthoCamera.lookAt(0, 0, 0);
+    this.orthoCamera.updateMatrixWorld();
+    this.setAspect(this.aspect);
   }
 
   update(): void {
+    if (this.viewMode === '2d') {
+      return;
+    }
     // Apply subtle target bias before OrbitControls updates camera.
     this.applyTargetBias();
     this.applySettle();
@@ -55,6 +115,9 @@ export class CameraController {
   }
 
   handleKey(key: string): void {
+    if (this.viewMode === '2d') {
+      return;
+    }
     const step = 0.12;
     if (key === 'q') {
       this.controls.rotateLeft(step);
@@ -73,6 +136,13 @@ export class CameraController {
     const topRadius = 11;
     const topAngle = THREE.MathUtils.degToRad(15);
     const camera = this.controls.object as THREE.PerspectiveCamera;
+
+    if (view === 'white' || view === 'black') {
+      this.twoDOrientation = view;
+      if (this.viewMode === '2d') {
+        this.applyTwoDPose();
+      }
+    }
 
     if (view === 'white') {
       camera.position.set(0, elevation, -radius);

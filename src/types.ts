@@ -2,3 +2,4 @@ export type SnapView = 'white' | 'black' | 'iso' | 'top';
 export type GameMode = 'hvh' | 'hvai' | 'aivai';
 export type PieceSet = 'scifi' | 'standard';
 export type CoordinateMode = 'fixed-white' | 'fixed-black' | 'hidden';
+export type ViewMode = '2d' | '3d';

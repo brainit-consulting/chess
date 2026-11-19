@@ -3,7 +3,8 @@ import type { AiExplainResult } from '../ai/aiWorkerTypes';
 import type { HistoryRow } from '../history/gameHistory';
 import { GameStatus, Color } from '../rules';
 import { GameSummary } from '../gameSummary';
-import { CoordinateMode, GameMode, PieceSet, SnapView } from '../types';
+import { DEFAULT_VIEW_MODE } from '../client/viewMode';
+import { CoordinateMode, GameMode, PieceSet, SnapView, ViewMode } from '../types';
 import { PieceType } from '../rules';
 import { ANALYZER_OPTIONS, AnalyzerChoice, DEFAULT_ANALYZER } from '../analyzer';
 import analyzerLogoUrl from '../../graphics/BrainITChessAnalyzerLogo.png';
@@ -49,6 +50,7 @@ type UIHandlers = {
   onAnalyzerChange: (choice: AnalyzerChoice) => void;
   onAnalyzeGame: () => void;
   onCoordinateModeChange: (mode: CoordinateMode) => void;
+  onViewModeChange: (mode: ViewMode) => void;
   onToggleCoordinateDebug: (enabled: boolean) => void;
   onToggleNnue: (enabled: boolean) => void;
   onNnueMixChange: (mix: number) => void;
@@ -73,6 +75,7 @@ type UIOptions = {
   humanColor?: Color;
   autoSnapHumanView?: boolean;
   coordinateMode?: CoordinateMode;
+  viewMode?: ViewMode;
   coordinateDebugEnabled?: boolean;
   nnueEnabled?: boolean;
   nnueMix?: number;
@@ -187,6 +190,9 @@ export class GameUI {
   private musicVolumeValueEl: HTMLSpanElement;
   private musicVolumeInput: HTMLInputElement;
   private musicHintEl: HTMLDivElement;
+  private tiltButtons: HTMLButtonElement[] = [];
+  private viewModeRow: HTMLDivElement;
+  private viewModeSelect: HTMLSelectElement;
   private coordinateModeRow: HTMLDivElement;
   private coordinateModeSelect: HTMLSelectElement;
   private coordinateDebugRow: HTMLDivElement;
@@ -364,6 +370,7 @@ export class GameUI {
     const initialHumanColor = options.humanColor ?? 'w';
     const initialAutoSnap = options.autoSnapHumanView ?? true;
     const initialCoordinateMode = options.coordinateMode ?? 'fixed-white';
+    const initialViewMode = options.viewMode ?? DEFAULT_VIEW_MODE;
     const initialNnueEnabled = options.nnueEnabled ?? false;
     const initialNnueMix = clampNnueMix(options.nnueMix ?? 0.05);
     const initialCoordinateDebug = options.coordinateDebugEnabled ?? false;
@@ -480,6 +487,25 @@ export class GameUI {
     const boardTitle = document.createElement('div');
     boardTitle.className = 'section-title expand-only';
     boardTitle.textContent = 'Board';
+
+    this.viewModeRow = document.createElement('div');
+    this.viewModeRow.className = 'control-row expand-only';
+
+    const viewModeLabel = document.createElement('span');
+    viewModeLabel.className = 'stat-label';
+    viewModeLabel.textContent = 'View';
+
+    this.viewModeSelect = document.createElement('select');
+    this.viewModeSelect.setAttribute('aria-label', 'Board view');
+    this.viewModeSelect.innerHTML = `
+      <option value="2d">2D</option>
+      <option value="3d">3D</option>
+    `;
+    this.viewModeSelect.value = initialViewMode;
+    this.viewModeSelect.addEventListener('change', () => {
+      this.handlers.onViewModeChange(this.viewModeSelect.value as ViewMode);
+    });
+    this.viewModeRow.append(viewModeLabel, this.viewModeSelect);
 
     this.coordinateModeRow = document.createElement('div');
     this.coordinateModeRow.className = 'control-row expand-only';
@@ -890,6 +916,7 @@ export class GameUI {
     const blackBtn = this.makeButton('Black View', () => handlers.onSnap('black'));
     const isoBtn = this.makeButton('Isometric', () => handlers.onSnap('iso'));
     const topBtn = this.makeButton('Top-Down', () => handlers.onSnap('top'));
+    this.tiltButtons = [isoBtn, topBtn];
     const restartBtn = this.makeButton('Restart', () => handlers.onRestart());
 
     buttonRow.append(whiteBtn, blackBtn, isoBtn, topBtn, restartBtn);
@@ -956,6 +983,7 @@ export class GameUI {
     this.advancedContent.className = 'advanced-content';
     this.advancedContent.append(
       boardTitle,
+      this.viewModeRow,
       this.coordinateModeRow,
       this.coordinateDebugRow,
       this.autoSnapRow,
@@ -1027,6 +1055,7 @@ export class GameUI {
     this.setMusicEnabled(initialMusicEnabled);
     this.setAnalyzerChoice(initialAnalyzerChoice);
     this.setCoordinateMode(initialCoordinateMode);
+    this.setViewMode(initialViewMode);
     this.setNnueEnabled(initialNnueEnabled);
     this.setNnueMix(initialNnueMix);
     this.setMusicUnlockHint(false);
@@ -1057,6 +1086,15 @@ export class GameUI {
 
   setCoordinateMode(mode: CoordinateMode): void {
     this.coordinateModeSelect.value = mode;
+  }
+
+  setViewMode(mode: ViewMode): void {
+    this.viewModeSelect.value = mode;
+    // Tilted views only exist in 3D; White/Black View still flip the 2D board.
+    for (const button of this.tiltButtons) {
+      button.disabled = mode === '2d';
+      button.title = mode === '2d' ? 'Switch to 3D view to use this' : '';
+    }
   }
 
   setScores(scores: { w: number; b: number }): void {

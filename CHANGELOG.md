@@ -6,6 +6,9 @@ The format is based on Keep a Changelog, and this project adheres to
 Semantic Versioning.
 
 ## [Unreleased]
+### Added
+- View option (Advanced > Board > View): 2D or 3D board. 2D is the default. The choice is saved.
+
 ### Changed
 
 ## v1.1.67

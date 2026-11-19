@@ -53,7 +53,8 @@ import {
 } from './history/plainEnglish';
 import { SoundManager } from './sound/soundManager';
 import { initMusic, MusicManager } from './audio/musicManager';
-import { CoordinateMode, GameMode, PieceSet, SnapView } from './types';
+import { CoordinateMode, GameMode, PieceSet, SnapView, ViewMode } from './types';
+import { DEFAULT_VIEW_MODE, loadViewMode, saveViewMode } from './client/viewMode';
 import { createGameSummary } from './gameSummary';
 import { buildPgn, buildSanLine, PgnMove } from './pgn/pgn';
 import { ANALYZER_OPTIONS, AnalyzerChoice, DEFAULT_ANALYZER } from './analyzer';
@@ -80,6 +81,7 @@ type Preferences = {
   humanColor: Color;
   autoSnapHumanView: boolean;
   coordinateMode: CoordinateMode;
+  viewMode: ViewMode;
   nnueEnabled: boolean;
   nnueMix: number;
 };
@@ -196,6 +198,7 @@ export class GameController {
   private humanColor: Color = 'w';
   private autoSnapHumanView = true;
   private coordinateMode: CoordinateMode = 'fixed-white';
+  private viewMode: ViewMode = DEFAULT_VIEW_MODE;
   private coordinateDebugEnabled = false;
   private nnueEnabled = false;
   private nnueMix = NNUE_DEFAULT_MIX;
@@ -235,6 +238,7 @@ export class GameController {
     this.humanColor = preferences.humanColor;
     this.autoSnapHumanView = preferences.autoSnapHumanView;
     this.coordinateMode = preferences.coordinateMode;
+    this.viewMode = preferences.viewMode;
     this.nnueEnabled = preferences.nnueEnabled;
     this.nnueMix = preferences.nnueMix;
     this.coordinateDebugEnabled = this.loadCoordinateDebug();
@@ -244,7 +248,7 @@ export class GameController {
     this.scene = new SceneView(sceneRoot, {
       onPick: (pick) => this.handlePick(pick),
       onCancel: () => this.clearSelection()
-    }, this.pieceSet);
+    }, this.pieceSet, this.viewMode);
     this.scene.setCoordinateMode(this.coordinateMode);
     this.scene.setCoordinateDebugOverlay(this.coordinateDebugEnabled);
     this.initAiWorker();
@@ -277,6 +281,7 @@ export class GameController {
       onAnalyzerChange: (choice) => this.setAnalyzerChoice(choice),
       onAnalyzeGame: () => this.openAnalyzer(),
       onCoordinateModeChange: (mode) => this.setCoordinateMode(mode),
+      onViewModeChange: (mode) => this.setViewMode(mode),
       onToggleCoordinateDebug: (enabled) => this.setCoordinateDebug(enabled),
       onToggleNnue: (enabled) => this.setNnueEnabled(enabled),
       onNnueMixChange: (mix) => this.setNnueMix(mix),
@@ -296,6 +301,7 @@ export class GameController {
       humanColor: this.humanColor,
       autoSnapHumanView: this.autoSnapHumanView,
       coordinateMode: this.coordinateMode,
+      viewMode: this.viewMode,
       coordinateDebugEnabled: this.coordinateDebugEnabled,
       nnueEnabled: this.nnueEnabled,
       nnueMix: this.nnueMix
@@ -795,6 +801,13 @@ export class GameController {
     this.scene.setCoordinateMode(mode);
   }
 
+  private setViewMode(mode: ViewMode): void {
+    this.viewMode = mode;
+    saveViewMode(this.getStorage(), mode);
+    this.ui.setViewMode(mode);
+    this.scene.setViewMode(mode);
+  }
+
   private setCoordinateDebug(enabled: boolean): void {
     this.coordinateDebugEnabled = enabled;
     const storage = this.getStorage();
@@ -1110,6 +1123,7 @@ export class GameController {
     let humanColor: Color = 'w';
     let autoSnapHumanView = true;
     let coordinateMode: CoordinateMode = 'fixed-white';
+    let viewMode: ViewMode = DEFAULT_VIEW_MODE;
     let nnueEnabled = false;
     let nnueMix = NNUE_DEFAULT_MIX;
 
@@ -1201,6 +1215,8 @@ export class GameController {
         coordinateMode = 'hidden';
       }
 
+      viewMode = loadViewMode(storage);
+
       const rawNnueEnabled = storage.getItem(STORAGE_KEYS.nnueEnabled);
       if (rawNnueEnabled !== null) {
         nnueEnabled = rawNnueEnabled === 'true';
@@ -1225,6 +1241,7 @@ export class GameController {
       storage.setItem(STORAGE_KEYS.humanColor, humanColor);
       storage.setItem(STORAGE_KEYS.autoSnapHumanView, autoSnapHumanView.toString());
       storage.setItem(STORAGE_KEYS.coordinateMode, coordinateMode);
+      saveViewMode(storage, viewMode);
       storage.setItem(STORAGE_KEYS.nnueEnabled, nnueEnabled.toString());
       storage.setItem(STORAGE_KEYS.nnueMix, nnueMix.toFixed(2));
     }
@@ -1241,6 +1258,7 @@ export class GameController {
       humanColor,
       autoSnapHumanView,
       coordinateMode,
+      viewMode,
       nnueEnabled,
       nnueMix
     };
