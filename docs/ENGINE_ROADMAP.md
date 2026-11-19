@@ -711,3 +711,9 @@ Controls / invariants (checklist)
   - strength-per-time proxy: avg depth / nodes per ms (from instrumentation)
 - Suite:
   - Keep using existing SF500 quick bench rungs + seeds.
+
+## Phase 7a: Bound the Max depth-1 fallback (issue #7) — pending self-play measurement
+- Finding: the stop poll (`& 1023`) is not the cause of Max overruns. Every node entry already polls the clock. Overruns came from the unbounded depth-1 `findBestMove` fallback in `findBestMoveTimed`, used when the deadline hits before depth 1 completes (0.7–3.3 s over budget, always with `fallbackUsed=true`).
+- Change (Max-only): the fallback now stops at the full `maxTimeMs` and returns its best ordered root move.
+- Tests: `src/ai/__tests__/maxTimeoutFallback.test.ts` (failed 7/8 before, passes after); full suite 164 passed.
+- Not yet run: baseline-vs-variant `bench:selfplay` (needs a fresh seed, 9052+). Summary.json W/D/L is Hard's record. Accept/reject on that evidence is for the maintainer.

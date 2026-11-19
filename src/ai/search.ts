@@ -1606,7 +1606,13 @@ export function findBestMoveTimed(
     maxThinking: options.maxThinking,
     usePvs,
     tt,
-    ordering
+    ordering,
+    // Max only: keep the fallback inside the full budget. Without this the depth-1
+    // fallback ran unbounded and overran the budget by seconds. When the stop
+    // fires, findBestMove returns its best ordered root move.
+    stopRequested: options.maxThinking
+      ? () => options.stopRequested?.() === true || now() >= start + options.maxTimeMs
+      : undefined
   });
 }
 
