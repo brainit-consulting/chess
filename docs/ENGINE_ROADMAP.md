@@ -702,6 +702,7 @@ Controls / invariants (checklist)
   - Never return “no move” or throw.
 - Validation:
   - Unit test: in forced low-time simulation, engine always returns a legal move.
+  - Regression tests added in `src/ai/__tests__/ai.test.ts` (`safe fallback and simple tactics`): legal move at hard/max with a 1ms budget and with `stopRequested` immediately true (returned move matches the last reported iteration move), plus mate-in-one and hanging-piece FEN sets at medium/hard/max. The fallback behaviour itself already passes these tests; no engine change was needed.
 
 ### 9.5 Bench & metrics (planned)
 - Core metrics:

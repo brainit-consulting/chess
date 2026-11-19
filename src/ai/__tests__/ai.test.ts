@@ -33,6 +33,9 @@ import {
   getPieceAt,
   getPieceSquares,
   getPositionKey,
+  isInCheck,
+  Color,
+  PieceType,
   GameState,
   Piece,
   Square,
@@ -2809,4 +2812,129 @@ describe('knight outpost bonus', () => {
                      evaluateState(noOutpost, 'w', { maxThinking: true });
     expect(maxDelta).toBeGreaterThan(hardDelta);
   });
+});
+
+
+// Roadmap 9.4: safe fallback move selection, and "never hang a piece / miss mate in one".
+const FEN_FILES = 'abcdefgh';
+
+function stateFromFen(fen: string): GameState {
+  const [placement, active] = fen.trim().split(/\s+/);
+  const state = createEmptyState();
+  const types: Record<string, PieceType> = {
+    p: 'pawn', n: 'knight', b: 'bishop', r: 'rook', q: 'queen', k: 'king'
+  };
+  placement.split('/').forEach((row, rowIndex) => {
+    let file = 0;
+    for (const symbol of row) {
+      if (/\d/.test(symbol)) {
+        file += Number(symbol);
+        continue;
+      }
+      const color: Color = symbol === symbol.toLowerCase() ? 'b' : 'w';
+      addPiece(state, types[symbol.toLowerCase()], color, { file, rank: 7 - rowIndex });
+      file += 1;
+    }
+  });
+  state.activeColor = active === 'b' ? 'b' : 'w';
+  return state;
+}
+
+function isLegalFor(state: GameState, color: Color, move: Move): boolean {
+  return getAllLegalMoves(state, color).some((candidate) => sameMove(candidate, move));
+}
+
+describe('safe fallback and simple tactics', () => {
+  const lowTimeFens = [
+    'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w',
+    'r1bq1rk1/ppp2ppp/2np1n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w',
+    'r4rk1/pp3ppp/2n1b3/3q4/3P4/2N2N2/PP3PPP/R2Q1RK1 b'
+  ];
+
+  for (const difficulty of ['hard', 'max'] as const) {
+    it(`${difficulty}: returns a legal move with a 1ms budget`, () => {
+      for (const fen of lowTimeFens) {
+        const state = stateFromFen(fen);
+        const color = state.activeColor;
+        const progress: Move[] = [];
+        const move = chooseMove(state, {
+          difficulty,
+          color,
+          seed: 7,
+          maxTimeMs: 1,
+          onProgress: (update) => {
+            if (update.move) {
+              progress.push(update.move);
+            }
+          }
+        });
+        expect(move).not.toBeNull();
+        expect(isLegalFor(state, color, move as Move)).toBe(true);
+        // Prefer the last completed iteration's best move when one was reported.
+        if (progress.length > 0) {
+          expect(sameMove(move as Move, progress[progress.length - 1])).toBe(true);
+        }
+      }
+    });
+
+    it(`${difficulty}: returns a legal move when stop is requested immediately`, () => {
+      for (const fen of lowTimeFens) {
+        const state = stateFromFen(fen);
+        const color = state.activeColor;
+        const move = chooseMove(state, {
+          difficulty,
+          color,
+          seed: 7,
+          maxTimeMs: 1000,
+          stopRequested: () => true
+        });
+        expect(move).not.toBeNull();
+        expect(isLegalFor(state, color, move as Move)).toBe(true);
+      }
+    });
+  }
+
+  const mateInOne: Array<[string, string]> = [
+    ['back rank rook', '6k1/5ppp/8/8/8/8/8/R3K3 w'],
+    ['queen and king', '7k/5K2/8/8/8/8/8/6Q1 w'],
+    ['smothered mate', '6rk/6pp/8/6N1/8/8/8/4K3 w'],
+    ['black to move back rank', 'r5k1/8/8/8/8/8/5PPP/6K1 b']
+  ];
+
+  for (const difficulty of ['medium', 'hard', 'max'] as const) {
+    for (const [name, fen] of mateInOne) {
+      it(`${difficulty}: plays mate in one (${name})`, () => {
+        const state = stateFromFen(fen);
+        const color = state.activeColor;
+        const enemy: Color = color === 'w' ? 'b' : 'w';
+        const move = chooseMove(state, { difficulty, color, seed: 11, maxTimeMs: 300 });
+        expect(move).not.toBeNull();
+        const after = applyMove(state, move as Move);
+        expect(isInCheck(after, enemy)).toBe(true);
+        expect(getAllLegalMoves(after, enemy)).toHaveLength(0);
+      });
+    }
+  }
+
+  const hanging: Array<[string, string]> = [
+    ['knight attacked by pawn', '4k3/8/8/3p4/4N3/8/8/4K3 w'],
+    ['rook attacked by bishop', '4k3/8/8/8/3b4/8/8/R3K3 w'],
+    ['bishop attacked by pawn', '4k3/8/8/8/3p4/2B5/8/4K3 w']
+  ];
+
+  for (const difficulty of ['medium', 'hard', 'max'] as const) {
+    for (const [name, fen] of hanging) {
+      it(`${difficulty}: does not leave a piece en prise (${name})`, () => {
+        const state = stateFromFen(fen);
+        const move = chooseMove(state, { difficulty, color: 'w', seed: 5, maxTimeMs: 300 });
+        expect(move).not.toBeNull();
+        const after = applyMove(state, move as Move);
+        const losesPiece = getAllLegalMoves(after, 'b').some((reply) => {
+          const target = getPieceAt(after, reply.to);
+          return target !== null && target.color === 'w' && target.type !== 'pawn' && target.type !== 'king';
+        });
+        expect(losesPiece, `${FEN_FILES[(move as Move).from.file]}${(move as Move).from.rank + 1} left a piece hanging`).toBe(false);
+      });
+    }
+  }
 });
